@@ -1,25 +1,16 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Sum, Max, Case, When, IntegerField
-from django.db.models.functions import TruncDate
 from datetime import datetime, date
 
 from retail.models import SaleItem, DailyProductSales, FestiveCalendar
 
 
 def pick_festival_name(day: date, festivals):
-    """
-    Pick the festival whose window contains 'day'.
-    If multiple windows overlap, pick the smallest window length,
-    then earliest end_date (deterministic).
-    """
     matches = []
-
     for f in festivals:
-        # ✅ Defensive: skip broken/empty festival windows
         if f.start_date is None or f.end_date is None:
             continue
-
         if f.start_date <= day <= f.end_date:
             window_len = (f.end_date - f.start_date).days
             matches.append((window_len, f.end_date, f.festival_name))
@@ -52,16 +43,13 @@ class Command(BaseCommand):
         dfrom = parse_ymd(date_from) if date_from else None
         dto = parse_ymd(date_to) if date_to else None
 
-        # Load festivals once
         festivals = list(FestiveCalendar.objects.all())
 
-        # ✅ Base queryset: daily aggregation per product
+        # Aggregate by business date (sale_date)
         qs = (
             SaleItem.objects
             .select_related("sale", "product")
-            .annotate(day=TruncDate("sale__created_at"))
-            .exclude(day__isnull=True)  # ✅ prevent None day rows
-            .values("day", "product_id")
+            .values("sale__sale_date", "product_id")
             .annotate(
                 qty_sold=Sum("qty"),
                 sales_amt=Sum("line_total"),
@@ -75,13 +63,12 @@ class Command(BaseCommand):
             )
         )
 
-        # Apply date filters (on day)
+        # Apply date filters
         if dfrom:
-            qs = qs.filter(day__gte=dfrom)
+            qs = qs.filter(sale__sale_date__gte=dfrom)
         if dto:
-            qs = qs.filter(day__lte=dto)
+            qs = qs.filter(sale__sale_date__lte=dto)
 
-        # Wipe existing rows in range if requested
         if wipe:
             del_q = DailyProductSales.objects.all()
             if dfrom:
@@ -91,7 +78,6 @@ class Command(BaseCommand):
             deleted = del_q.delete()[0]
             self.stdout.write(self.style.WARNING(f"Wiped {deleted} DailyProductSales rows in range."))
 
-        # Existing records in range for upsert
         existing_q = DailyProductSales.objects.all()
         if dfrom:
             existing_q = existing_q.filter(date__gte=dfrom)
@@ -104,7 +90,7 @@ class Command(BaseCommand):
         to_update = []
 
         for row in qs:
-            day = row["day"]  # date
+            day = row["sale__sale_date"]
             product_id = row["product_id"]
 
             qty_sold = row["qty_sold"] or 0
@@ -112,7 +98,9 @@ class Command(BaseCommand):
             promo_flag = bool(row["promo_flag"] or 0)
 
             fest_name = pick_festival_name(day, festivals)
-            is_festive = fest_name is not None
+            if fest_name is None:
+                fest_name = ""
+            is_festive = bool(fest_name)
 
             key = (day, product_id)
 

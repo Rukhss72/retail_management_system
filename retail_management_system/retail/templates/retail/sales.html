@@ -602,6 +602,7 @@
                     <th>Product</th>
                     <th>Qty</th>
                     <th>Unit Price</th>
+                    <th>Disc %</th>
                     <th>Line Total</th>
                     <th></th>
                   </tr>
@@ -621,7 +622,8 @@
               </div>
               <div class="total-row">
                 <span class="label">Discount</span>
-                <input type="number" name="discount" id="discountInput" value="0" min="0" step="0.01" style="width:110px; text-align:right;">
+                <input type="hidden" name="discount" id="discountInput" value="0">
+                <span class="val" id="discountVal">0.00</span>
               </div>
               <div class="total-row total">
                 <span class="label">Total</span>
@@ -776,6 +778,7 @@
                     <th>Product</th>
                     <th>Qty</th>
                     <th>Unit Price</th>
+                    <th>Disc %</th>
                     <th>Line Total</th>
                   </tr>
                 </thead>
@@ -785,6 +788,7 @@
                       <td style="font-weight:900;">{{ it.product.sku }} {{ it.product.product_name }}</td>
                       <td>{{ it.qty }}</td>
                       <td>{{ it.unit_price }}</td>
+                      <td>{{ it.discount_pct }}</td>
                       <td style="font-weight:900;">{{ it.line_total }}</td>
                     </tr>
                   {% endfor %}
@@ -850,18 +854,25 @@
       return Object.values(cart).map(it => ({
         product_id: it.id,
         qty: it.qty,
-        unit_price: String(it.price)
+        unit_price: String(it.price),
+        discount_pct: String(it.discount_pct || 0)
       }));
     }
 
     function recompute(){
       const items = Object.values(cart);
       const subtotal = items.reduce((sum, it) => sum + (Number(it.price) * Number(it.qty)), 0);
-
-      const discount = Math.max(0, Number(discountInput?.value || 0));
+      const discount = items.reduce((sum, it) => {
+        const gross = Number(it.price) * Number(it.qty);
+        const pct = Math.max(0, Math.min(100, Number(it.discount_pct || 0)));
+        return sum + (gross * pct / 100);
+      }, 0);
       const total = Math.max(0, subtotal - discount);
 
       subtotalVal.textContent = money(subtotal);
+      if (discountInput) discountInput.value = money(discount);
+      const discountVal = document.getElementById("discountVal");
+      if (discountVal) discountVal.textContent = money(discount);
       totalVal.textContent = money(total);
 
       cartJsonEl.value = JSON.stringify(cartToList());
@@ -887,7 +898,9 @@
         const tr = document.createElement("tr");
         tr.className = "cart-row";
 
-        const lineTotal = Number(it.price) * Number(it.qty);
+        const gross = Number(it.price) * Number(it.qty);
+        const pct = Math.max(0, Math.min(100, Number(it.discount_pct || 0)));
+        const lineTotal = gross - (gross * pct / 100);
         const showOnlyLeft = it.stock > 0 && it.stock <= 5; // uses CURRENT stock; no hardcoding "2"
 
         tr.innerHTML = `
@@ -906,6 +919,9 @@
           </td>
           <td>
             <input type="number" min="0" step="0.01" value="${Number(it.price).toFixed(2)}" data-action="price" data-id="${it.id}" style="width:120px; text-align:right;">
+          </td>
+          <td>
+            <input type="number" min="0" max="100" step="0.01" value="${Number(it.discount_pct || 0).toFixed(2)}" data-action="discount" data-id="${it.id}" style="width:90px; text-align:right;">
           </td>
           <td style="font-weight:900;">${money(lineTotal)}</td>
           <td>
@@ -931,7 +947,7 @@
       if (stock <= 0) return;
 
       if (!cart[id]){
-        cart[id] = { id, sku, name, price, stock, qty: 1 };
+        cart[id] = { id, sku, name, price, stock, qty: 1, discount_pct: 0 };
       } else {
         // Increase qty but never exceed stock
         cart[id].qty = Math.min(cart[id].qty + 1, cart[id].stock);
@@ -996,11 +1012,14 @@
         render();
         return;
       }
-    });
 
-    if (discountInput){
-      discountInput.addEventListener("input", () => recompute());
-    }
+      if (action === "discount"){
+        const d = Math.max(0, Math.min(100, Number(el.value || 0)));
+        cart[id].discount_pct = d;
+        render();
+        return;
+      }
+    });
 
     function escapeHtml(str){
       return String(str)

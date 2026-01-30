@@ -95,11 +95,12 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
         cashier=cashier,
         customer_name=(customer_name or "").strip(),
         customer_phone=(customer_phone or "").strip(),
-        discount=Decimal(discount or "0.00"),
+        discount=Decimal("0.00"),
         payment_method=payment_method or "cash",
     )
 
     subtotal = Decimal("0.00")
+    discount_total = Decimal("0.00")
 
     for item in cart_items:
         pid = int(item["product_id"])
@@ -107,15 +108,24 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
         p = product_map[pid]
 
         unit_price = Decimal(str(item.get("unit_price") or p.selling_price))
-        line_total = unit_price * qty
-        subtotal += line_total
+        gross = unit_price * qty
+        subtotal += gross
+
+        discount_pct = Decimal(str(item.get("discount_pct") or "0.00"))
+        if discount_pct < 0:
+            discount_pct = Decimal("0.00")
+        if discount_pct > 100:
+            discount_pct = Decimal("100.00")
+
+        discount_amt = (gross * discount_pct) / Decimal("100")
+        discount_total += discount_amt
 
         SaleItem.objects.create(
             sale=sale,
             product=p,
             qty=qty,
             unit_price=unit_price,
-            line_total=line_total,
+            discount_pct=discount_pct,
         )
 
         record_stock_movement(
@@ -128,8 +138,9 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
         )
 
     sale.subtotal = subtotal
-    sale.total = max(Decimal("0.00"), subtotal - sale.discount)
-    sale.save(update_fields=["subtotal", "total"])
+    sale.discount = discount_total
+    sale.total = max(Decimal("0.00"), subtotal - discount_total)
+    sale.save(update_fields=["subtotal", "discount", "total"])
 
     return sale
 

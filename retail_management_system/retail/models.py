@@ -116,6 +116,7 @@ class Sale(models.Model):
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     payment_method = models.CharField(max_length=10, choices=PaymentMethod.choices, default=PaymentMethod.CASH)
+    sale_date = models.DateField(default=timezone.localdate)
     created_at = models.DateTimeField(auto_now_add=True)
 
     promo_flag = models.BooleanField(default=False)
@@ -130,7 +131,20 @@ class SaleItem(models.Model):
 
     qty = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    discount_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def save(self, *args, **kwargs):
+        gross = self.unit_price * Decimal(self.qty)
+        if self.discount_amt and self.discount_amt > 0:
+            if self.discount_amt > gross:
+                self.discount_amt = gross
+            self.discount_pct = (self.discount_amt / gross * Decimal("100")) if gross > 0 else Decimal("0.00")
+        else:
+            self.discount_amt = (gross * self.discount_pct) / Decimal("100")
+        self.line_total = gross - self.discount_amt
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.sale.receipt_no} - {self.product.sku}"
@@ -345,7 +359,7 @@ class DailyProductSales(models.Model):
 
     promo_flag = models.BooleanField(default=False)  # derived from Sale.promo_flag
     is_festive = models.BooleanField(default=False)
-    festival_name = models.CharField(max_length=80, null=True, blank=True)  # nullable when not festive
+    festival_name = models.CharField(max_length=80, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
