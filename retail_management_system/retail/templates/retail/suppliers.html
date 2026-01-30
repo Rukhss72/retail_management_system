@@ -1,0 +1,1567 @@
+{% extends "retail/base.html" %}
+{% block title %}Suppliers | Retail Management System{% endblock %}
+
+{% block content %}
+
+<style>
+  :root{
+    --border:#E5E7EB;
+    --muted:#6B7280;
+    --radius:14px;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+    --shadow:0 10px 22px rgba(0,0,0,.10);
+    --transition:all .2s ease;
+  }
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 900;
+    cursor:pointer;
+    border: 1px solid transparent;
+    transition: opacity .15s ease, transform .15s ease;
+    user-select:none;
+    text-decoration:none;
+  }
+  .btn:hover{ opacity:.93; transform: translateY(-1px); }
+  .btn-primary{ background: var(--berry); color: var(--white); }
+
+  .btn-outline{
+    background: transparent;
+    border-color: var(--charcoal);
+    color: var(--charcoal);
+  }
+  .btn-soft{
+    background: rgba(132,172,206,.18);
+    border: 1px solid rgba(132,172,206,.35);
+    color: var(--charcoal);
+  }
+
+  .sup-title{
+    margin: 6px 0 14px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--charcoal);
+  }
+/*
+  .sup-wrap{
+    position: static;
+    right: auto;
+  } */
+.sup-wrap{
+    position: relative;
+    right: -20px;   /* try -60px or -50px if too much */
+  }
+
+  /* Center the whole Suppliers page content */
+  .scm-shell{
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  /* Centered page title like screenshot */
+  .scm-titlebar{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    margin: 8px 0 14px;
+  }
+  .scm-title{
+    margin:0;
+    font-weight: 900;
+    color: var(--charcoal);
+    font-size: 28px;
+    letter-spacing: .2px;
+  }
+  .scm-titlebar i{
+    font-size: 22px;
+    color: var(--berry);
+  }
+
+  /* Center tabs row */
+  .tabs-wrap{
+    display:flex;
+    justify-content:center;
+    margin-bottom: 14px;
+  }
+
+  /* Toolbar left stack (search/filter then Add New) */
+  .toolbar{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+    margin-bottom: 12px;
+  }
+  .toolbar-row{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+
+  .iconbtn.edit{ color:#2563EB; border-color: rgba(37,99,235,0.25); }
+  .iconbtn.edit:hover{ background: rgba(37,99,235,0.08); }
+
+  /* Messages */
+  .msg{
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border: 1px solid rgba(0,0,0,.06);
+    font-weight: 800;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+  }
+  .msg.success{ background: rgba(232,245,233,.9); color: #1B5E20; }
+  .msg.error{ background: rgba(255,235,238,.9); color: #B71C1C; }
+
+  /* Modal */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.45);
+    display:none; align-items:center; justify-content:center; padding:18px; z-index:9998;
+  }
+  .modal{
+    width:100%; max-width:560px; background:#fff; border-radius:14px; overflow:hidden;
+    border:1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .modal-head{
+    background: var(--charcoal);
+    color:#fff;
+    padding:12px 14px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .modal-title{
+    margin:0;
+    font-weight:900;
+    font-size: 1rem;
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .modal-close{ background:transparent; border:0; color:#fff; cursor:pointer; font-size:18px; }
+  .modal-body{ padding:14px; }
+  .modal-foot{ padding:14px; display:flex; gap:10px; }
+
+  .field{ margin-bottom:12px; }
+  .field label{
+    display:block;
+    font-size:12px;
+    font-weight:900;
+    color:#374151;
+    margin-bottom:6px;
+  }
+  .field input, .field textarea, .field select{
+    width:100%;
+    padding: 10px 12px;
+    border:1px solid #D1D5DB;
+    border-radius:12px;
+    background:#FAFAFA;
+    outline:none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus{
+    border-color: var(--berry);
+    box-shadow: 0 0 0 3px rgba(170,68,101,.10);
+    background:#fff;
+  }
+
+  .grid-2{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px){
+    .grid-2{ grid-template-columns: 1fr; }
+  }
+
+
+  
+  /* Top header (title + search + add) */
+  .page-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin: 6px 0 14px;
+  }
+  .page-title{
+    display:flex; align-items:center; gap:10px;
+    font-weight: 900;
+    color: var(--charcoal);
+    font-size: 20px;
+    margin:0;
+  }
+  .page-actions{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .searchbox{
+    display:flex; align-items:center; gap:8px;
+    padding: 10px 12px;
+    border:1px solid var(--border);
+    border-radius: 12px;
+    background:#fff;
+    min-width: 260px;
+  }
+  .searchbox input{
+    border:0; outline:none; width: 240px; max-width: 100%;
+    font-weight: 800; color: var(--charcoal);
+  }
+
+  /* Tabs like the screenshot */
+  .tabs{
+    display:inline-flex;
+    gap:6px;
+    padding:6px;
+    border:1px solid rgba(64,78,92,0.12);
+    background: rgba(64,78,92,0.06);
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
+  .tabbtn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:10px 12px;
+    border-radius: 12px;
+    font-weight: 900;
+    text-decoration:none;
+    color: var(--charcoal);
+    background: transparent;
+    border: 1px solid transparent;
+  }
+  .tabbtn.active{
+    background:#fff;
+    border-color: rgba(64,78,92,0.14);
+    box-shadow: var(--shadow-sm);
+    color: var(--berry);
+  }
+
+  /* Card header (title + subtitle) like screenshot */
+  .card{
+    background: var(--white);
+    border: 1px solid rgba(64,78,92,0.18);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-head{
+    padding: 8px 6px 12px;
+    border-bottom: 1px solid rgba(64,78,92,0.10);
+    margin-bottom: 12px;
+  }
+  .card-head h2{
+    margin:0;
+    font-weight:900;
+    color: var(--charcoal);
+    font-size: 18px;
+  }
+  .card-head p{
+    margin:4px 0 0;
+    color: var(--muted);
+    font-weight: 800;
+    font-size: 13px;
+  }
+
+  /* Actions icons */
+  .act{
+    display:inline-flex; gap:10px; align-items:center;
+  }
+  .iconbtn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:34px;
+    border-radius: 10px;
+    border:1px solid rgba(64,78,92,0.14);
+    background:#fff;
+    cursor:pointer;
+    text-decoration:none;
+    color: var(--charcoal);
+  }
+  .iconbtn.danger{ color:#B91C1C; border-color: rgba(185,28,28,0.25); }
+
+  .scm-brand{
+    display:flex;
+    align-items:center;
+    justify-content:center;   /* keeps it centered like your current title */
+    gap:10px;
+  }
+
+  .scm-brand-icon{
+    color: var(--charcoal);      /* or --sky if you want the blue look */
+    font-size: 30px;
+  }
+
+  /* Make modal a fixed-height panel with internal scroll */
+.modal{
+  width:100%;
+  max-width: 680px;
+  max-height: 90vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden; /* important */
+}
+
+.modal-head{ flex: 0 0 auto; }
+.modal-foot{ flex: 0 0 auto; }
+
+/* scroll only the body */
+.modal-body{
+  flex: 1 1 auto;
+  /* overflow:auto; */
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+
+/* consistent textarea sizing */
+.field textarea{
+  resize: vertical;
+  min-height: 90px;
+  max-height: 180px;
+}
+
+/* a slightly larger notes box */
+.field textarea.ta-notes{
+  min-height: 120px;
+  max-height: 240px;
+}
+
+/* nicer placeholder */
+.field input::placeholder,
+.field textarea::placeholder{
+  color:#9CA3AF;
+  font-weight:700;
+}
+
+/* Ensure padding/borders don't cause overflow */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Prevent any horizontal overflow inside modal */
+.modal,
+.modal-body { overflow-x: hidden; }
+
+/* Make form controls never exceed the container */
+.field input,
+.field textarea,
+.field select{
+  width: 100%;
+  max-width: 100%;
+}
+
+
+</style>
+
+<div class="sup-wrap">
+  <div class="scm-shell">
+
+<h1 class="sup-title scm-brand">
+  <i class="fa-solid fa-cube scm-brand-icon"></i>
+  SupplyChain Management
+</h1>
+
+<div class="tabs-wrap">
+  <div class="tabs">
+    <a class="tabbtn {% if tab == 'suppliers' %}active{% endif %}"
+       href="{% url 'suppliers' %}?tab=suppliers">
+      <i class="fa-solid fa-truck"></i> Suppliers
+    </a>
+
+    <a class="tabbtn {% if tab == 'purchase-orders' %}active{% endif %}"
+       href="{% url 'suppliers' %}?tab=purchase-orders">
+      <i class="fa-solid fa-file-lines"></i> Purchase Orders
+    </a>
+
+    <a class="tabbtn {% if tab == 'reorders' %}active{% endif %}"
+       href="{% url 'suppliers' %}?tab=reorders">
+      <i class="fa-solid fa-rotate"></i> Reorders
+    </a>
+  </div>
+</div>
+
+
+
+
+<!-- MESSAGES -->
+{% if messages %}
+  {% for message in messages %}
+    <div class="msg {% if message.tags %}{{ message.tags }}{% endif %}">
+      {% if "success" in message.tags %}
+        <i class="fa-solid fa-circle-check" style="margin-top:4px;"></i>
+      {% else %}
+        <i class="fa-solid fa-triangle-exclamation" style="margin-top:4px;"></i>
+      {% endif %}
+      <div>{{ message }}</div>
+    </div>
+
+  {% endfor %}
+{% endif %}
+
+
+<!-- Page state for JS (available on all tabs) -->
+<div id="pageState"
+     data-tab="{{ tab|escapejs }}"
+     data-has-supplier-errors="{% if form.errors %}1{% else %}0{% endif %}"
+     data-has-po-errors="{% if po_form.errors %}1{% else %}0{% endif %}">
+</div>
+
+{% if tab == "suppliers" %}
+
+  <!-- Suppliers Card -->
+  <div class="card">
+
+    <!-- Card header (like screenshot) -->
+    <div class="card-head">
+      <h2>Suppliers</h2>
+      <p>Track and manage your suppliers</p>
+    </div>
+
+    <!-- Toolbar: LEFT = search + filters | RIGHT = add new -->
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+
+      <!-- LEFT: keep your existing search + status filter -->
+      <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="hidden" name="tab" value="suppliers">
+
+        <div class="searchbox" style="min-width:320px;">
+          <i class="fa-solid fa-magnifying-glass" style="color:#9CA3AF;"></i>
+          <input type="text" name="q" value="{{ q|default:'' }}" placeholder="Search suppliers...">
+        </div>
+
+        <select name="status" style="padding:10px 12px; border:1px solid var(--border); border-radius:12px; font-weight:200;">
+          <option value="all" {% if status == "all" %}selected{% endif %}>All Status</option>
+          <option value="active" {% if status == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status == "inactive" %}selected{% endif %}>Inactive</option>
+        </select>
+
+        <button class="btn btn-soft" type="submit">
+          <i class="fa-solid fa-filter"></i> Apply
+        </button>
+
+        <a class="btn btn-outline" href="{% url 'suppliers' %}?tab=suppliers">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </a>
+      </form>
+
+      <!-- RIGHT: Add New -->
+      <button type="button" class="btn btn-primary" onclick="openSupplierModal()">
+        <i class="fa-solid fa-plus"></i> Add New
+      </button>
+    </div>
+
+    <!-- Table -->
+    <div style="overflow:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+            <th style="padding:10px;">SUPPLIER</th>
+            <th style="padding:10px;">CONTACT</th>
+            <th style="padding:10px;">PRODUCTS</th>
+            <th style="padding:10px;">LEAD TIME</th>
+            <th style="padding:10px;">STATUS</th>
+            <th style="padding:10px; width:120px;">ACTIONS</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for s in suppliers %}
+            <tr style="border-bottom:1px solid rgba(64,78,92,0.08);">
+
+              <!-- SUPPLIER -->
+              <td style="padding:12px 10px;">
+                <div style="font-weight:900; color:var(--charcoal);">{{ s.supplier_name }}</div>
+                <div style="font-size:12px; color:var(--muted); font-weight:800;">
+                  {{ s.email|default:"-" }}
+                </div>
+              </td>
+
+              <!-- CONTACT (person above phone) -->
+              <td style="padding:12px 10px;">
+                <div style="font-weight:900; color:var(--charcoal);">
+                  {{ s.contact_person|default:"-" }}
+                </div>
+                <div style="font-size:12px; color:var(--muted); font-weight:900; margin-top:2px;">
+                  {{ s.phone|default:"-" }}
+                </div>
+              </td>
+
+              <!-- PRODUCTS -->
+              <td style="padding:12px 10px;">
+                <div style="font-weight:800; color:var(--charcoal);">
+                  {{ s.products_services|default:"-" }}
+                </div>
+              </td>
+
+              <!-- LEAD TIME -->
+              <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
+                {{ s.lead_time_days|default:0 }} day(s)
+              </td>
+
+              <!-- STATUS -->
+              <td style="padding:12px 10px;">
+                {% if s.is_active %}
+                  <span style="padding:6px 10px; border-radius:999px; background: rgba(34,197,94,0.16); color:#166534; font-weight:900;">
+                    Active
+                  </span>
+                {% else %}
+                  <span style="padding:6px 10px; border-radius:999px; background: rgba(239,68,68,0.14); color:#991b1b; font-weight:900;">
+                    Inactive
+                  </span>
+                {% endif %}
+              </td>
+
+              <!-- ACTIONS (unchanged) -->
+              <td style="padding:12px 10px;">
+                <div class="act">
+
+                  <!-- EDIT (opens modal, no page navigation) -->
+                  <button
+                    type="button"
+                    class="iconbtn edit"
+                    title="Edit"
+                    onclick="openEditSupplierModal(this)"
+                    data-id="{{ s.id }}"
+                    data-name="{{ s.supplier_name|default_if_none:''|escapejs }}"
+                    data-email="{{ s.email|default_if_none:''|escapejs }}"
+                    data-phone="{{ s.phone|default_if_none:''|escapejs }}"
+                    data-notes="{{ s.notes|default_if_none:''|escapejs }}"
+                    data-lead="{{ s.lead_time_days|default_if_none:0 }}"
+                    data-active="{% if s.is_active %}1{% else %}0{% endif %}"
+                  >
+                    <i class="fa-solid fa-pen"></i>
+                  </button>
+
+                  <!-- DELETE (POST + CSRF) -->
+                  <form
+                    method="post"
+                    action="{% url 'suppliers' %}?tab=suppliers"
+                    style="display:inline;"
+                    onsubmit="return confirm('Delete {{ s.supplier_name|escapejs }}? This cannot be undone.');"
+                  >
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="delete_supplier">
+                    <input type="hidden" name="supplier_id" value="{{ s.id }}">
+                    <button type="submit" class="iconbtn danger" title="Delete">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </form>
+
+                </div>
+              </td>
+
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" style="padding:14px; color:#6B7280; font-weight:900;">No suppliers found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if suppliers.has_other_pages %}
+      <div style="display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;">
+        {% if suppliers.has_previous %}
+          <a class="btn btn-outline"
+             href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.previous_page_number }}">
+            Previous
+          </a>
+        {% else %}
+          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Previous</span>
+        {% endif %}
+
+        <span style="color:#6B7280; font-weight:900;">
+          Page {{ suppliers.number }} of {{ suppliers.paginator.num_pages }}
+        </span>
+
+        {% if suppliers.has_next %}
+          <a class="btn btn-outline"
+             href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.next_page_number }}">
+            Next
+          </a>
+        {% else %}
+          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Next</span>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+
+  <!-- CREATE SUPPLIER MODAL -->
+  <div id="supplierBackdrop" class="modal-backdrop" onclick="backdropClose(event)">
+    <div class="modal" role="dialog" aria-label="Add New Supplier" aria-modal="true">
+
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-user-plus"></i> Add New Supplier
+        </h3>
+        <button class="modal-close" type="button" onclick="closeSupplierModal()" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form method="post" action="{% url 'suppliers' %}?tab=suppliers">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="create_supplier">
+
+        <div class="modal-body">
+
+          <div class="field">
+            <label>Company Name *</label>
+            {{ form.supplier_name }}
+          </div>
+
+          <div class="field">
+            <label>Contact Person</label>
+            {% if form.contact_person %}
+              {{ form.contact_person }}
+            {% else %}
+              <input type="text" name="contact_person" placeholder="Contact person">
+            {% endif %}
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Email</label>
+              {{ form.email }}
+            </div>
+            <div class="field">
+              <label>Phone</label>
+              {{ form.phone }}
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Address</label>
+            {% if form.address %}
+              {{ form.address }}
+            {% else %}
+              <textarea name="address" rows="3" placeholder="Address"></textarea>
+            {% endif %}
+          </div>
+
+          <div class="field">
+            <label>Products / Services</label>
+            {% if form.products_services %}
+              {{ form.products_services }}
+            {% else %}
+              <textarea name="products_services" rows="3" placeholder="Products / Services"></textarea>
+            {% endif %}
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Lead Time (days)</label>
+              {{ form.lead_time_days }}
+            </div>
+
+            <div class="field" style="display:flex; align-items:center; gap:10px; margin-top:22px;">
+              {{ form.is_active }}
+              <label style="margin:0; font-weight:900;">Active</label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Notes</label>
+            {{ form.notes }}
+          </div>
+
+          {% if form.errors %}
+            <div class="msg error">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <div style="font-weight:900;">
+                Please correct the highlighted fields.
+                {{ form.errors }}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-soft" onclick="closeSupplierModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> Add Supplier
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- EDIT SUPPLIER MODAL -->
+  <div id="editSupplierBackdrop" class="modal-backdrop" onclick="backdropCloseEdit(event)">
+    <div class="modal" role="dialog" aria-label="Edit Supplier" aria-modal="true">
+
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-pen-to-square"></i> Edit Supplier
+        </h3>
+        <button class="modal-close" type="button" onclick="closeEditSupplierModal()" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form method="post" action="{% url 'suppliers' %}?tab=suppliers">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="update_supplier">
+        <input type="hidden" name="supplier_id" id="edit_supplier_id">
+
+        <div class="modal-body">
+          <div class="field">
+            <label>Company Name *</label>
+            <input type="text" name="supplier_name" id="edit_supplier_name" required>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Email</label>
+              <input type="email" name="email" id="edit_email">
+            </div>
+            <div class="field">
+              <label>Phone</label>
+              <input type="text" name="phone" id="edit_phone">
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Lead Time (days)</label>
+              <input type="number" name="lead_time_days" id="edit_lead_time" min="0" value="0">
+            </div>
+
+            <div class="field" style="display:flex; align-items:center; gap:10px; margin-top:22px;">
+              <input type="checkbox" name="is_active" id="edit_is_active">
+              <label style="margin:0; font-weight:900;">Active</label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Notes</label>
+            <textarea name="notes" id="edit_notes" rows="4"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-soft" onclick="closeEditSupplierModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> Save Changes
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  
+
+{% endif %}
+
+
+{% if tab == "purchase-orders" %}
+  <div class="card">
+
+    <div class="card-head">
+      <h2>Purchase Orders</h2>
+      <p>Track and manage your purchase orders</p>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+      <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="hidden" name="tab" value="purchase-orders">
+
+        <div class="searchbox" style="min-width:320px;">
+          <i class="fa-solid fa-magnifying-glass" style="color:#9CA3AF;"></i>
+          <input type="text" name="q" value="{{ q|default:'' }}" placeholder="Search PO number / supplier">
+        </div>
+
+        <select name="status" style="padding:10px 12px; border:1px solid var(--border); border-radius:12px;">
+          <option value="all" {% if status == "all" %}selected{% endif %}>All Status</option>
+          <option value="DRAFT" {% if status == "DRAFT" %}selected{% endif %}>Draft</option>
+          <option value="ORDERED" {% if status == "ORDERED" %}selected{% endif %}>Ordered</option>
+          <option value="PARTIAL" {% if status == "PARTIAL" %}selected{% endif %}>Partially Received</option>
+          <option value="RECEIVED" {% if status == "RECEIVED" %}selected{% endif %}>Received</option>
+          <option value="CANCELLED" {% if status == "CANCELLED" %}selected{% endif %}>Cancelled</option>
+        </select>
+
+        <button class="btn btn-soft" type="submit">
+          <i class="fa-solid fa-filter"></i> Apply
+        </button>
+
+        <a class="btn btn-outline" href="{% url 'suppliers' %}?tab=purchase-orders">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </a>
+      </form>
+
+      <button type="button" class="btn btn-primary" onclick="openPOModal()">
+        <i class="fa-solid fa-plus"></i> Create PO
+      </button>
+
+      <button type="button" class="btn btn-soft" onclick="openRRToPOModal()">
+        <i class="fa-solid fa-rotate"></i> Create from Reorder Draft
+      </button>
+
+    </div>
+
+    <div style="overflow:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+            <th style="padding:10px;">PO NUMBER</th>
+            <th style="padding:10px;">SUPPLIER</th>
+            <th style="padding:10px;">ORDER DATE</th>
+            <th style="padding:10px;">EXPECTED DELIVERY </th>
+            <th style="padding:10px;">QTY ORDERED</th>
+            <th style="padding:10px;">QTY RECEIVED</th>
+            <th style="padding:10px;">AMOUNT</th>
+            <th style="padding:10px;">STATUS</th>
+            <th style="padding:10px; width:120px;">ACTIONS</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for po in purchase_orders %}
+            <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
+
+              <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
+                {{ po.po_number|default:po }}
+              </td>
+
+              <td style="padding:12px 10px; font-weight:800; color:var(--charcoal);">
+                {{ po.supplier.supplier_name }}
+              </td>
+
+              <td style="padding:12px 10px;">
+                {% if po.order_date %}{{ po.order_date|date:"d/m/Y" }}{% else %}-{% endif %}
+              </td>
+
+              <td style="padding:12px 10px;">
+                {% if po.delivery_date %}{{ po.delivery_date|date:"d/m/Y" }}{% else %}-{% endif %}
+              </td>
+
+              <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
+                {{ po.total_qty_ordered }}
+              </td>
+
+              <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
+                {{ po.total_qty_received }}
+              </td>
+
+              <td style="padding:12px 10px; font-weight:900;">
+                {{ po.total_amount }}
+              </td>
+
+              <td style="padding:12px 10px;">
+                <span style="padding:6px 10px; border-radius:999px; background: rgba(132,172,206,0.18); color: var(--charcoal); font-weight:900;">
+                  {{ po.status }}
+                </span>
+              </td>
+
+              <td style="padding:12px 10px;">
+                <div class="act">
+
+                  <!-- EDIT (opens modal) -->
+                  {% if po.status == "DRAFT" %}
+                    <button
+                      type="button"
+                      class="iconbtn edit"
+                      title="Edit"
+                      onclick="openEditPOModal(this)"
+                      data-id="{{ po.id }}"
+                      data-po-number="{{ po.po_number|default_if_none:''|escapejs }}"
+                      data-supplier-id="{{ po.supplier_id|default_if_none:'' }}"
+                      data-order-date="{% if po.order_date %}{{ po.order_date|date:'Y-m-d' }}{% endif %}"
+                      data-delivery-date="{% if po.delivery_date %}{{ po.delivery_date|date:'Y-m-d' }}{% endif %}"
+                      data-total-amount="{{ po.total_amount|default_if_none:'0.00' }}"
+                      data-status="{{ po.status|default_if_none:'' }}"
+                      data-notes="{{ po.notes|default_if_none:''|escapejs }}"
+                    >
+                      <i class="fa-solid fa-pen"></i>
+                    </button>
+                  {% else %}
+                    <button type="button" class="iconbtn edit" title="Edit" disabled style="opacity:.5; cursor:not-allowed;">
+                      <i class="fa-solid fa-pen"></i>
+                    </button>
+                  {% endif %}
+
+
+
+                  <!-- DELETE -->
+                  <form method="post"
+                        action="{% url 'suppliers' %}?tab=purchase-orders"
+                        style="display:inline;"
+                        data-confirm="Delete {{ po.po_number|default_if_none:'this PO' }}? This cannot be undone."
+                        onsubmit="return confirmPODelete(this);">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="delete_po">
+                    <input type="hidden" name="po_id" value="{{ po.id }}">
+                    <button type="submit" class="iconbtn danger" title="Delete">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </form>
+
+
+                </div>
+              </td>
+
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9" style="padding:14px; color:#6B7280; font-weight:900;">No purchase orders found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if purchase_orders.has_other_pages %}
+      <div style="display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;">
+        {% if purchase_orders.has_previous %}
+          <a class="btn btn-outline"
+             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.previous_page_number }}">
+            Previous
+          </a>
+        {% else %}
+          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Previous</span>
+        {% endif %}
+
+        <span style="color:#6B7280; font-weight:900;">
+          Page {{ purchase_orders.number }} of {{ purchase_orders.paginator.num_pages }}
+        </span>
+
+        {% if purchase_orders.has_next %}
+          <a class="btn btn-outline"
+             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.next_page_number }}">
+            Next
+          </a>
+        {% else %}
+          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Next</span>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+
+  <!-- CREATE PO MODAL -->
+  <div id="poBackdrop" class="modal-backdrop" onclick="backdropClosePO(event)">
+    <div class="modal" role="dialog" aria-label="Create Purchase Order" aria-modal="true">
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-file-circle-plus"></i> Create Purchase Order
+        </h3>
+        <button class="modal-close" type="button" onclick="closePOModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form method="post" action="{% url 'suppliers' %}?tab=purchase-orders">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="create_po">
+
+        <div class="modal-body">
+          <div class="field">
+            <label>PO Number *</label>
+            {{ po_form.po_number }}
+          </div>
+
+          <div class="field">
+            <label>Supplier *</label>
+            {{ po_form.supplier }}
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Order Date</label>
+              {{ po_form.order_date }}
+            </div>
+
+            <div class="field">
+              <label>Delivery Date</label>
+              {{ po_form.delivery_date }}
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Total Amount ($)</label>
+              {{ po_form.total_amount }}
+            </div>
+
+            <div class="field">
+              <label>Status</label>
+              {{ po_form.status }}
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Notes</label>
+            {{ po_form.notes }}
+          </div>
+
+          {% if po_form.errors %}
+            <div class="msg error">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+              <div style="font-weight:900;">
+                Please correct the highlighted fields.
+                {{ po_form.errors }}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-soft" onclick="closePOModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> Create PO
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- EDIT PO MODAL -->
+  <div id="editPOBackdrop" class="modal-backdrop" onclick="backdropCloseEditPO(event)">
+    <div class="modal" role="dialog" aria-label="Edit Purchase Order" aria-modal="true">
+
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-pen-to-square"></i> Edit Purchase Order
+        </h3>
+        <button class="modal-close" type="button" onclick="closeEditPOModal()" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form method="post" action="{% url 'suppliers' %}?tab=purchase-orders">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="update_po">
+        <input type="hidden" name="po_id" id="edit_po_id">
+
+        <div class="modal-body">
+
+          <div class="field">
+            <label>PO Number *</label>
+            <input type="text" name="po_number" id="edit_po_number" required>
+          </div>
+
+          <div class="field">
+            <label>Supplier *</label>
+            <select name="supplier_id" id="edit_po_supplier" required>
+              {% for s in suppliers_all %}
+                <option value="{{ s.id }}">{{ s.supplier_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Order Date</label>
+              <input type="date" name="order_date" id="edit_po_order_date">
+            </div>
+            <div class="field">
+              <label>Delivery Date</label>
+              <input type="date" name="delivery_date" id="edit_po_delivery_date">
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label>Total Amount</label>
+              <input type="number" step="0.01" min="0" name="total_amount" id="edit_po_total_amount" value="0.00">
+            </div>
+
+            <div class="field">
+              <label>Status</label>
+              <select name="status" id="edit_po_status">
+                <option value="DRAFT">Draft</option>
+                <option value="ORDERED">Ordered</option>
+                <option value="PARTIAL">Partially Received</option>
+                <option value="RECEIVED">Received</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Notes</label>
+            <textarea name="notes" id="edit_po_notes" rows="4"></textarea>
+          </div>
+
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-soft" onclick="closeEditPOModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- REORDER REQUEST TO PO MODAL -->
+  <div id="rrToPoBackdrop" class="modal-backdrop" onclick="backdropCloseRRToPO(event)">
+    <div class="modal" role="dialog" aria-label="Create PO from Reorder Draft" aria-modal="true">
+      <div class="modal-head">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-file-import"></i> Create PO from Reorder Draft
+        </h3>
+        <button class="modal-close" type="button" onclick="closeRRToPOModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        {% if rr_drafts %}
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            {% for rr in rr_drafts %}
+              <form method="post" action="{% url 'suppliers' %}?tab=purchase-orders" style="display:flex; justify-content:space-between; gap:10px; align-items:center; border:1px solid rgba(64,78,92,.12); padding:10px; border-radius:12px;">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="create_po_from_rr">
+                <input type="hidden" name="rr_id" value="{{ rr.id }}">
+
+                <div>
+                  <div style="font-weight:900; color:var(--charcoal);">RR-{{ rr.id }} — {{ rr.supplier.supplier_name }}</div>
+                  <div style="font-size:12px; color:var(--muted); font-weight:800;">
+                    {{ rr.items.count }} item(s) • {{ rr.created_at|date:"d/m/Y H:i" }}
+                  </div>
+                </div>
+
+                <button class="btn btn-primary" type="submit">Generate Draft PO</button>
+              </form>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="color:var(--muted); font-weight:900;">No draft reorder requests available.</div>
+        {% endif %}
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-soft" onclick="closeRRToPOModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+
+{% endif %}
+
+
+
+{% if tab == "reorders" %}
+  <div style="
+    background: var(--white);
+    border: 1px solid rgba(64,78,92,0.18);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+  ">
+    <h3 style="margin:0 0 10px; font-weight:900; color:var(--charcoal);">
+      Reorder Alerts
+    </h3>
+
+    {% if grouped %}
+      
+
+      <form method="post" action="{% url 'reorder_request_create_draft' %}">
+        {% csrf_token %}
+
+        <div id="stickyReorderBar" style="
+          position: sticky;
+          bottom: 0;
+          margin-top: 12px;
+          padding: 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(64,78,92,0.18);
+          background: #fff;
+          box-shadow: var(--shadow-sm);
+          display:none;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+        ">
+          <div style="font-weight:900; color:var(--charcoal);">
+            Selected: <span id="selectedCount">0</span> item(s)
+          </div>
+          <button class="btn btn-primary" type="submit">
+            <i class="fa-solid fa-file-circle-plus"></i> Create Draft(s)
+          </button>
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <div style="font-weight:900; color:var(--charcoal);">
+            Select items to create a Reorder Request (draft)
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-soft" onclick="selectAllReorder(true)">
+              Select All
+            </button>
+            <button type="button" class="btn btn-soft" onclick="selectAllReorder(false)">
+              Clear
+            </button>
+
+            <button class="btn btn-primary" type="submit">
+              <i class="fa-solid fa-file-circle-plus"></i> Create Draft Request
+            </button>
+          </div>
+        </div>
+
+        {% for bucket in grouped.values %}
+          <div class="supplier-bucket" style="border:1px solid rgba(64,78,92,0.12); border-radius:14px; padding:12px; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+              <div style="font-weight:900;">{{ bucket.supplier_name }}</div>
+              <div style="color:var(--muted); font-weight:900;">{{ bucket.items|length }} item(s)</div>
+            </div>
+
+            <div style="overflow:auto;">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+                    <th style="padding:10px; width:52px;">Pick</th>
+                    <th style="padding:10px;">Product</th>
+                    <th style="padding:10px;">Stock</th>
+                    <th style="padding:10px;">Status</th>
+                    <th style="padding:10px;">Suggested</th>
+                    <th style="padding:10px; min-width:160px;">Request Qty</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {% for it in bucket.items %}
+                    <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
+                      <td style="padding:10px;">
+                        <input
+                          type="checkbox"
+                          class="reorder-pick"
+                          name="product_ids"
+                          value="{{ it.product_id }}"
+                          data-pid="{{ it.product_id }}"
+                          onchange="toggleQtyEnabled(this)"
+                          style="transform:scale(1.15); cursor:pointer;"
+                        >
+                      </td>
+
+                      <td style="padding:10px; font-weight:800;">
+                        {{ it.product_name }} ({{ it.sku }})
+                        <div style="font-size:12px; color:var(--muted); font-weight:800; margin-top:3px;">
+                          {{ it.category.category_name }}
+                        </div>
+                      </td>
+
+                      <td style="padding:10px; font-weight:900;">{{ it.qty_in_stock }}</td>
+
+                      <td style="padding:10px; font-weight:900;">
+                        {% if it.status_label == "OUT" %}
+                          <span style="padding:6px 10px; border-radius:999px; background: rgba(239,68,68,0.16); color:#991b1b; font-weight:900;">
+                            OUT
+                          </span>
+                        {% else %}
+                          <span style="padding:6px 10px; border-radius:999px; background: rgba(245,158,11,0.18); color:#92400e; font-weight:900;">
+                            LOW
+                          </span>
+                        {% endif %}
+                      </td>
+
+                      <td style="padding:10px; font-weight:900;">
+                        {{ it.suggested_qty }}
+                      </td>
+
+                      <td style="padding:10px;">
+                        <input
+                          type="number"
+                          min="0"
+                          name="qty_{{ it.product_id }}"
+                          id="qty_{{ it.product_id }}"
+                          value="{{ it.suggested_qty }}"
+                          disabled
+                          style="width:140px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:#FAFAFA; font-weight:900;"
+                        >
+
+                        <input type="hidden" name="supplier_{{ it.product_id }}" value="{% if it.supplier_id %}{{ it.supplier_id }}{% endif %}">
+                        <input type="hidden" name="suggested_{{ it.product_id }}" value="{{ it.suggested_qty }}">
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-soft" onclick="selectSupplierBucket(this, true)">
+                Select supplier items
+              </button>
+              <button type="button" class="btn btn-soft" onclick="selectSupplierBucket(this, false)">
+                Clear supplier items
+              </button>
+            </div>
+          </div>
+        {% endfor %}
+      </form>
+    {% else %}
+      <div style="color:var(--muted); font-weight:900;">No low/out items (after snooze filtering).</div>
+    {% endif %}
+
+    <script>
+      function toggleQtyEnabled(cb){
+        const pid = cb.getAttribute("data-pid");
+        const qtyInput = document.getElementById("qty_" + pid);
+        if (!qtyInput) return;
+
+        qtyInput.disabled = !cb.checked;
+        qtyInput.style.background = cb.checked ? "#fff" : "#FAFAFA";
+        qtyInput.style.borderColor = cb.checked ? "var(--berry)" : "var(--border)";
+      }
+
+      function selectAllReorder(checked){
+        const picks = document.querySelectorAll(".reorder-pick");
+        picks.forEach(cb => {
+          cb.checked = checked;
+          toggleQtyEnabled(cb);
+        });
+      }
+
+      function selectSupplierBucket(btn, checked){
+        // Find the nearest supplier bucket card and toggle only those checkboxes
+        const bucket = btn.closest(".supplier-bucket");
+        if (!bucket) return;
+
+        const picks = bucket.querySelectorAll(".reorder-pick");
+        picks.forEach(cb => {
+          cb.checked = checked;
+          toggleQtyEnabled(cb);
+        });
+      }
+
+      function updateStickyBar(){
+        const picks = document.querySelectorAll(".reorder-pick");
+        let count = 0;
+        picks.forEach(cb => { if (cb.checked) count++; });
+
+        const bar = document.getElementById("stickyReorderBar");
+        const out = document.getElementById("selectedCount");
+        if (!bar || !out) return;
+
+        out.textContent = count;
+        bar.style.display = count > 0 ? "flex" : "none";
+      }
+
+      // call after any change
+      document.querySelectorAll(".reorder-pick").forEach(cb => {
+        cb.addEventListener("change", updateStickyBar);
+      });
+
+      // also call inside your selectAllReorder/selectSupplierBucket
+      // after toggling checkboxes:
+      updateStickyBar();
+
+    </script>
+
+    <hr style="border:none; border-top:1px solid rgba(64,78,92,0.12); margin:14px 0;">
+
+    <h3 style="margin:0 0 10px; font-weight:900; color:var(--charcoal);">
+      Requests
+    </h3>
+
+    {% if requests %}
+      <div style="overflow:auto;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+              <th style="padding:10px;">Request</th>
+              <th style="padding:10px;">Status</th>
+              <th style="padding:10px;">Created</th>
+              <th style="padding:10px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in requests %}
+              <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
+                <td style="padding:10px; font-weight:900;">RR-{{ r.id }}</td>
+                <td style="padding:10px; font-weight:900;">{{ r.status }}</td>
+                <td style="padding:10px;">{{ r.created_at|date:"d/m/Y H:i" }}</td>
+                <td style="padding:10px;">
+                  {% if not is_admin and r.status == "DRAFT" %}
+                    <form method="post" action="{% url 'reorder_request_submit' r.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button class="btn btn-primary" type="submit">Submit</button>
+                    </form>
+                  {% endif %}
+
+                  {% if is_admin and r.status == "SUBMITTED" %}
+                    <form method="post" action="{% url 'reorder_request_approve' r.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button class="btn btn-primary" type="submit">Approve</button>
+                    </form>
+                    <form method="post" action="{% url 'reorder_request_reject' r.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="decision_note" value="Rejected by admin">
+                      <button class="btn btn-outline" type="submit">Reject</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div style="color:var(--muted); font-weight:900;">No requests yet.</div>
+    {% endif %}
+  </div>
+{% endif %}
+<script>
+  function openSupplierModal(){
+    const el = document.getElementById("supplierBackdrop");
+    if (!el) return;
+    el.style.display = "flex";
+  }
+  function closeSupplierModal(){
+    const el = document.getElementById("supplierBackdrop");
+    if (!el) return;
+    el.style.display = "none";
+  }
+  function backdropClose(e){
+    if (e.target && e.target.id === "supplierBackdrop") closeSupplierModal();
+  }
+  
+
+  // JS-only condition (no Django tags inside JS)
+  const state = document.getElementById("pageState");
+  const currentTab = state?.dataset.tab;
+  const hasSupplierErrors = state?.dataset.hasSupplierErrors === "1";
+  if (currentTab === "suppliers" && hasSupplierErrors) openSupplierModal();
+
+</script>
+
+<script>
+  function openPOModal(){
+    const el = document.getElementById("poBackdrop");
+    if (!el) return;
+    el.style.display = "flex";
+  }
+  function closePOModal(){
+    const el = document.getElementById("poBackdrop");
+    if (!el) return;
+    el.style.display = "none";
+  }
+  function backdropClosePO(e){
+    if (e.target && e.target.id === "poBackdrop") closePOModal();
+  }
+
+  const state2 = document.getElementById("pageState");
+  const tab2 = state2?.dataset.tab;
+  const hasPOErrors2 = state2?.dataset.hasPoErrors === "1";
+  if (tab2 === "purchase-orders" && hasPOErrors2) openPOModal();
+
+</script>
+
+<script>
+  function openEditSupplierModal(btn){
+    const el = document.getElementById("editSupplierBackdrop");
+    if (!el) return;
+
+    document.getElementById("edit_supplier_id").value = btn.dataset.id || "";
+    document.getElementById("edit_supplier_name").value = btn.dataset.name || "";
+    document.getElementById("edit_email").value = btn.dataset.email || "";
+    document.getElementById("edit_phone").value = btn.dataset.phone || "";
+    document.getElementById("edit_lead_time").value = btn.dataset.lead || 0;
+    document.getElementById("edit_notes").value = btn.dataset.notes || "";
+
+    const active = (btn.dataset.active === "1");
+    document.getElementById("edit_is_active").checked = active;
+
+    el.style.display = "flex";
+  }
+
+  function closeEditSupplierModal(){
+    const el = document.getElementById("editSupplierBackdrop");
+    if (!el) return;
+    el.style.display = "none";
+  }
+
+  function backdropCloseEdit(e){
+    if (e.target && e.target.id === "editSupplierBackdrop") closeEditSupplierModal();
+  }
+
+  
+</script>
+
+<script>
+  function confirmPODelete(formEl){
+    const msg = formEl.getAttribute("data-confirm") || "Delete this item?";
+    return window.confirm(msg);
+  }
+</script>
+
+
+<script>
+  document.addEventListener("keydown", function(e){
+  if (e.key !== "Escape") return;
+  if (typeof closeSupplierModal === "function") closeSupplierModal();
+  if (typeof closePOModal === "function") closePOModal();
+  if (typeof closeEditSupplierModal === "function") closeEditSupplierModal();
+  if (typeof closeEditPOModal === "function") closeEditPOModal();
+});
+
+</script>
+
+<script>
+  function openEditPOModal(btn){
+    const el = document.getElementById("editPOBackdrop");
+    if (!el) return;
+
+    document.getElementById("edit_po_id").value = btn.dataset.id || "";
+    document.getElementById("edit_po_number").value = btn.dataset.poNumber || "";
+    document.getElementById("edit_po_order_date").value = btn.dataset.orderDate || "";
+    document.getElementById("edit_po_delivery_date").value = btn.dataset.deliveryDate || "";
+    document.getElementById("edit_po_total_amount").value = btn.dataset.totalAmount || "0.00";
+    document.getElementById("edit_po_notes").value = btn.dataset.notes || "";
+
+    // select supplier
+    const supSel = document.getElementById("edit_po_supplier");
+    if (supSel) supSel.value = btn.dataset.supplierId || "";
+
+    // select status
+    const statusSel = document.getElementById("edit_po_status");
+    if (statusSel) statusSel.value = btn.dataset.status || "DRAFT";
+
+    el.style.display = "flex";
+  }
+
+  function closeEditPOModal(){
+    const el = document.getElementById("editPOBackdrop");
+    if (!el) return;
+    el.style.display = "none";
+  }
+
+  function backdropCloseEditPO(e){
+    if (e.target && e.target.id === "editPOBackdrop") closeEditPOModal();
+  }
+</script>
+
+<script>
+  function openRRToPOModal(){
+    const el = document.getElementById("rrToPoBackdrop");
+    if (el) el.style.display = "flex";
+  }
+  function closeRRToPOModal(){
+    const el = document.getElementById("rrToPoBackdrop");
+    if (el) el.style.display = "none";
+  }
+  function backdropCloseRRToPO(e){
+    if (e.target && e.target.id === "rrToPoBackdrop") closeRRToPOModal();
+  }
+</script>
+
+
+
+  </div>
+</div>
+{% endblock %}

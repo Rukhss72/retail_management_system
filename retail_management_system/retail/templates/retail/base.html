@@ -1,0 +1,507 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Retail Management System{% endblock %}</title>
+  <!-- Font Awesome (icons). If you already include it in base.html, you can remove this line. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root{
+      --white:#FFFFFF;
+      --sky:#84ACCE;
+      --charcoal:#404E5C;
+      --berry:#AA4465;
+      --cotton:#EDBFC6;
+
+      --bg:#f5f7fa;
+      --border:#ced4da;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+      --transition:all .2s ease;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--charcoal);
+    }
+
+    /* ===== SIDEBAR (collapsible) ===== */
+    .sidebar{
+      position: fixed;
+      top: 40%;              /* center vertically */
+      left: 150px;            /* keep separation from left edge */
+      transform: translateY(-50%);  /* pull up by half its own height */
+      z-index: 9000;
+
+      background: var(--charcoal);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.18);
+
+      height: auto;          /* still fit content */
+      width: 300px;
+      overflow: hidden;
+
+      transition: var(--transition);
+
+      /*max-height: calc(100vh - 32px);
+      overflow: auto; */
+
+    }
+
+
+    .sidebar.collapsed{
+      width: 70px;           /* icon-only width */
+    }
+
+
+    .sidebar-inner{
+      padding: 12px;
+    }
+
+    /* Header row inside sidebar */
+    .sidebar-top{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .sidebar-toggle{
+      width: 50px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.08);
+      color: var(--white);
+      cursor: pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition: var(--transition);
+
+      padding: 0;              /* IMPORTANT */
+      box-sizing: border-box;  /* IMPORTANT */
+    }
+    .sidebar-toggle:hover{
+      background: rgba(255,255,255,0.14);
+      border-color: rgba(255,255,255,0.22);
+    }
+
+    /* Brand as underlined text (not a pill/button) */
+    .sidebar-brand-link{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      text-decoration: none;        /* we will underline only the text */
+      color: var(--white);
+      padding: 6px 2px;             /* light spacing, not a container */
+    }
+
+    .brand-title{
+      font-weight: 600;
+      letter-spacing: .2px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 1px;
+      text-decoration-color: rgba(255,255,255,0.55);
+
+    }
+
+    .sidebar-brand-link:hover .brand-title{
+      text-decoration-color: rgba(255,255,255,0.95);
+    }
+
+    .brand-dot{
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--berry);
+      box-shadow: 0 0 0 4px rgba(170,68,101,0.18);
+    }
+
+    /* Nav links */
+    .side-nav{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+
+    .side-link{
+      width: 90%;
+      color: var(--white);
+      text-decoration: none;
+
+      padding: 12px 12px;
+      border-radius: 12px;
+
+      display:flex;
+      align-items:center;
+      gap: 12px;
+
+      background: rgba(255,255,255,0.08);
+      border: 1px solid transparent;
+      transition: var(--transition);
+    }
+
+    .side-link i{
+      width: 22px; /* helps alignment when collapsed */
+      text-align:center;
+      font-size: 15px;
+      opacity: .95;
+    }
+
+    .side-link:hover{
+      background: rgba(255,255,255,0.14);
+      border-color: rgba(255,255,255,0.22);
+    }
+
+    .side-link.active{
+      background: var(--berry);
+      border-color: rgba(255,255,255,0.18);
+    }
+
+    /* Logout form */
+    .side-form{ margin: 0; }
+    .side-btn{
+      cursor: pointer;
+      font: inherit;
+      outline: none;
+    }
+
+    /* Collapsed behavior: hide text, center icons */
+    .sidebar.collapsed .brand-title,
+    .sidebar.collapsed .link-text{
+      display:none;
+    }
+
+    /* Make the pills smaller when collapsed */
+    .sidebar.collapsed .side-link{
+      width: 40px;              /* controls the pill width */
+      margin: 0 auto;           /* centers the pill inside the sidebar */
+      padding: 12px 0;          /* remove left/right padding */
+      justify-content: center;
+      gap: 0;
+      border-radius: 14px;
+    }
+
+    .sidebar.collapsed .sidebar-toggle{
+      width: 40px;
+      height: 40px;
+      min-width: 40px;         /* IMPORTANT for flex items */
+      max-width: 40px;
+      flex: 0 0 40px;          /* IMPORTANT in flex containers */
+    }
+
+    /* Center the toggle perfectly in collapsed mode */
+    .sidebar.collapsed .sidebar-top{
+      justify-content: center;
+      gap: 0;                /* remove the extra spacing */
+    }
+
+    .sidebar.collapsed .sidebar-brand-link{
+      display: none;         /* ensure no hidden element affects layout */
+    }
+
+
+    /* Shift page content right of sidebar */
+    .page{
+      padding-left: 16px;
+      padding-top: 16px;
+    }
+
+    /* The container now needs left margin so content doesn't overlap sidebar */
+    .container{
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 18px;
+
+      /* move content a bit more to the right (towards center) */
+      margin-left: 420px;     /* was 270px */
+      margin-right: 40px;     /* add breathing room on the right */
+      transition: var(--transition);
+    }
+
+
+    /* When collapsed, reduce offset */
+    .sidebar.collapsed ~ .page .container{
+      margin-left: 400px;     /* was 102px */
+      margin-right: 40px;
+    }
+
+
+  </style>
+
+</head>
+<body>
+
+  <!-- LEFT COLLAPSIBLE SIDEBAR NAV -->
+  <aside id="sidebar" class="sidebar expanded">
+    <div class="sidebar-inner">
+      <div class="sidebar-top">
+        <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <!-- Optional small brand area (keep or remove) -->
+        <a class="sidebar-brand-link" >
+          <!-- Optional dot, keep if you want -->
+          <!-- <span class="brand-dot"></span> -->
+          <span class="brand-title">Retail Management System</span>
+        </a>
+
+      </div>
+
+      <nav class="side-nav">
+        {% if request.user.is_authenticated %}
+          <a href="{% url 'home' %}"
+            class="side-link {% if request.path == '/home' %}active{% endif %}">
+            <i class="fa-solid fa-house"></i>
+            <span class="link-text">Home</span>
+          </a>
+
+          <a href="{% url 'inventory' %}"
+            class="side-link {% if '/inventory' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-box"></i>
+            <span class="link-text">Inventory</span>
+          </a>
+
+          <a href="{% url 'sales' %}"
+            class="side-link {% if '/sales' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <span class="link-text">Sales</span>
+          </a>
+
+          <a href="{% url 'suppliers' %}"
+            class="side-link {% if '/suppliers' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-truck-field"></i>
+            <span class="link-text">Suppliers</span>
+          </a>
+
+          <a href="{% url 'dashboard' %}"
+            class="side-link {% if '/dashboard' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-chart-line"></i>
+            <span class="link-text">Dashboard</span>
+          </a>
+
+          <a href="{% url 'assistant' %}"
+            class="side-link {% if '/assistant' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-robot"></i>
+            <span class="link-text">Assistant</span>
+          </a>
+
+          <form method="post" action="{% url 'logout' %}" class="side-form">
+            {% csrf_token %}
+            <button type="submit" class="side-link side-btn">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span class="link-text">Logout</span>
+            </button>
+          </form>
+        {% else %}
+          <a href="{% url 'admin_login' %}" class="side-link">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span class="link-text">Login</span>
+          </a>
+        {% endif %}
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Wrap your content so it shifts right of the sidebar -->
+  <main class="page">
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+
+  <!-- Floating Assistant Button + Collapsible Panel -->
+<style>
+  /* Floating button */
+  .assist-fab{
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 0;
+    background: #111827;
+    color: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  .assist-fab:hover{ background:#1f2937; }
+  .assist-fab:focus{ outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+  /* Panel */
+  .assist-panel{
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    width: 340px;
+    height: 460px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 14px;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.18);
+    overflow: hidden;
+    z-index: 9999;
+
+    /* hidden by default */
+    transform: translateY(12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+  .assist-panel.open{
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .assist-header{
+    background: #111827;
+    color: #ffffff;
+    padding: 12px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .assist-title{
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .assist-subtitle{
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+  .assist-close{
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+  .assist-close:hover{ background: rgba(255,255,255,0.12); }
+
+  /* Empty body/footer (you will fill later) */
+  .assist-body{
+    padding: 14px;
+    height: calc(460px - 52px - 56px);
+    overflow: auto;
+    color: #374151;
+    font-size: 14px;
+  }
+  .assist-footer{
+    border-top: 1px solid #e5e7eb;
+    padding: 10px 12px;
+  }
+
+  /* Optional: mobile */
+  @media (max-width: 420px){
+    .assist-panel{
+      right: 10px;
+      left: 10px;
+      width: auto;
+    }
+  }
+</style>
+
+<!-- FAB button (closed state) -->
+<button id="assistFab" class="assist-fab" aria-label="Open Assistant" type="button">
+  <!-- simple chat icon -->
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M21 12c0 4.418-4.03 8-9 8-1.1 0-2.154-.16-3.13-.46L3 21l1.55-4.08C3.58 15.68 3 13.9 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z"
+          stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M8 12h.01M12 12h.01M16 12h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
+</button>
+
+<!-- Panel (open state) -->
+<div id="assistPanel" class="assist-panel" role="dialog" aria-label="Assistant Panel" aria-modal="false">
+  <div class="assist-header">
+    <div>
+      <div class="assist-title">Assistant</div>
+      <div class="assist-subtitle">Retail Assistant</div>
+    </div>
+    <button id="assistClose" class="assist-close" aria-label="Close Assistant" type="button">
+      <!-- X icon -->
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Leave empty: you'll implement chat later -->
+  <div class="assist-body">
+    <!-- empty on purpose -->
+  </div>
+
+  <div class="assist-footer">
+    <!-- empty on purpose -->
+  </div>
+</div>
+
+<!-- Sidebar toggle script -->
+<script>
+  (function () {
+    const sidebar = document.getElementById("sidebar");
+    const toggle = document.getElementById("sidebarToggle");
+
+    // safety: if sidebar not on this template, do nothing
+    if (!sidebar || !toggle) return;
+
+    // Restore previous state
+    const saved = localStorage.getItem("rms_sidebar");
+    if (saved === "collapsed") {
+      sidebar.classList.add("collapsed");
+      sidebar.classList.remove("expanded");
+      toggle.setAttribute("aria-label", "Expand sidebar");
+    }
+
+    toggle.addEventListener("click", function () {
+      const isCollapsed = sidebar.classList.toggle("collapsed");
+      sidebar.classList.toggle("expanded", !isCollapsed);
+      toggle.setAttribute("aria-label", isCollapsed ? "Expand sidebar" : "Collapse sidebar");
+      localStorage.setItem("rms_sidebar", isCollapsed ? "collapsed" : "expanded");
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    const fab = document.getElementById("assistFab");
+    const panel = document.getElementById("assistPanel");
+    const closeBtn = document.getElementById("assistClose");
+
+    function openPanel(){
+      panel.classList.add("open");
+      fab.style.display = "none";
+    }
+    function closePanel(){
+      panel.classList.remove("open");
+      fab.style.display = "flex";
+    }
+
+    fab.addEventListener("click", openPanel);
+    closeBtn.addEventListener("click", closePanel);
+
+    // Close on ESC
+    document.addEventListener("keydown", function(e){
+      if (e.key === "Escape" && panel.classList.contains("open")) closePanel();
+    });
+  })();
+</script>
+
+</body>
+</html>

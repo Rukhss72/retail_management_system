@@ -1,0 +1,286 @@
+{% extends 'retail/base.html' %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<style>
+  .home-wrap{ max-width:1100px; margin:0 auto; padding: 6px 0; }
+
+  .home-topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; margin-bottom: 16px;
+  }
+  .crumb{ color: rgba(64,78,92,.65); font-size: 13px; }
+  .crumb span{ color: var(--charcoal); font-weight: 800; }
+
+  .home-search{ position:relative; flex:1; max-width: 280px; }
+  .home-search input{
+    width:100%;
+    border: 1px solid rgba(64,78,92,.14);
+    border-radius: 10px;
+    padding: 9px 12px 9px 34px;
+    outline:none; font-size: 13px;
+    background: var(--white);
+  }
+  .home-search input:focus{
+    border-color: rgba(132,172,206,.8);
+    box-shadow: 0 0 0 3px rgba(132,172,206,.20);
+  }
+  .home-search-ico{
+    position:absolute; left: 10px; top: 50%;
+    transform: translateY(-50%);
+    opacity: .6;
+  }
+
+  .home-profile{
+    background: var(--charcoal);
+    color:#fff;
+    padding: 9px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .home-online-dot{ width:8px; height:8px; background:#35d07f; border-radius:50%; }
+
+  .card{
+    background: var(--white);
+    border: 1px solid rgba(64,78,92,.12);
+    border-radius: 18px;
+    box-shadow: 0 3px 10px rgba(20,30,40,.04);
+  }
+
+  .home-welcome{ padding: 24px; margin-bottom: 16px; }
+  .home-welcome-center{ text-align:center; margin-bottom: 14px; }
+  .home-welcome h1{ margin:0; font-size: 28px; color: var(--charcoal); }
+  .home-store{ margin-top: 6px; color: rgba(64,78,92,.70); }
+  .home-datetime{ margin-top: 6px; font-size: 13px; color: rgba(64,78,92,.55); }
+  .home-subtext{ margin: 14px auto 0; max-width: 520px; color: rgba(64,78,92,.70); }
+
+  .home-tiles{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .tile{
+    border-radius: 16px;
+    padding: 20px;
+    text-decoration:none;
+    border: 1px solid transparent;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    transition: opacity .15s ease, transform .15s ease, border-color .15s ease;
+  }
+  .tile:hover{ transform: translateY(-2px); border-color: rgba(64,78,92,.10); opacity:.96; }
+  .tile-ico{ font-size: 26px; margin-bottom: 12px; }
+  .tile-title{ font-weight: 800; color: var(--charcoal); }
+
+  .tile-sky{ background: rgba(132,172,206,.12); }
+  .tile-berry{ background: rgba(170,68,101,.10); }
+  .tile-cotton{ background: rgba(237,191,198,.20); }
+  .tile-gray{ background: rgba(64,78,92,.08); }
+
+  .home-attn{ padding: 10px 14px; margin-bottom: 16px; }
+  .chips{ display:flex; justify-content:center; gap: 12px; flex-wrap: wrap; }
+  .chip{
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 13px;
+    border: 1px solid rgba(64,78,92,.12);
+  }
+  .chip b{ font-weight: 900; }
+  .chip-low{ background:#FFF7E6; border-color:#FFE0A3; color:#9A6A00; }
+  .chip-out{ background: rgba(170,68,101,.10); border-color: rgba(170,68,101,.18); color: var(--berry); }
+  .chip-req{ background: rgba(132,172,206,.12); border-color: rgba(132,172,206,.25); color:#2f5b7a; }
+
+  .home-bottom{
+    display:grid;
+    grid-template-columns: 1.1fr .9fr;
+    gap: 16px;
+  }
+  .home-activity, .home-shortcuts{ padding: 16px; }
+
+  .card-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 12px;
+  }
+  .card-head h2{ margin:0; font-size: 18px; color: var(--charcoal); }
+  .link{ font-size: 13px; color: var(--sky); text-decoration:none; font-weight:800; }
+  .link:hover{ text-decoration: underline; }
+
+  .activity-list{ display:flex; flex-direction:column; gap: 10px; }
+  .activity-row{
+    display:flex; align-items:flex-start; gap: 12px;
+    padding: 10px; border-radius: 12px;
+  }
+  .activity-row:hover{ background: rgba(64,78,92,.04); }
+  .dot{
+    width:10px; height:10px; border-radius: 50%;
+    margin-top: 6px; border: 1px solid currentColor;
+  }
+  .dot-sale{ color: var(--sky); background: rgba(132,172,206,.22); }
+  .dot-stockin{ color: #2E7D32; background: rgba(46,125,50,.18); }
+  .dot-stockout{ color: var(--berry); background: rgba(170,68,101,.18); }
+  .dot-adjustment{ color: #9A6A00; background: rgba(154,106,0,.18); }
+  .dot-po{ color: var(--berry); background: rgba(170,68,101,.10); }
+
+  .activity-main{ flex:1; }
+  .activity-top{ display:flex; justify-content:space-between; gap: 10px; }
+  .activity-type{ font-weight: 900; color: var(--charcoal); }
+  .activity-time{ font-size: 12px; color: rgba(64,78,92,.55); }
+  .activity-item{ margin-top: 4px; font-size: 13px; color: rgba(64,78,92,.75); }
+
+  .shortcut-grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .shortcut{
+    border: 1px solid rgba(64,78,92,.12);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align:center;
+    text-decoration:none;
+    color: var(--charcoal);
+    font-weight: 900;
+    font-size: 13px;
+  }
+  .shortcut:hover{
+    border-color: rgba(132,172,206,.55);
+    background: rgba(132,172,206,.06);
+  }
+
+  .helpbox{ border-top: 1px solid rgba(64,78,92,.12); padding-top: 14px; }
+  .help-title{ font-weight: 900; color: var(--charcoal); }
+  .help-text{ margin-top: 6px; font-size: 13px; color: rgba(64,78,92,.72); }
+
+  @media (max-width: 980px){
+    .home-bottom{ grid-template-columns: 1fr; }
+    .home-tiles{ grid-template-columns: repeat(2,1fr); }
+    .shortcut-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px){
+    .home-tiles{ grid-template-columns: 1fr; }
+    .home-search{ display:none; }
+  }
+</style>
+
+<div class="home-wrap">
+
+  <div class="home-topbar">
+    <div class="crumb">Retail Management System / <span>Home</span></div>
+
+    <div class="home-search">
+      <span class="home-search-ico">🔎</span>
+      <input type="text" placeholder="Search..." />
+    </div>
+
+    <div class="home-profile">
+      <span>{{ request.user.first_name|default:request.user.username }}</span>
+      <span class="home-online-dot"></span>
+    </div>
+  </div>
+
+  <section class="card home-welcome">
+    <div class="home-welcome-center">
+      <h1>Welcome back, {{ request.user.first_name|default:request.user.username }}</h1>
+      <div class="home-store">{{ store_name }}</div>
+      <div class="home-datetime">{{ today_date }} • {{ now_time }}</div>
+      <p class="home-subtext">Choose what you want to do next.</p>
+    </div>
+
+    <div class="home-tiles">
+      <a class="tile tile-sky" href="{% url 'sales' %}">
+        <div class="tile-ico">🛒</div>
+        <div class="tile-title">Create Sale</div>
+      </a>
+
+      <a class="tile tile-berry" href="{% url 'inventory' %}?tab=products&open=modalIn">
+        <div class="tile-ico">📦</div>
+        <div class="tile-title">Stock In</div>
+      </a>
+
+      <a class="tile tile-cotton" href="{% url 'inventory' %}?tab=products&open=modalOut">
+        <div class="tile-ico">📤</div>
+        <div class="tile-title">Stock Out</div>
+      </a>
+
+      <a class="tile tile-gray" href="{% url 'inventory' %}?tab=products&open=modalCreateProduct">
+        <div class="tile-ico">➕</div>
+        <div class="tile-title">Add Product</div>
+      </a>
+
+      <a class="tile tile-sky" href="{% url 'suppliers' %}?tab=suppliers">
+        <div class="tile-ico">👤</div>
+        <div class="tile-title">Add Supplier</div>
+      </a>
+
+      <a class="tile tile-berry" href="{% url 'suppliers' %}?tab=purchase-orders">
+        <div class="tile-ico">📄</div>
+        <div class="tile-title">Create PO</div>
+      </a>
+    </div>
+  </section>
+
+  <section class="card home-attn">
+    <div class="chips">
+      <span class="chip chip-low">Low Stock: <b>{{ low_stock_count }}</b></span>
+      <span class="chip chip-out">Out of Stock: <b>{{ out_of_stock_count }}</b></span>
+      <span class="chip chip-req">Reorders Pending: <b>{{ reorders_pending_count }}</b></span>
+    </div>
+  </section>
+
+  <section class="home-bottom">
+    <div class="card home-activity">
+      <div class="card-head">
+        <h2>Recent Activity</h2>
+        <a class="link" href="{% url 'inventory' %}?tab=history">View All</a>
+      </div>
+
+      <div class="activity-list">
+        {% for a in recent_activity %}
+          <div class="activity-row">
+            <span class="dot dot-{{ a.kind }}"></span>
+            <div class="activity-main">
+              <div class="activity-top">
+                <span class="activity-type">{{ a.type }}</span>
+                <span class="activity-time">{{ a.time }}</span>
+              </div>
+              <div class="activity-item">{{ a.item }}</div>
+            </div>
+            <div style="color: var(--sky); margin-top:2px;">✎</div>
+          </div>
+        {% empty %}
+          <div style="color: rgba(64,78,92,.65); font-size:13px;">No recent activity yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card home-shortcuts">
+      <div class="card-head">
+        <h2>Shortcuts</h2>
+        <span style="opacity:.6;">↗</span>
+      </div>
+
+      <div class="shortcut-grid">
+        <a class="shortcut" href="{% url 'inventory' %}">Inventory</a>
+        <a class="shortcut" href="{% url 'sales' %}">Sales</a>
+        <a class="shortcut" href="{% url 'suppliers' %}">Suppliers</a>
+        <a class="shortcut" href="{% url 'suppliers' %}?tab=reorders">Reorders</a>
+        <a class="shortcut" href="{% url 'dashboard' %}">Reports</a>
+      </div>
+
+      <div class="helpbox">
+        <div class="help-title">Need Help?</div>
+        <div class="help-text">
+          Access the user guide or contact support for assistance with inventory management.
+          <a class="link" href="#">Learn more</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

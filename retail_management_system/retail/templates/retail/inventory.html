@@ -1,0 +1,1266 @@
+{% extends "retail/base.html" %}
+{% block title %}Inventory{% endblock %}
+
+{% block content %}
+
+<!-- Font Awesome (icons). If you already include it in base.html, you can remove this line. 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> -->
+
+<style>
+  :root{
+    --white:#FFFFFF;
+    --sky:#84ACCE;
+    --charcoal:#404E5C;
+    --berry:#AA4465;
+    --cotton:#EDBFC6;
+
+    --charcoal-light:#f8f9fa;
+    --charcoal-mid:#e9ecef;
+    --charcoal-border:#ced4da;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+    --shadow:0 4px 6px rgba(0,0,0,.10);
+    --transition:all .2s ease;
+
+    /* action colors (keep these like you asked) */
+    --stock-in-bg:#e8f5e9;
+    --stock-in-text:#2e7d32;
+    --stock-out-bg:#ffebee;
+    --stock-out-text:#c62828;
+    --adjust-bg:#e3f2fd;
+    --adjust-text:#1565c0;
+    --history-bg:#f5f5f5;
+    --history-text:#616161;
+
+    /* status colors */
+    --in-stock-bg:#e8f5e9;
+    --in-stock-text:#2e7d32;
+    --low-stock-bg:#fff8e1;
+    --low-stock-text:#f57f17;
+    --out-of-stock-bg:#ffebee;
+    --out-of-stock-text:#c62828;
+  }
+
+  /* page */
+  .inv-container{ max-width:1400px; margin:0 auto; padding:0 1.5rem; }
+  .inv-header{ padding:1.5rem 0; }
+  .inv-title{ font-size:2rem; font-weight:700; margin:0 0 1rem 0; color:var(--charcoal); }
+
+  .page-title{
+    text-align: center;
+    margin: 0 0 30px 0;
+  }
+
+  /* KPI chips */
+  .kpi-chips{ display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .kpi-chip{
+    padding:.75rem 1.25rem;
+    border-radius:12px;
+    font-weight:800;
+    display:flex; align-items:center; gap:.5rem;
+    box-shadow:var(--shadow-sm);
+    border:1px solid var(--charcoal-border);
+    background:var(--white);
+  }
+  .kpi-chip.low{ background:var(--low-stock-bg); color:var(--low-stock-text); border-color:#ffd54f; }
+  .kpi-chip.out{ background:var(--out-of-stock-bg); color:var(--out-of-stock-text); border-color:#ef9a9a; }
+
+  /* Tabs */
+  .inv-tabs{
+    display:flex; gap:.5rem;
+    margin:1rem 0;
+    border-bottom:1px solid var(--charcoal-border);
+    padding-bottom:.5rem;
+  }
+  .inv-tab{
+    padding:.75rem 1.25rem;
+    border-radius:8px 8px 0 0;
+    border:1px solid transparent;
+    border-bottom:none;
+    display:flex; align-items:center; gap:.5rem;
+    text-decoration:none;
+    color:var(--charcoal);
+    font-weight:800;
+    transition:var(--transition);
+  }
+  .inv-tab.active{
+    background:var(--white);
+    border-color:var(--charcoal-border);
+    color:var(--berry);
+  }
+  .inv-tab:hover{ background:var(--charcoal-light); }
+
+  /* Buttons (shared) */
+  .btn{
+    padding:.75rem 1.25rem;
+    border-radius:12px;
+    font-weight:800;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.5rem;
+    border:1px solid transparent;
+    text-decoration:none;
+    /*transition:var(--transition);*/
+    transition: opacity .15s ease, transform .15s ease;
+
+  }
+  .btn:hover{
+    opacity: .93;
+    transform: translateY(-1px);
+  }
+
+  /* Sales-style filter buttons */
+  .btn-soft{
+    background: rgba(132,172,206,.18);
+    border: 1px solid rgba(132,172,206,.35);
+    color: var(--charcoal);
+  }
+  .btn-outline{
+    background: transparent;
+    border: 1px solid var(--charcoal);
+    color: var(--charcoal);
+  }
+  .btn-soft:hover{
+    background: rgba(132,172,206,.28);
+    border-color: rgba(132,172,206,.55);
+
+  }
+  .btn-outline:hover{
+    background: var(--charcoal-light);
+    border-color: rgba(64,78,92,.55); /* softer than full charcoal */
+
+  }
+  .btn-primary{ background:var(--berry); color:var(--white); box-shadow:var(--shadow-sm); }
+  .btn-primary:hover{ background:#963a59; box-shadow:var(--shadow); }
+
+  /* Keep your existing modal color buttons intact */
+  .btn.green{ background:#16a34a; color:#fff; border-color:transparent; }
+  .btn.red{ background:#dc2626; color:#fff; border-color:transparent; }
+  .btn.blue{ background:#2563eb; color:#fff; border-color:transparent; }
+  .btn.gray{ background:#111827; color:#fff; border-color:transparent; }
+  .btn.light{ background:#f3f4f6; color:#404e5c; border:1px solid #e5e7eb; transition: var(--transition); }
+  .btn.light:hover{
+  background: var(--charcoal-light);
+  border-color: var(--charcoal);
+  box-shadow: var(--shadow-sm);
+}
+
+/* History movement type pill */
+.mtype{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:900;
+  font-size:12px;
+  border:1px solid;
+  line-height:1;
+}
+
+/* pastel semantic colors */
+.mtype.in{
+  background: var(--stock-in-bg);
+  color: var(--stock-in-text);
+  border-color:#c8e6c9;
+}
+.mtype.out{
+  background: var(--stock-out-bg);
+  color: var(--stock-out-text);
+  border-color:#ffcdd2;
+}
+.mtype.adjust{
+  background: var(--adjust-bg);
+  color: var(--adjust-text);
+  border-color:#bbdefb;
+}
+.mtype.sale{
+  background:#fff8e1;     /* pastel orange/yellow */
+  color:#f57f17;          /* orange text */
+  border-color:#ffd54f;   /* soft orange border */
+}
+
+
+/* KPI + Actions in one row */
+.inv-top-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  flex-wrap:wrap;
+  margin-bottom: 1rem;
+}
+
+.inv-top-row .kpi-chips{
+  margin-bottom: 0;   /* remove old spacing so it aligns with actions */
+}
+
+.inv-actions{
+  display:flex;
+  gap:1rem;
+  flex-wrap:wrap;
+  margin:0;           /* remove old margin so it stays on same line */
+}
+
+  /* Header actions 
+  .inv-actions{ display:flex; gap:1rem; flex-wrap:wrap; margin:1rem 0 1.5rem; } */
+  .btn-stock-in{ background:var(--stock-in-bg); color:var(--stock-in-text); border-color:#c8e6c9; }
+  .btn-stock-in:hover{ background:#dcedc8; }
+  .btn-stock-out{ background:var(--stock-out-bg); color:var(--stock-out-text); border-color:#ffcdd2; }
+  .btn-stock-out:hover{ background:#ffcdd2; }
+  .btn-adjust{ background:var(--adjust-bg); color:var(--adjust-text); border-color:#bbdefb; }
+  .btn-adjust:hover{ background:#bbdefb; }
+
+  /* Panels */
+  .inv-panel{
+    background:var(--white);
+    padding:1.25rem;
+    border-radius:12px;
+    box-shadow:var(--shadow-sm);
+    border:1px solid var(--charcoal-border);
+    margin-bottom:1.5rem;
+  }
+  .panel-head{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:12px; flex-wrap:wrap;
+    margin-bottom:1rem;
+  }
+  .panel-title{ font-size:1.25rem; font-weight:900; margin:0; color:var(--charcoal); }
+  .panel-hint{ color:#6b7280; font-size:13px; }
+
+  /* Filters */
+  .filters-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
+    gap:1.25rem;
+    margin-bottom:1rem;
+  }
+  .form-group{ display:flex; flex-direction:column; gap:.5rem; }
+  .form-group label{ font-size:.9rem; font-weight:800; color:var(--charcoal); }
+  .form-control{
+    padding:.75rem;
+    border:1px solid var(--charcoal-border);
+    border-radius:8px;
+    font-size:.95rem;
+    background:var(--white);
+  }
+  .form-control:focus{
+    outline:none;
+    border-color:var(--berry);
+    box-shadow:0 0 0 3px rgba(170,68,101,.10);
+  }
+
+  /* Make search wider on desktop */
+  .form-group.search-wide{
+    grid-column: span 2;
+    min-width: 360px;     /* lets full placeholder fit better */
+  }
+  .form-group.search-wide .form-control{
+    width: 80%;          /* ensures input fills the grid cell */
+  }
+
+
+  /* Keep it responsive */
+  @media (max-width: 900px){
+    .form-group.search-wide{ grid-column: auto; min-width: 0; }
+  }
+
+  /* Proper icon placement */
+  .search-wrap{ position:relative; }
+  .search-wrap input{ padding-right: 1.0rem; } /* room for icon */
+  .search-wrap .search-icon{
+    position:absolute;
+    right:5.5rem;
+    top:50%;
+    transform:translateY(-50%);
+    color:#6c757d;
+    pointer-events:none;
+  }
+
+  .filter-actions{ display:flex; gap:1rem; justify-content:flex-end; flex-wrap:wrap; }
+
+  /* Product grid/cards */
+  .product-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+    gap:1.25rem;
+    margin-bottom:1.25rem;
+  }
+  .product-card{
+    background:var(--white);
+    border-radius:12px;
+    border:1px solid var(--charcoal-border);
+    box-shadow:var(--shadow-sm);
+    overflow:hidden;
+    transition:var(--transition);
+  }
+  .product-card:hover{ box-shadow:var(--shadow); transform:translateY(-2px); }
+  .card-head{ padding:1rem 1rem .75rem; border-bottom:1px solid var(--charcoal-border); }
+  .p-name{ font-size:1.05rem; font-weight:900; margin:0 0 .25rem; color:var(--charcoal); }
+  .p-sku{ font-size:.85rem; color:#6c757d; margin:0 0 .15rem; }
+  .p-cat{ font-size:.8rem; color:var(--berry); font-weight:900; margin:0; }
+
+  .card-body{ padding:1rem; }
+  .stats{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem; }
+  .stat-label{ font-size:.8rem; color:#6c757d; margin-bottom:.15rem; }
+  .stat-value{ font-size:1rem; font-weight:900; color:var(--charcoal); }
+  .price{ color:var(--berry); }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:.35rem;
+    padding:.35rem .75rem;
+    border-radius:999px;
+    font-size:.8rem;
+    font-weight:900;
+    border:1px solid;
+    margin-bottom:.75rem;
+  }
+  .badge.ok{ background:var(--in-stock-bg); color:var(--in-stock-text); border-color:#c8e6c9; }
+  .badge.low{ background:var(--low-stock-bg); color:var(--low-stock-text); border-color:#ffd54f; }
+  .badge.out{ background:var(--out-of-stock-bg); color:var(--out-of-stock-text); border-color:#ef9a9a; }
+
+  .card-actions{ display:flex; gap:.5rem; flex-wrap:wrap; }
+  .action-btn{
+    padding:.35rem .75rem;
+    border-radius:6px;
+    font-size:.8rem;
+    font-weight:900;
+    border:1px solid;
+    display:inline-flex;
+    align-items:center;
+    gap:.35rem;
+    text-decoration:none;
+    cursor:pointer;
+    transition:var(--transition);
+    background:transparent;
+  }
+  .action-btn:hover{ transform:translateY(-1px); opacity:.95; }
+  .action-in{ background:var(--stock-in-bg); color:var(--stock-in-text); border-color:#c8e6c9; }
+  .action-out{ background:var(--stock-out-bg); color:var(--stock-out-text); border-color:#ffcdd2; }
+  .action-adj{ background:var(--adjust-bg); color:var(--adjust-text); border-color:#bbdefb; }
+  .action-his{ background:var(--history-bg); color:var(--history-text); border-color:var(--charcoal-border); }
+
+  .last-updated{ margin-top:.75rem; font-size:.75rem; color:#6c757d; text-align:right; }
+
+  /* Pagination */
+  .pager{
+    background:var(--white);
+    padding:1rem;
+    border-radius:12px;
+    box-shadow:var(--shadow-sm);
+    border:1px solid var(--charcoal-border);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .pager-controls{ display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .page-btn{
+    width:36px; height:36px;
+    border-radius:8px;
+    border:1px solid var(--charcoal-border);
+    background:var(--white);
+    display:flex; align-items:center; justify-content:center;
+    text-decoration:none;
+    color:var(--charcoal);
+    font-weight:900;
+    transition:var(--transition);
+  }
+  .page-btn:hover{ background:var(--charcoal-light); border-color:var(--charcoal); }
+  .page-btn.active{ background:var(--berry); color:var(--white); border-color:var(--berry); }
+  .page-btn.disabled{ opacity:.5; pointer-events:none; }
+
+  /* History table  */
+  table{ width:100%; border-collapse:collapse; }
+  th,td{ padding:12px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:14px; }
+  th{ background:#f9fafb; font-size:12px; text-transform:uppercase; color:#6b7280; letter-spacing:.04em; }
+  /* Optional: muted dash for empty values in history table */
+  td .empty-dash{ color:#9ca3af; font-weight:700; }
+
+  /* Scrollable tables */
+  .table-scroll{
+    max-height:520px;
+    overflow-x:auto;
+    overflow-y:auto;
+    scrollbar-gutter: stable;
+  }
+
+  /* Hide helper fields */
+  .hidden{ display:none !important; }
+  .hidden-panel{ display:none !important; }
+
+  /* Modal (keep yours) */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.45);
+    display:none; align-items:center; justify-content:center; padding:18px; z-index:9998;
+  }
+  .modal{
+    width:100%; max-width:520px; background:#fff; border-radius:14px; overflow:hidden;
+    border:1px solid #e5e7eb;
+  }
+  .modal-head{ background:#111827; color:#fff; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; }
+  .modal-body{ padding:14px; }
+  .modal-close{ background:transparent; border:0; color:#fff; cursor:pointer; font-size:18px; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:12px; font-weight:900; color:#374151; margin-bottom:6px; }
+  .field textarea{ width:100%; }
+  .modal-foot{ padding:14px; display:flex; gap:10px; }
+  .btn.full{ flex:1; }
+
+  @media (max-width:768px){
+    .filter-actions{ justify-content:flex-start; }
+  }
+</style>
+
+<div class="inv-container">
+
+  <!-- Header -->
+  <div class="inv-header">
+    <h1 class="page-title">Inventory Management</h1>
+
+    <div class="inv-top-row">
+      <div class="kpi-chips">
+        <div class="kpi-chip low">
+          <i class="fas fa-exclamation-triangle"></i>
+          Low Stock: {{ low_count }}
+        </div>
+        <div class="kpi-chip out">
+          <i class="fas fa-times-circle"></i>
+          Out of Stock: {{ out_count }}
+        </div>
+      </div>
+
+      <div class="inv-actions">
+        <button class="btn btn-primary" type="button" onclick="openModal('modalCreateProduct')">
+          <i class="fas fa-plus"></i> Create Product
+        </button>
+
+        <button class="btn btn-stock-in" type="button" onclick="openModal('modalIn')">
+          <i class="fas fa-arrow-down"></i> Stock In
+        </button>
+
+        <button class="btn btn-stock-out" type="button" onclick="openModal('modalOut')">
+          <i class="fas fa-arrow-up"></i> Stock Out
+        </button>
+
+        <button class="btn btn-adjust" type="button" onclick="openModal('modalAdj')">
+          <i class="fas fa-sliders-h"></i> Adjust
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabs (same logic) -->
+    <div class="inv-tabs">
+      <a class="inv-tab {% if tab == 'products' %}active{% endif %}"
+         href="{% if base_qs %}?{{ base_qs }}&tab=products{% else %}?tab=products{% endif %}">
+        <i class="fas fa-th-list"></i>
+        Product List
+      </a>
+
+      <a class="inv-tab {% if tab == 'history' %}active{% endif %}"
+         href="{% if base_qs %}?{{ base_qs }}&tab=history{% else %}?tab=history{% endif %}">
+        <i class="fas fa-history"></i>
+        Stock Movement History
+      </a>
+    </div>   
+  </div>
+  <!-- PRODUCT LIST TAB -->
+  <div class="{% if tab != 'products' %}hidden-panel{% endif %}">
+
+    <div class="inv-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Product List</h2>
+        <div class="panel-hint">Use filters to narrow products</div>
+      </div>
+
+      <!-- Filters (same GET names + hidden inputs) -->
+      <form method="get">
+        <input type="hidden" name="tab" value="products">
+        <input type="hidden" name="ppage" value="1">
+        <input type="hidden" name="hpage" value="{{ history_page.number|default:1 }}">
+
+        <div class="filters-grid">
+          <div class="form-group">
+            <label>Section</label>
+            <select class="form-control" name="section">
+              <option value="">All Sections</option>
+              <option value="women" {% if section == "women" %}selected{% endif %}>Women</option>
+              <option value="men" {% if section == "men" %}selected{% endif %}>Men</option>
+              <option value="kids" {% if section == "kids" %}selected{% endif %}>Kids</option>
+              <option value="unisex" {% if section == "unisex" %}selected{% endif %}>Unisex</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Category</label>
+            <select class="form-control" name="category">
+              <option value="">All Categories</option>
+              {% for c in categories %}
+                <option value="{{ c.id }}" {% if selected_category|slugify == c.id|slugify %}selected{% endif %}>
+                  {{ c.category_name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group search-wide">
+            <label>Search</label>
+            <div class="search-wrap">
+              <input class="form-control" name="q" placeholder="Search product name or SKU" value="{{ q }}">
+              <i class="fas fa-search search-icon"></i>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Status</label>
+            <select class="form-control" name="status">
+              <option value="">All Status</option>
+              <option value="OK" {% if status == "OK" %}selected{% endif %}>OK</option>
+              <option value="Low" {% if status == "Low" %}selected{% endif %}>Low</option>
+              <option value="Out" {% if status == "Out" %}selected{% endif %}>Out</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-actions">
+          <button class="btn btn-soft" type="submit">
+            <i class="fas fa-filter"></i> Apply Filters
+          </button>
+
+          <a class="btn btn-outline" href="{% url 'inventory' %}?tab=products">
+            <i class="fas fa-undo"></i> Reset
+          </a>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Product Cards (same JS hooks: js-move/js-history + data-product-id/data-modal) -->
+    <div class="product-grid">
+      {% for p in products_page %}
+        <div class="product-card">
+          <div class="card-head">
+            <p class="p-name">{{ p.product_name }}</p>
+            <p class="p-sku">{{ p.sku }}</p>
+            <p class="p-cat">{{ p.category.category_name }}</p>
+          </div>
+
+          <div class="card-body">
+            <div class="stats">
+              <div>
+                <div class="stat-label">Section</div>
+                <div class="stat-value">{{ p.get_section_display }}</div>
+              </div>
+              <div>
+                <div class="stat-label">Price</div>
+                <div class="stat-value price">{{ p.selling_price }}</div>
+              </div>
+              <div>
+                <div class="stat-label">Current Qty</div>
+                <div class="stat-value">{{ p.qty_in_stock|default:"0" }}</div>
+              </div>
+              <div>
+                <div class="stat-label">Reorder Level</div>
+                <div class="stat-value">{{ p.reorder_level }}</div>
+              </div>
+            </div>
+
+            {% if p.stock_status == "OK" %}
+              <div class="badge ok"><i class="fas fa-check-circle"></i> In Stock</div>
+            {% elif p.stock_status == "Low" %}
+              <div class="badge low"><i class="fas fa-exclamation-triangle"></i> Low Stock</div>
+            {% else %}
+              <div class="badge out"><i class="fas fa-times-circle"></i> Out of Stock</div>
+            {% endif %}
+
+            <div class="card-actions">
+              <a href="#" class="action-btn action-in js-move" data-product-id="{{ p.id }}" data-modal="modalIn">
+                <i class="fas fa-plus"></i> Stock In
+              </a>
+              <a href="#" class="action-btn action-out js-move" data-product-id="{{ p.id }}" data-modal="modalOut">
+                <i class="fas fa-minus"></i> Stock Out
+              </a>
+              <a href="#" class="action-btn action-adj js-move" data-product-id="{{ p.id }}" data-modal="modalAdj">
+                <i class="fas fa-sliders-h"></i> Adjust
+              </a>
+              <a href="#" class="action-btn action-his js-history" data-product-id="{{ p.id }}">
+                <i class="fas fa-history"></i> History
+              </a>
+            </div>
+
+            <div class="last-updated">
+              Last updated: {{ p.updated_at|date:"d/m/y H:i" }}
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="inv-panel">No products found.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination (same URLs) -->
+    <div class="pager">
+      <div style="color:#6b7280; font-size:13px;">
+        {% if products_page.paginator.count %}
+          Showing <strong>{{ products_page.start_index }}</strong>-<strong>{{ products_page.end_index }}</strong>
+          of <strong>{{ products_page.paginator.count }}</strong> products
+        {% else %}
+          Page <strong>{{ products_page.number }}</strong> of <strong>{{ products_page.paginator.num_pages }}</strong>
+        {% endif %}
+      </div>
+
+      <div class="pager-controls">
+        {% if products_page.has_previous %}
+          <a class="page-btn"
+             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
+            <i class="fas fa-chevron-left"></i>
+          </a>
+        {% else %}
+          <span class="page-btn disabled"><i class="fas fa-chevron-left"></i></span>
+        {% endif %}
+
+        <span class="page-btn active">{{ products_page.number }}</span>
+
+        {% if products_page.has_next %}
+          <a class="page-btn"
+             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
+            <i class="fas fa-chevron-right"></i>
+          </a>
+        {% else %}
+          <span class="page-btn disabled"><i class="fas fa-chevron-right"></i></span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- STOCK MOVEMENT HISTORY TAB (your existing functionality kept) -->
+  <div class="{% if tab != 'history' %}hidden-panel{% endif %}">
+
+    <div class="inv-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Stock Movement History</h2>
+        <div class="panel-hint">Showing paginated results</div>
+      </div>
+
+      <form id="historyForm" method="get" style="margin-bottom:10px;">
+        <input type="hidden" name="tab" value="history">
+        <input type="hidden" name="ppage" value="{{ products_page.number|default:1 }}">
+        <input type="hidden" name="hpage" value="1">
+
+        <div class="hidden">{{ history_form.product }}</div>
+
+        <div class="filters-grid" style="margin-bottom:.75rem;">
+          <div class="form-group">
+            <label>From</label>
+            {{ history_form.from_date }}
+          </div>
+          <div class="form-group">
+            <label>To</label>
+            {{ history_form.to_date }}
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            {{ history_form.movement_type }}
+          </div>
+          <div class="form-group" style="justify-content:flex-end;">
+            <label style="opacity:0;">Actions</label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+
+              <button class="btn btn-soft" type="submit">
+                <i class="fas fa-filter"></i> Apply
+              </button>
+
+              <a class="btn btn-outline" href="{% url 'inventory' %}?tab=history">
+                <i class="fas fa-undo"></i> Clear
+              </a>
+
+            </div>
+          </div>
+        </div>
+
+        {% if history_form.errors %}
+          <div style="color:#dc2626; font-weight:900;">
+            {{ history_form.errors }}
+          </div>
+        {% endif %}
+      </form>
+
+      <div class="pager" style="margin-bottom:12px;">
+        <div style="color:#6b7280; font-size:13px;">
+          Page <strong>{{ history_page.number }}</strong> of <strong>{{ history_page.paginator.num_pages }}</strong>
+        </div>
+
+        <div class="pager-controls">
+          {% if history_page.has_previous %}
+            <a class="page-btn"
+               href="{% if base_qs %}?{{ base_qs }}&tab=history&hpage={{ history_page.previous_page_number }}&ppage={{ products_page.number|default:1 }}{% else %}?tab=history&hpage={{ history_page.previous_page_number }}&ppage={{ products_page.number|default:1 }}{% endif %}">
+              <i class="fas fa-chevron-left"></i>
+            </a>
+          {% else %}
+            <span class="page-btn disabled"><i class="fas fa-chevron-left"></i></span>
+          {% endif %}
+
+          <span class="page-btn active">{{ history_page.number }}</span>
+
+          {% if history_page.has_next %}
+            <a class="page-btn"
+               href="{% if base_qs %}?{{ base_qs }}&tab=history&hpage={{ history_page.next_page_number }}&ppage={{ products_page.number|default:1 }}{% else %}?tab=history&hpage={{ history_page.next_page_number }}&ppage={{ products_page.number|default:1 }}{% endif %}">
+              <i class="fas fa-chevron-right"></i>
+            </a>
+          {% else %}
+            <span class="page-btn disabled"><i class="fas fa-chevron-right"></i></span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Movement Date/Time</th>
+              <th>Product</th>
+              <th>Qty Moved</th>
+              <th>Movement Type</th>
+              <th>Ref</th>
+              <th>Reason</th>
+              <th>Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in history_page %}
+              <tr>
+                <td>{{ m.movement_date|date:"d/m/y H:i" }}</td>
+                <td>
+                  <div style="font-weight:900;">{{ m.product.sku }} {{ m.product.product_name }}</div>
+                  <div style="color:#6b7280; font-size:13px;">{{ m.product.category.category_name }}</div>
+                </td>
+                <td>
+                  {% if m.movement_type == "IN" %}
+                    <span style="color:#2e7d32; font-weight:900;">+{{ m.qty_moved }}</span>
+                  {% elif m.movement_type == "ADJUST" and m.adjust_direction == "INC" %}
+                    <span style="color:#2e7d32; font-weight:900;">+{{ m.qty_moved }}</span>
+                  {% else %}
+                    <span style="color:#c62828; font-weight:900;">-{{ m.qty_moved }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if m.movement_type == "IN" %}
+                    <span class="mtype in"><i class="fas fa-arrow-down"></i> IN</span>
+                  {% elif m.movement_type == "OUT" %}
+                    <span class="mtype out"><i class="fas fa-arrow-up"></i> OUT</span>
+                  {% elif m.movement_type == "ADJUST" %}
+                    <span class="mtype adjust"><i class="fas fa-sliders-h"></i> ADJUST</span>
+                  {% elif m.movement_type == "SALE" %}
+                    <span class="mtype sale"><i class="fas fa-receipt"></i> SALE</span>
+                  {% else %}
+                    <span class="mtype">{{ m.movement_type }}</span>
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if m.reference %}{{ m.reference }}{% else %}<span class="empty-dash">-</span>{% endif %}
+                </td>
+                <td>
+                  {% if m.reason %}{{ m.reason }}{% else %}<span class="empty-dash">-</span>{% endif %}
+                </td>
+                <td>
+                  {% if m.comments %}{{ m.comments }}{% else %}<span class="empty-dash">-</span>{% endif %}
+                </td>
+
+
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" style="padding:18px; color:#6b7280;">No history found.</td></tr>
+            {% endfor %}
+          </tbody> 
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+
+<!-- STOCK IN MODAL -->
+<div id="modalIn" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="font-weight:900;">Stock In</div>
+      <button class="modal-close" onclick="closeModal('modalIn')" type="button">×</button>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="IN">
+
+      <div class="modal-body">
+        <div class="field">
+          <label>Category</label>
+          <select name="in-category" id="stockInCategory">
+            <option value="">All categories</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="hidden">{{ stock_in_form.product }}</div>
+
+        <div class="field">
+          <label>Product</label>
+          <select name="in-product-ui" id="stockInProduct">
+            <option value="">---------</option>
+            {% for p in all_products %}
+              <option value="{{ p.id }}" data-category="{{ p.category_id }}" data-qty="{{ p.qty_in_stock|default:0 }}">
+                {{ p.sku }} - {{ p.product_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Current Qty</label>
+          <div id="stockInCurrentQty" style="font-weight:800;">0</div>
+        </div>
+
+        <div class="field"><label>Quantity</label>{{ stock_in_form.qty }}</div>
+        <div class="field"><label>Reference/Invoice (optional)</label>{{ stock_in_form.reference }}</div>
+        <div class="field"><label>Comments (optional)</label>{{ stock_in_form.comments }}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn light full" type="button" onclick="closeModal('modalIn')">Cancel</button>
+        <button class="btn green full" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- STOCK OUT MODAL -->
+<div id="modalOut" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="font-weight:900;">Stock Out</div>
+      <button class="modal-close" onclick="closeModal('modalOut')" type="button">×</button>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="OUT">
+      <div class="modal-body">
+        <div class="field">
+          <label>Category</label>
+          <select name="out-category" id="stockOutCategory">
+            <option value="">All categories</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="hidden">{{ stock_out_form.product }}</div>
+
+        <div class="field">
+          <label>Product</label>
+          <select name="out-product-ui" id="stockOutProduct">
+            <option value="">---------</option>
+            {% for p in all_products %}
+              <option value="{{ p.id }}" data-category="{{ p.category_id }}" data-qty="{{ p.qty_in_stock|default:0 }}">
+                {{ p.sku }} - {{ p.product_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Current Qty</label>
+          <div id="stockOutCurrentQty" style="font-weight:800;">0</div>
+        </div>
+
+        <div class="field"><label>Quantity</label>{{ stock_out_form.qty }}</div>
+        <div class="field"><label>Reason</label>{{ stock_out_form.reason }}</div>
+        <div class="field"><label>Reference (optional)</label>{{ stock_out_form.reference }}</div>
+        <div class="field"><label>Comments (optional)</label>{{ stock_out_form.comments }}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn light full" type="button" onclick="closeModal('modalOut')">Cancel</button>
+        <button class="btn red full" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ADJUSTMENT MODAL -->
+<div id="modalAdj" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="font-weight:900;">Adjustment</div>
+      <button class="modal-close" onclick="closeModal('modalAdj')" type="button">×</button>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="ADJUST">
+      <div class="modal-body">
+        <div class="field">
+          <label>Category</label>
+          <select name="adj-category" id="adjustCategory">
+            <option value="">All categories</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}">{{ c.category_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="hidden">{{ adjust_form.product }}</div>
+
+        <div class="field">
+          <label>Product</label>
+          <select name="adj-product-ui" id="adjustProduct">
+            <option value="">---------</option>
+            {% for p in all_products %}
+              <option value="{{ p.id }}"
+                      data-category="{{ p.category_id }}"
+                      data-qty="{{ p.qty_in_stock|default:0 }}">
+                {{ p.sku }} - {{ p.product_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Current Qty</label>
+          <div id="adjustCurrentQty" style="font-weight:800;">0</div>
+        </div>
+
+        <div class="field"><label>Set stock to</label>{{ adjust_form.set_stock_to }}</div>
+        <div class="field"><label>Reason</label>{{ adjust_form.reason }}</div>
+        <div class="field"><label>Reference (optional)</label>{{ adjust_form.reference }}</div>
+        <div class="field"><label>Comments (optional)</label>{{ adjust_form.comments }}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn light full" type="button" onclick="closeModal('modalAdj')">Cancel</button>
+        <button class="btn blue full" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- CREATE PRODUCT MODAL -->
+<div id="modalCreateProduct" class="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="font-weight:900;">Create Product</div>
+      <button class="modal-close" onclick="closeModal('modalCreateProduct')" type="button">×</button>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="CREATE_PRODUCT">
+
+      <div class="modal-body">
+        <div class="field"><label>Product Name</label>{{ product_create_form.product_name }}</div>
+        <div class="field"><label>Category</label>{{ product_create_form.category }}</div>
+        <div class="field"><label>Section</label>{{ product_create_form.section }}</div>
+        <div class="field"><label>Primary Supplier</label>{{ product_create_form.primary_supplier }}</div>
+        <div class="field"><label>Lead time override (days)</label>{{ product_create_form.supplier_lead_time_days }}</div>
+        <div class="field"><label>Last unit cost (optional)</label>{{ product_create_form.last_unit_cost }}</div>
+
+        <div class="field"><label>Selling Price</label>{{ product_create_form.selling_price }}</div>
+        <div class="field"><label>Reorder Level</label>{{ product_create_form.reorder_level }}</div>
+
+        <div class="field">
+          <label>{{ product_create_form.is_active.label }}</label>
+          {{ product_create_form.is_active }}
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
+
+        <div class="field">
+          <label>{{ product_create_form.add_opening_stock.label }}</label>
+          {{ product_create_form.add_opening_stock }}
+        </div>
+
+        <div id="openingStockFields" style="display:none;">
+          <div class="field"><label>Opening Quantity</label>{{ product_create_form.opening_qty }}</div>
+          <div class="field"><label>Reference (optional)</label>{{ product_create_form.opening_reference }}</div>
+          <div class="field"><label>Comments (optional)</label>{{ product_create_form.opening_comments }}</div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn light full" type="button" onclick="closeModal('modalCreateProduct')">Cancel</button>
+        <button class="btn gray full" type="submit">Save Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<script>
+  function toggleOpeningStock(){
+    const modal = document.getElementById("modalCreateProduct");
+    if (!modal) return;
+
+    const cb = modal.querySelector('input[name$="-add_opening_stock"]');
+    const box = document.getElementById("openingStockFields");
+    if (!cb || !box) return;
+
+    box.style.display = cb.checked ? "block" : "none";
+  }
+
+  function filterStockInProducts() {
+    const catEl = document.getElementById("stockInCategory");
+    const prodEl = document.getElementById("stockInProduct");
+    if (!catEl || !prodEl) return;
+
+    const cat = catEl.value;
+    const options = prodEl.querySelectorAll("option[data-category]");
+
+    options.forEach(opt => {
+      const ok = !cat || opt.dataset.category === cat;
+      opt.hidden = !ok;
+    });
+
+    const selected = prodEl.value;
+    const selectedOpt = prodEl.querySelector(`option[value="${selected}"]`);
+    if (selectedOpt && selectedOpt.hidden) {
+      prodEl.value = "";
+    }
+  }
+
+  function updateStockInQtyDisplay() {
+    const prodEl = document.getElementById("stockInProduct");
+    const outEl = document.getElementById("stockInCurrentQty");
+    if (!prodEl || !outEl) return;
+
+    const opt = prodEl.options[prodEl.selectedIndex];
+    const qty = opt && opt.dataset ? (opt.dataset.qty || "0") : "0";
+    outEl.textContent = qty;
+  }
+
+  function updateStockOutQtyDisplay() {
+    const prodEl = document.getElementById("stockOutProduct");
+    const outEl = document.getElementById("stockOutCurrentQty");
+    if (!prodEl || !outEl) return;
+
+    const opt = prodEl.options[prodEl.selectedIndex];
+    const qty = opt && opt.dataset ? (opt.dataset.qty || "0") : "0";
+    outEl.textContent = qty;
+  }
+
+  function filterStockOutProducts() {
+    const catEl = document.getElementById("stockOutCategory");
+    const prodEl = document.getElementById("stockOutProduct");
+    if (!catEl || !prodEl) return;
+
+    const cat = catEl.value;
+    const options = prodEl.querySelectorAll("option[data-category]");
+
+    options.forEach(opt => {
+      const ok = !cat || opt.dataset.category === cat;
+      opt.hidden = !ok;
+    });
+
+    const selected = prodEl.value;
+    const selectedOpt = prodEl.querySelector(`option[value="${selected}"]`);
+    if (selectedOpt && selectedOpt.hidden) {
+      prodEl.value = "";
+    }
+  }
+
+  function filterAdjustProducts() {
+    const catEl = document.getElementById("adjustCategory");
+    const prodEl = document.getElementById("adjustProduct");
+    if (!catEl || !prodEl) return;
+
+    const cat = catEl.value;
+    const options = prodEl.querySelectorAll("option[data-category]");
+
+    options.forEach(opt => {
+      const ok = !cat || opt.dataset.category === cat;
+      opt.hidden = !ok;
+    });
+
+    const selected = prodEl.value;
+    const selectedOpt = prodEl.querySelector(`option[value="${selected}"]`);
+    if (selectedOpt && selectedOpt.hidden) {
+      prodEl.value = "";
+    }
+
+    updateAdjustQtyDisplay();
+  }
+
+  function updateAdjustQtyDisplay() {
+    const prodEl = document.getElementById("adjustProduct");
+    const outEl = document.getElementById("adjustCurrentQty");
+    if (!prodEl || !outEl) return;
+
+    const opt = prodEl.options[prodEl.selectedIndex];
+    const qty = opt && opt.dataset ? (opt.dataset.qty || "0") : "0";
+    outEl.textContent = qty;
+  }
+
+  function syncStockInProductToForm() {
+    const ui = document.getElementById("stockInProduct");
+    const django = document.querySelector('select[name="in-product"]');
+    if (ui && django) django.value = ui.value;
+  }
+
+  function syncStockOutProductToForm() {
+    const ui = document.getElementById("stockOutProduct");
+    const django = document.querySelector('select[name="out-product"]');
+    if (ui && django) django.value = ui.value;
+  }
+
+  function syncAdjustProductToForm() {
+    const ui = document.getElementById("adjustProduct");
+    const django = document.querySelector('select[name="adj-product"]');
+    if (ui && django) django.value = ui.value;
+  }
+
+  function openModal(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = "flex";
+
+    if (id === "modalCreateProduct") toggleOpeningStock();
+    if (id === "modalIn") {
+      filterStockInProducts();
+      syncStockInProductToForm();
+      updateStockInQtyDisplay();
+    }
+
+    if (id === "modalOut") {
+      filterStockOutProducts();
+      syncStockOutProductToForm();
+      updateStockOutQtyDisplay();
+    }
+
+    if (id === "modalAdj") {
+      filterAdjustProducts();
+      syncAdjustProductToForm();
+      updateAdjustQtyDisplay();
+    }
+  }
+
+  function closeModal(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = "none";
+  }
+
+  function prefillProduct(productId, modalId){
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    const uiSelect = modal.querySelector('select[name$="-product-ui"]');
+    if (uiSelect) uiSelect.value = String(productId);
+
+    if (modalId === "modalIn") {
+      syncStockInProductToForm();
+      updateStockInQtyDisplay();
+    } else if (modalId === "modalOut") {
+      syncStockOutProductToForm();
+      updateStockOutQtyDisplay();
+    } else if (modalId === "modalAdj") {
+      syncAdjustProductToForm();
+      updateAdjustQtyDisplay();
+    }
+  }
+
+  function setHistoryProduct(productId){
+    const form = document.getElementById("historyForm");
+    if (!form) return;
+    const select = form.querySelector('select[name$="-product"]');
+    if (select){
+      select.value = String(productId);
+      form.submit();
+    }
+  }
+
+  document.addEventListener("click", function(e){
+    const move = e.target.closest(".js-move");
+    if (move){
+      e.preventDefault();
+      const productId = move.dataset.productId;
+      const modalId = move.dataset.modal;
+      prefillProduct(productId, modalId);
+      openModal(modalId);
+      return;
+    }
+
+    const hist = e.target.closest(".js-history");
+    if (hist){
+      e.preventDefault();
+      setHistoryProduct(hist.dataset.productId);
+    }
+  });
+
+  document.addEventListener("change", function(e){
+    if (e.target && e.target.id === "stockInCategory") {
+      filterStockInProducts();
+      syncStockInProductToForm();
+      updateStockInQtyDisplay();
+    }
+
+    if (e.target && e.target.id === "stockOutCategory") {
+      filterStockOutProducts();
+      syncStockOutProductToForm();
+      updateStockOutQtyDisplay();
+    }
+
+    if (e.target && e.target.id === "adjustCategory") {
+      filterAdjustProducts();
+      syncAdjustProductToForm();
+      updateAdjustQtyDisplay();
+    }
+
+    if (e.target && e.target.id === "stockInProduct") {
+      syncStockInProductToForm();
+      updateStockInQtyDisplay();
+    }
+
+    if (e.target && e.target.id === "stockOutProduct") {
+      syncStockOutProductToForm();
+      updateStockOutQtyDisplay();
+    }
+
+    if (e.target && e.target.id === "adjustProduct") {
+      syncAdjustProductToForm();
+      updateAdjustQtyDisplay();
+    }
+
+    if (e.target && e.target.name && e.target.name.endsWith("-add_opening_stock")) {
+      toggleOpeningStock();
+    }
+  });
+
+  document.querySelectorAll(".modal-backdrop").forEach(function(bg){
+    bg.addEventListener("click", function(e){
+      if (e.target === bg) bg.style.display = "none";
+    });
+  });
+</script>
+
+<script>
+  // Auto-open modal from querystring: ?open=modalIn / modalOut / modalAdj / modalCreateProduct
+  (function(){
+    const params = new URLSearchParams(window.location.search);
+    const open = params.get("open");
+    if (!open) return;
+
+    // Only allow known modal ids
+    const allowed = ["modalIn","modalOut","modalAdj","modalCreateProduct"];
+    if (!allowed.includes(open)) return;
+
+    // Ensure we are on products tab (where modals exist) - they exist anyway, but keep logic clean
+    openModal(open);
+  })();
+</script>
+
+{% endblock %}

@@ -1,0 +1,1019 @@
+{% extends "retail/base.html" %}
+{% block title %}Sales{% endblock %}
+{% block content %}
+
+<style>
+  :root{
+    /* Base palette already in base.html, but safe to reuse */
+    --white:#FFFFFF;
+    --sky:#84ACCE;
+    --charcoal:#404E5C;
+    --berry:#AA4465;
+    --cotton:#EDBFC6;
+
+    /* Semantic pastel backgrounds */
+    --low-stock-bg:#FFF9C4;
+    --out-stock-bg:#FFEBEE;
+    --stock-in-bg:#E8F5E9;
+    --adjust-bg:#E3F2FD;
+    --history-bg:#F5F5F5;
+
+    --low-stock-text:#5D4037;
+    --out-stock-text:#B71C1C;
+    --stock-in-text:#1B5E20;
+    --adjust-text:#0D47A1;
+    --history-text:#616161;
+
+    --border:#E5E7EB;
+    --muted:#6B7280;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+    --shadow:0 10px 22px rgba(0,0,0,.10);
+    --radius:14px;
+  }
+
+  /* Shift only the top header + top form card ...not using...using top full instead*/
+  .top-shift{
+    margin-left: 120px;                 /* adjust: 80–160px */
+    width: calc(100% - 120px);          /* keeps it from overflowing */
+  }
+
+  @media (max-width: 1200px){
+    .top-shift{
+      margin-left: 0;
+      width: 100%;
+    }
+  }
+
+  /* Force the top 2 blocks to span the same full width as the section below */
+  .top-full {
+    width: 103% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Sales page: move content a bit further from sidebar */
+  .sales-page-wrap{
+    max-width: 1600px;
+    margin: 0 auto;              /* keeps it centered in the available area */
+    padding-left: 30px;          /* extra breathing room from the sidebar */
+  }
+
+  @media (max-width: 1200px){
+    .sales-page-wrap{ padding-left: 16px; }
+  }
+
+  .sales-wrap{ padding: 10px 0; }
+  .page-head{
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 18px 18px;
+    margin-bottom: 14px;
+    text-align: center;   /* ADDED THIS TO CENTER */
+  }
+
+  .page-title{
+    margin:0;
+    display:flex;
+    align-items:center;
+    justify-content: center;  /* ADD THIS */
+    gap:10px;
+    font-size: 1.35rem;
+    font-weight: 800;
+  }
+  .page-sub{ margin-top:6px; color: var(--muted); font-size: .92rem; }
+
+  /* Tabs (single page via ?tab=) */
+  .tabs{
+    margin-top: 14px;
+    display:flex;
+    justify-content: center;   /* ADD */
+    align-items: center;       /* ADD */
+    gap: 6px;
+    background: var(--history-bg);
+    padding: 6px;
+    border-radius: 999px;
+    width: fit-content;
+    border: 1px solid #eee;
+    margin-left: auto;         /* ADD */
+    margin-right: auto;        /* ADD */
+    flex-wrap: wrap;           /* ADD (nice on smaller screens) */
+  }
+
+  .tab-link{
+    text-decoration:none;
+    border:0;
+    background:transparent;
+    padding: 10px 16px;
+    border-radius: 999px;
+    cursor:pointer;
+    font-weight: 800;
+    color: var(--charcoal);
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    transition: all .18s ease;
+    white-space: nowrap;
+  }
+  .tab-link.active{
+    background: var(--white);
+    color: var(--berry);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Cards */
+  .card{
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-title{
+    margin: 0 0 12px 0;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-weight: 900;
+    font-size: 1.05rem;
+  }
+
+  /* Messages */
+  .msg{
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border: 1px solid rgba(0,0,0,.06);
+    font-weight: 800;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+  }
+  .msg.success{ background: var(--stock-in-bg); color: var(--stock-in-text); }
+  .msg.error{ background: var(--out-stock-bg); color: var(--out-stock-text); }
+
+  /* Form fields */
+  .grid-4{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px 16px;  /* REPLACE 12px with this */
+    align-items: start; /* ADD */
+  }
+
+  .grid-2{
+    display:grid;
+    grid-template-columns: 1.3fr .7fr;
+    gap: 12px;
+    align-items:end;
+  }
+  .fg{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .fg label{
+    display:block;
+    margin-bottom: 0px; /* changed from 6px */
+    font-weight: 800;
+    font-size: .85rem;
+  }
+  .hint{ margin-top: 2px; font-size: .78rem; color: var(--muted); line-height: 1.2; }
+  input, select{
+    width: 80%;
+    height: 40px;          /* ADD */
+    line-height: 40px;     /* ADD */
+    padding: 0 12px;       /* REPLACE 10px 12px */
+    border: 1px solid #D1D5DB;
+    border-radius: 12px;
+    background: #FAFAFA;
+    font-size: .95rem;
+    outline: none;
+  }
+
+  input:read-only{
+    background: #F3F4F6;
+    color: #6B7280;
+  }
+
+  /* Two column */
+  .two-col{
+    display:grid;
+    grid-template-columns: 1.15fr .95fr;
+    gap: 14px;
+    align-items:start;
+  }
+
+  /* Table */
+  .table-wrap{
+    overflow:auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  table{
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 680px;
+    font-size: .95rem;
+  }
+  thead th{
+    text-align:left;
+    padding: 12px;
+    background: #FAFAFA;
+    border-bottom: 1px solid var(--border);
+    font-weight: 900;
+  }
+  tbody td{
+    padding: 12px;
+    border-bottom: 1px solid #F0F0F0;
+    vertical-align: top;
+  }
+  tbody tr:last-child td{ border-bottom: none; }
+
+  /* Badges */
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 900;
+    border: 1px solid rgba(0,0,0,.04);
+  }
+  .badge-low{ background: var(--low-stock-bg); color: var(--low-stock-text); }
+  .badge-out{ background: var(--out-stock-bg); color: var(--out-stock-text); }
+  .badge-in{ background: var(--stock-in-bg); color: var(--stock-in-text); }
+  .badge-neutral{ background: var(--history-bg); color: var(--history-text); }
+
+  .stock-meta{ margin-top: 6px; font-size: .82rem; color:#666; font-weight:700; }
+
+  /* Buttons */
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 900;
+    cursor:pointer;
+    border: 1px solid transparent;
+    transition: opacity .15s ease, transform .15s ease;
+    user-select:none;
+    text-decoration:none;
+  }
+  .btn:hover{ opacity:.93; transform: translateY(-1px); }
+  .btn-primary{ background: var(--berry); color: var(--white); }
+  .btn-outline{ background: transparent; border-color: var(--charcoal); color: var(--charcoal); }
+  .btn-soft{
+    background: rgba(132,172,206,.18);
+    border-color: rgba(132,172,206,.35);
+    color: var(--charcoal);
+  }
+  .btn-link{
+    border:0;
+    background:transparent;
+    padding:0;
+    color: var(--charcoal);
+    font-weight: 900;
+    cursor:pointer;
+  }
+  .btn-link:hover{ color: var(--berry); }
+
+  .btn[disabled], .btn-link[disabled]{
+    opacity: .5;
+    cursor: not-allowed;
+  }
+
+  /* Qty controls */
+  .qty{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+  }
+  .qty-btn{
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid #D1D5DB;
+    background: var(--white);
+    cursor:pointer;
+    font-weight: 900;
+  }
+  .qty-input{
+    width: 60px;
+    text-align:center;
+    padding: 7px 8px;
+    border-radius: 10px;
+  }
+  .warn{
+    margin-top: 6px;
+    color: #F44336;
+    font-size: .82rem;
+    font-weight: 900;
+  }
+  .soft-alert{
+    margin-top: 10px;
+    background: var(--low-stock-bg);
+    color: var(--low-stock-text);
+    border: 1px solid rgba(93,64,55,.15);
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: .88rem;
+    font-weight: 800;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+  }
+
+  /* Totals */
+  .totals{
+    background: #F9FAFB;
+    border: 1px solid #EEF2F7;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .total-row{
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    gap: 12px;
+    margin: 8px 0;
+  }
+  .total-row .label{ color: var(--muted); font-weight: 900; }
+  .total-row .val{ font-weight: 900; }
+  .total-row.total .val{ color: var(--berry); font-size: 1.08rem; }
+
+  /* Pagination */
+  .pagination{
+    display:flex;
+    justify-content:center;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .page-btn{
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #D1D5DB;
+    background: var(--white);
+    cursor:pointer;
+    font-weight: 900;
+    text-decoration:none;
+    color: var(--charcoal);
+  }
+  .page-btn.active{
+    background: var(--berry);
+    border-color: var(--berry);
+    color: var(--white);
+  }
+
+  /* Responsive */
+  @media (max-width: 1200px){
+    .grid-4{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .two-col{ grid-template-columns: 1fr; }
+    .grid-2{ grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="sales-page-wrap">
+    
+  <div class="sales-wrap">
+
+    <div class="page-head top-full">
+      <h1 class="page-title"><i class="fa-solid fa-cart-shopping"></i> Sales Management</h1>
+      <div class="page-sub">Create sales, review sales history, and view receipt details. Stock updates on save.</div>
+
+      <div class="tabs">
+        <a class="tab-link {% if tab == 'new' %}active{% endif %}" href="{% url 'sales' %}?tab=new">
+          <i class="fa-solid fa-cart-plus"></i> New Sale
+        </a>
+        <a class="tab-link {% if tab == 'history' %}active{% endif %}" href="{% url 'sales' %}?tab=history">
+          <i class="fa-solid fa-clock-rotate-left"></i> Sales History
+        </a>
+        <a class="tab-link {% if tab == 'details' %}active{% endif %}" href="{% url 'sales' %}?tab=details">
+          <i class="fa-solid fa-file-invoice"></i> Sale Details
+        </a>
+      </div>
+    </div>
+
+    {# Messages (because base.html doesn't render them) #}
+    {% if messages %}
+      {% for message in messages %}
+        <div class="msg {% if message.tags == 'success' %}success{% else %}error{% endif %}">
+          <i class="fa-solid {% if message.tags == 'success' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}"></i>
+          <div>{{ message }}</div>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {% if tab == 'new' %}
+      <!-- NEW SALE -->
+      <div class="card top-full">
+        <div class="grid-4">
+          <div class="fg">
+            <label>Sale Date/Time</label>
+            <input type="text" value="{{ sale_datetime|date:'M d, Y h:i A' }}" readonly>
+          </div>
+          <div class="fg">
+            <label>Cashier</label>
+            <input type="text" value="{{ request.user.username }}" readonly>
+          </div>
+          <div class="fg">
+            <label>Customer Name</label>
+            <input type="text" form="saleForm" name="customer_name" placeholder="Optional">
+            <div class="hint">Full name or leave blank</div>
+          </div>
+          <div class="fg">
+            <label>Customer Phone</label>
+            <input type="text" form="saleForm" name="customer_phone" placeholder="Optional">
+            <div class="hint">For receipts or returns</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+
+        <!-- Product Picker (GET filters, not nested inside POST form) -->
+        <div class="card">
+
+          <form method="get" class="grid-2" style="margin-bottom:12px;">
+            <input type="hidden" name="tab" value="new">
+            <div class="fg">
+              <label> Search</label>
+              <input type="text" name="q" value="{{ q }}" placeholder="Search product name (or SKU)">
+            </div>
+            
+            <div style="margin-top:10px;">   <!-- NEW: Section filter (below search bar) -->
+              <label>Section</label>
+              <select name="section">
+                <option value="">All Sections</option>
+                {% for value, label in section_choices %}
+                  <option value="{{ value }}" {% if selected_section == value %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="fg">
+              <label>Category</label>
+              <select name="category">
+                <option value="">All Categories</option>
+                {% for c in categories %}
+                  <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:'s' %}selected{% endif %}>
+                    {{ c.category_name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div style="grid-column: 1 / -1; display:flex; gap:10px; justify-content:flex-end;">
+              <button class="btn btn-soft" type="submit"><i class="fa-solid fa-filter"></i> Apply Filters</button>
+              <a class="btn btn-outline" href="{% url 'sales' %}?tab=new"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Price</th>
+                  <th>Current Stock</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for p in products %}
+
+                  {% if p.qty_in_stock == 0 %}
+                    {% with badge="out" label="Out of Stock" %}
+                      <tr>
+                        <td>
+                          <div style="font-weight:900;">{{ p.sku }} {{ p.product_name }}</div>
+                          <div class="hint">{{ p.category.category_name }} • {{ p.get_section_display }}</div>
+                        </td>
+                        <td style="font-weight:900;">{{ p.selling_price }}</td>
+                        <td>
+                          <span class="badge badge-out">
+                            <i class="fa-solid fa-circle-xmark"></i> {{ label }}
+                          </span>
+                          <div class="stock-meta">Stock: {{ p.qty_in_stock }}</div>
+                        </td>
+                        <td>
+                          <button type="button" class="btn-link add-btn" disabled>
+                            <i class="fa-solid fa-plus"></i> Add
+                          </button>
+                        </td>
+                      </tr>
+                    {% endwith %}
+
+                  {% elif p.reorder_level and p.qty_in_stock <= p.reorder_level %}
+                    {% with badge="low" label="Low Stock" %}
+                      <tr>
+                        <td>
+                          <div style="font-weight:900;">{{ p.sku }} {{ p.product_name }}</div>
+                          <div class="hint">{{ p.category.category_name }} • {{ p.get_section_display }}</div>
+                        </td>
+                        <td style="font-weight:900;">{{ p.selling_price }}</td>
+                        <td>
+                          <span class="badge badge-low">
+                            <i class="fa-solid fa-triangle-exclamation"></i> {{ label }}
+                          </span>
+                          <div class="stock-meta">Stock: {{ p.qty_in_stock }}</div>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            class="btn-link add-btn"
+                            data-id="{{ p.id }}"
+                            data-sku="{{ p.sku }}"
+                            data-name="{{ p.product_name }}"
+                            data-price="{{ p.selling_price }}"
+                            data-stock="{{ p.qty_in_stock }}"
+                          >
+                            <i class="fa-solid fa-plus"></i> Add
+                          </button>
+                        </td>
+                      </tr>
+                    {% endwith %}
+
+                  {% else %}
+                    <tr>
+                      <td>
+                        <div style="font-weight:900;">{{ p.sku }} {{ p.product_name }}</div>
+                        <div class="hint">{{ p.category.category_name }} • {{ p.get_section_display }}</div>
+                      </td>
+                      <td style="font-weight:900;">{{ p.selling_price }}</td>
+                      <td>
+                        <span class="badge badge-in">
+                          <i class="fa-solid fa-circle-check"></i> In Stock
+                        </span>
+                        <div class="stock-meta">Stock: {{ p.qty_in_stock }}</div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          class="btn-link add-btn"
+                          data-id="{{ p.id }}"
+                          data-sku="{{ p.sku }}"
+                          data-name="{{ p.product_name }}"
+                          data-price="{{ p.selling_price }}"
+                          data-stock="{{ p.qty_in_stock }}"
+                        >
+                          <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                      </td>
+                    </tr>
+                  {% endif %}
+
+                {% empty %}
+                  <tr>
+                    <td colspan="4" style="color:var(--muted); font-weight:800;">No products found.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+
+            </table>
+          </div>
+
+          <div class="soft-alert">
+            <i class="fa-solid fa-circle-info" style="margin-top:2px;"></i>
+            <div>
+              Use the product list to add items. The cart will prevent quantities above available stock.
+            </div>
+          </div>
+        </div>
+
+        <!-- Cart (POST form) -->
+        <div class="card">
+          <div class="card-title"><i class="fa-solid fa-basket-shopping"></i> Cart</div>
+
+          <form id="saleForm" method="post" action="{% url 'sales' %}?tab=new">
+            {% csrf_token %}
+            <input type="hidden" name="cart_json" id="cart_json" value="[]">
+
+            <div class="table-wrap">
+              <table id="cartTable">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Line Total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="cartBody">
+                  <tr id="cartEmptyRow">
+                    <td colspan="5" style="color:var(--muted); font-weight:800;">Cart is empty. Add products from the left.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="totals" style="margin-top:12px;">
+              <div class="total-row">
+                <span class="label">Subtotal</span>
+                <span class="val" id="subtotalVal">0.00</span>
+              </div>
+              <div class="total-row">
+                <span class="label">Discount</span>
+                <input type="number" name="discount" id="discountInput" value="0" min="0" step="0.01" style="width:110px; text-align:right;">
+              </div>
+              <div class="total-row total">
+                <span class="label">Total</span>
+                <span class="val" id="totalVal">0.00</span>
+              </div>
+            </div>
+
+            <div class="fg" style="margin-top:12px;">
+              <label>Payment Method</label>
+              <select name="payment_method" id="paymentMethod">
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="mobile">Mobile Payment</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:14px;">
+              <button type="submit" class="btn btn-primary" id="saveBtn">
+                <i class="fa-solid fa-circle-check"></i> Save Sale
+              </button>
+              <a class="btn btn-outline" href="{% url 'sales' %}?tab=new">
+                <i class="fa-solid fa-arrow-left"></i> Cancel
+              </a>
+            </div>
+
+            <div id="cartOverWarn" class="soft-alert" style="display:none; margin-top:12px;">
+              <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px;"></i>
+              <div>
+                One or more items exceed available stock. Reduce quantities before saving.
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    {% elif tab == 'history' %}
+      <!-- SALES HISTORY -->
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Sales History</div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Receipt No</th>
+                <th>Date/Time</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Cashier</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in page_obj %}
+                <tr>
+                  <td style="font-weight:900;">{{ s.receipt_no }}</td>
+                  <td>{{ s.created_at|date:"M d, Y h:i A" }}</td>
+                  <td>{{ s.items.count }}</td>
+                  <td style="font-weight:900;">{{ s.total }}</td>
+                  <td>{{ s.cashier.username }}</td>
+                  <td>
+                    <a class="btn-link" href="{% url 'sales' %}?tab=details&sale_id={{ s.id }}">
+                      <i class="fa-solid fa-eye"></i> View
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" style="color:var(--muted); font-weight:800;">No sales yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+          <div class="pagination">
+            {% if page_obj.has_previous %}
+              <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ page_obj.previous_page_number }}">Previous</a>
+            {% else %}
+              <span class="page-btn" style="opacity:.5;">Previous</span>
+            {% endif %}
+
+            {% for n in page_obj.paginator.page_range %}
+              {% if n == page_obj.number %}
+                <span class="page-btn active">{{ n }}</span>
+              {% elif n >= page_obj.number|add:-2 and n <= page_obj.number|add:2 %}
+                <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ n }}">{{ n }}</a>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ page_obj.next_page_number }}">Next</a>
+            {% else %}
+              <span class="page-btn" style="opacity:.5;">Next</span>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+    {% else %}
+      <!-- SALE DETAILS -->
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-file-invoice"></i> Sale Details</div>
+
+        {% if not sale %}
+          <div class="soft-alert">
+            <i class="fa-solid fa-circle-info" style="margin-top:2px;"></i>
+            <div>
+              Select a sale from <a href="{% url 'sales' %}?tab=history" style="font-weight:900; color:var(--berry); text-decoration:none;">Sales History</a> to view details.
+            </div>
+          </div>
+        {% else %}
+
+          <div class="grid-4">
+            <div class="fg">
+              <label>Receipt No</label>
+              <input type="text" value="{{ sale.receipt_no }}" readonly>
+            </div>
+            <div class="fg">
+              <label>Date/Time</label>
+              <input type="text" value="{{ sale.created_at|date:'M d, Y h:i A' }}" readonly>
+            </div>
+            <div class="fg">
+              <label>Cashier</label>
+              <input type="text" value="{{ sale.cashier.username }}" readonly>
+            </div>
+            <div class="fg">
+              <label>Payment</label>
+              <input type="text" value="{{ sale.get_payment_method_display }}" readonly>
+            </div>
+          </div>
+
+          <div class="grid-4" style="margin-top:12px;">
+            <div class="fg" style="grid-column: span 2;">
+              <label>Customer Name</label>
+              <input type="text" value="{% if sale.customer_name %}{{ sale.customer_name }}{% else %}—{% endif %}" readonly>
+            </div>
+            <div class="fg" style="grid-column: span 2;">
+              <label>Customer Phone</label>
+              <input type="text" value="{% if sale.customer_phone %}{{ sale.customer_phone }}{% else %}—{% endif %}" readonly>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="card-title" style="margin-bottom:10px;"><i class="fa-solid fa-list"></i> Items</div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Line Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for it in sale.items.all %}
+                    <tr>
+                      <td style="font-weight:900;">{{ it.product.sku }} {{ it.product.product_name }}</td>
+                      <td>{{ it.qty }}</td>
+                      <td>{{ it.unit_price }}</td>
+                      <td style="font-weight:900;">{{ it.line_total }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="totals" style="margin-top:12px;">
+              <div class="total-row">
+                <span class="label">Subtotal</span>
+                <span class="val">{{ sale.subtotal }}</span>
+              </div>
+              <div class="total-row">
+                <span class="label">Discount</span>
+                <span class="val">-{{ sale.discount }}</span>
+              </div>
+              <div class="total-row total">
+                <span class="label">Total</span>
+                <span class="val">{{ sale.total }}</span>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:14px;">
+              <a class="btn btn-outline" href="{% url 'sales' %}?tab=history">
+                <i class="fa-solid fa-arrow-left"></i> Back to History
+              </a>
+              <button type="button" class="btn btn-soft" onclick="window.print()">
+                <i class="fa-solid fa-print"></i> Print Receipt
+              </button>
+            </div>
+          </div>
+
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+  (function(){
+    // Cart only exists on "new" tab
+    const cartBody = document.getElementById("cartBody");
+    const cartEmptyRow = document.getElementById("cartEmptyRow");
+    const cartJsonEl = document.getElementById("cart_json");
+    const discountInput = document.getElementById("discountInput");
+    const subtotalVal = document.getElementById("subtotalVal");
+    const totalVal = document.getElementById("totalVal");
+    const overWarn = document.getElementById("cartOverWarn");
+    const saveBtn = document.getElementById("saveBtn");
+
+    if (!cartBody || !cartJsonEl) return;
+
+    // In-memory cart: {id: {id, sku, name, price, stock, qty}}
+    const cart = {};
+
+    function money(n){
+      const x = Number(n || 0);
+      return x.toFixed(2);
+    }
+
+    function cartToList(){
+      return Object.values(cart).map(it => ({
+        product_id: it.id,
+        qty: it.qty,
+        unit_price: String(it.price)
+      }));
+    }
+
+    function recompute(){
+      const items = Object.values(cart);
+      const subtotal = items.reduce((sum, it) => sum + (Number(it.price) * Number(it.qty)), 0);
+
+      const discount = Math.max(0, Number(discountInput?.value || 0));
+      const total = Math.max(0, subtotal - discount);
+
+      subtotalVal.textContent = money(subtotal);
+      totalVal.textContent = money(total);
+
+      cartJsonEl.value = JSON.stringify(cartToList());
+
+      // Show empty row
+      if (items.length === 0){
+        cartEmptyRow.style.display = "";
+      } else {
+        cartEmptyRow.style.display = "none";
+      }
+
+      // Stock overflow check
+      const overflow = items.some(it => it.qty > it.stock);
+      overWarn.style.display = overflow ? "" : "none";
+      if (saveBtn) saveBtn.disabled = overflow || items.length === 0;
+    }
+
+    function render(){
+      // Remove all rows except empty row
+      [...cartBody.querySelectorAll("tr.cart-row")].forEach(r => r.remove());
+
+      Object.values(cart).forEach(it => {
+        const tr = document.createElement("tr");
+        tr.className = "cart-row";
+
+        const lineTotal = Number(it.price) * Number(it.qty);
+        const showOnlyLeft = it.stock > 0 && it.stock <= 5; // uses CURRENT stock; no hardcoding "2"
+
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight:900;">${escapeHtml(it.sku)} ${escapeHtml(it.name)}</div>
+            <div class="hint">Available: ${it.stock}</div>
+          </td>
+          <td>
+            <div class="qty">
+              <button type="button" class="qty-btn" data-action="dec" data-id="${it.id}">-</button>
+              <input type="number" min="1" class="qty-input" value="${it.qty}" data-action="qty" data-id="${it.id}">
+              <button type="button" class="qty-btn" data-action="inc" data-id="${it.id}">+</button>
+            </div>
+            ${showOnlyLeft ? `<div class="warn">Only ${it.stock} left</div>` : ``}
+            ${it.qty > it.stock ? `<div class="warn">Qty exceeds available stock</div>` : ``}
+          </td>
+          <td>
+            <input type="number" min="0" step="0.01" value="${Number(it.price).toFixed(2)}" data-action="price" data-id="${it.id}" style="width:120px; text-align:right;">
+          </td>
+          <td style="font-weight:900;">${money(lineTotal)}</td>
+          <td>
+            <button type="button" class="btn-link" data-action="remove" data-id="${it.id}">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+
+        cartBody.appendChild(tr);
+      });
+
+      recompute();
+    }
+
+    function addItemFromButton(btn){
+      const id = Number(btn.dataset.id);
+      const sku = btn.dataset.sku || "";
+      const name = btn.dataset.name || "";
+      const price = Number(btn.dataset.price || 0);
+      const stock = Number(btn.dataset.stock || 0);
+
+      if (stock <= 0) return;
+
+      if (!cart[id]){
+        cart[id] = { id, sku, name, price, stock, qty: 1 };
+      } else {
+        // Increase qty but never exceed stock
+        cart[id].qty = Math.min(cart[id].qty + 1, cart[id].stock);
+      }
+
+      render();
+    }
+
+    // Add buttons
+    document.querySelectorAll(".add-btn").forEach(btn => {
+      btn.addEventListener("click", () => addItemFromButton(btn));
+    });
+
+    // Cart controls (event delegation)
+    cartBody.addEventListener("click", (e) => {
+      const el = e.target.closest("[data-action]");
+      if (!el) return;
+
+      const action = el.dataset.action;
+      const id = Number(el.dataset.id);
+      if (!cart[id]) return;
+
+      if (action === "remove"){
+        delete cart[id];
+        render();
+        return;
+      }
+
+      if (action === "inc"){
+        cart[id].qty = Math.min(cart[id].qty + 1, cart[id].stock);
+        render();
+        return;
+      }
+
+      if (action === "dec"){
+        cart[id].qty = Math.max(1, cart[id].qty - 1);
+        render();
+        return;
+      }
+    });
+
+    cartBody.addEventListener("input", (e) => {
+      const el = e.target;
+      if (!el.dataset || !el.dataset.action) return;
+
+      const action = el.dataset.action;
+      const id = Number(el.dataset.id);
+      if (!cart[id]) return;
+
+      if (action === "qty"){
+        const v = Math.max(1, Number(el.value || 1));
+        cart[id].qty = v; // allow overflow; UI will warn + disable save
+        recompute();
+        // re-render to refresh line total + warnings
+        render();
+        return;
+      }
+
+      if (action === "price"){
+        const p = Math.max(0, Number(el.value || 0));
+        cart[id].price = p;
+        render();
+        return;
+      }
+    });
+
+    if (discountInput){
+      discountInput.addEventListener("input", () => recompute());
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // Start
+    render();
+  })();
+</script>
+
+{% endblock %}
