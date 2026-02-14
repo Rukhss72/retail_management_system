@@ -1,18 +1,22 @@
 #from django.contrib.auth.decorators import login_required
 #from django.db.models import F, Value, IntegerField, Case, When, Sum, Q
-from django.db.models import Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Q, Sum, F, IntegerField, DecimalField, ExpressionWrapper, Count
+from django.db.models.functions import Coalesce, TruncMonth
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, get_user_model
+from django.core.mail import send_mail
+from django.conf import settings
 
 import secrets
+import hashlib
 from django.db import models
 
 from django.db import transaction
 #from urllib3 import request
-from .models import Product, StockMovement, Category, SKUCounter, Supplier, ReorderRequest, ReorderRequestItem, PurchaseOrder, PurchaseOrderItem, ProductSupplier
-from .forms import RoleAuthenticationForm, StockInForm, StockOutForm, AdjustmentForm, HistoryFilterForm, ProductCreateForm, SupplierForm, PurchaseOrderCreateForm
+from .models import Product, StockMovement, Category, SKUCounter, Supplier, ReorderRequest, ReorderRequestItem, PurchaseOrder, PurchaseOrderItem, ProductSupplier, DailyProductSales, TrustedDevice
+from .forms import RoleAuthenticationForm, TwoFactorForm, StockInForm, StockOutForm, AdjustmentForm, HistoryFilterForm, ProductCreateForm, SupplierForm, PurchaseOrderCreateForm
 
 from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
@@ -26,7 +30,7 @@ from .services import apply_stock_movement
 from django.core.paginator import Paginator
 from .models import Product, StockMovement
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 
 from .permissions import is_admin, is_staff_or_admin, is_staff_user
 from .services import get_reorder_queryset, compute_reorder_row
@@ -35,7 +39,7 @@ from .services import get_reorder_queryset, compute_reorder_row
 #sales import
 import json
 from django.contrib import messages
-from .models import Sale
+from .models import Sale, SaleItem
 from .services import create_sale
 
 from decimal import Decimal, InvalidOperation
@@ -44,20 +48,118 @@ from decimal import Decimal, InvalidOperation
 # Create your views here.
 
 # views.py
+TRUSTED_DEVICE_COOKIE = "trusted_device"
+TRUSTED_DEVICE_DAYS = 30
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _get_client_ip(request):
+    # Basic, single-proxy setup. Adjust if you use X-Forwarded-For.
+    return request.META.get("REMOTE_ADDR")
+
+
+def _get_valid_trusted_device(request, user):
+    raw = request.COOKIES.get(TRUSTED_DEVICE_COOKIE)
+    if not raw or ":" not in raw:
+        return None
+    device_id, token = raw.split(":", 1)
+    token_hash = _token_hash(token)
+    now = timezone.now()
+    try:
+        td = TrustedDevice.objects.get(
+            user=user,
+            device_id=device_id,
+            token_hash=token_hash,
+        )
+    except TrustedDevice.DoesNotExist:
+        return None
+    if td.expires_at <= now:
+        return None
+    return td
+
+
+def _set_trusted_device_cookie(response, device_id, token, days=TRUSTED_DEVICE_DAYS):
+    max_age = 60 * 60 * 24 * days
+    response.set_cookie(
+        TRUSTED_DEVICE_COOKIE,
+        f"{device_id}:{token}",
+        max_age=max_age,
+        secure=getattr(settings, "SESSION_COOKIE_SECURE", False),
+        httponly=True,
+        samesite=getattr(settings, "SESSION_COOKIE_SAMESITE", "Lax"),
+    )
+
+
+def _create_trusted_device(response, request, user):
+    device_id = secrets.token_urlsafe(16)
+    token = secrets.token_urlsafe(32)
+    now = timezone.now()
+    TrustedDevice.objects.create(
+        user=user,
+        device_id=device_id,
+        token_hash=_token_hash(token),
+        last_used_at=now,
+        expires_at=now + timedelta(days=TRUSTED_DEVICE_DAYS),
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        ip_at_creation=_get_client_ip(request),
+    )
+    _set_trusted_device_cookie(response, device_id, token)
+
+
+def _rotate_trusted_device(response, request, td):
+    token = secrets.token_urlsafe(32)
+    now = timezone.now()
+    td.token_hash = _token_hash(token)
+    td.last_used_at = now
+    td.expires_at = now + timedelta(days=TRUSTED_DEVICE_DAYS)
+    td.save(update_fields=["token_hash", "last_used_at", "expires_at"])
+    _set_trusted_device_cookie(response, td.device_id, token)
+
+
 class AdminLoginView(LoginView):
     template_name = "registration/admin_login.html"
     authentication_form = RoleAuthenticationForm
     redirect_authenticated_user = True  # IMPORTANT: prevents loop
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        user = self.request.user
-
-        if not (is_admin(user) or is_staff_user(user)):          # only owner allowed
-            logout(self.request)
+        user = form.get_user()
+        if not (is_admin(user) or is_staff_user(user)):
             return redirect("admin_login")
 
-        return response
+        if not user.email:
+            form.add_error(None, "No email on this account. Contact admin.")
+            return self.form_invalid(form)
+
+        trusted = _get_valid_trusted_device(self.request, user)
+        if trusted:
+            login(self.request, user)
+            self.request.session.set_expiry(60 * 60 * 24 * TRUSTED_DEVICE_DAYS)
+            response = redirect(self.get_success_url())
+            _rotate_trusted_device(response, self.request, trusted)
+            return response
+
+        code = f"{secrets.randbelow(1000000):06d}"
+        self.request.session["pending_2fa_user_id"] = user.id
+        self.request.session["pending_2fa_code"] = code
+        self.request.session["pending_2fa_exp"] = int(timezone.now().timestamp()) + 600
+        self.request.session["pending_2fa_remember"] = bool(form.cleaned_data.get("remember_me"))
+
+        try:
+            send_mail(
+                subject="Your login verification code",
+                message=f"Your verification code is {code}. It expires in 10 minutes.",
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            form.add_error(None, "Email delivery failed. Check Gmail SMTP settings and restart the server.")
+            return self.form_invalid(form)
+
+        return redirect("two_factor_verify")
 
     def get_success_url(self):
         return reverse_lazy("home") # or "home/dashboard"
@@ -190,7 +292,7 @@ def home(request):
     now = timezone.localtime()
 
     context = {
-        "store_name": "Nasnmay Boutique",
+        "store_name": "",
         "today_date": now.strftime("%A, %d %B %Y"),
         "now_time": now.strftime("%I:%M %p"),
 
@@ -260,9 +362,12 @@ def inventory(request):
         else:
             p.stock_status = "OK"
 
-        # Apply product-list status filter (OK/Low/Out)
-        if status and p.stock_status != status:
-            continue
+        # Apply product-list status filter (OK/Low/Out or LowOut)
+        if status:
+            if status == "LowOut" and p.stock_status not in ("Low", "Out"):
+                continue
+            if status in ("OK", "Low", "Out") and p.stock_status != status:
+                continue
 
         products.append(p)
 
@@ -1037,8 +1142,370 @@ def reorder_request_reject(request, rr_id):
 
 @admin_required
 def dashboard(request):
-    return render(request, "retail/dashboard.html")
+    today = timezone.localdate()
+    range_days = 30
+    start_str = (request.GET.get("start") or "").strip()
+    end_str = (request.GET.get("end") or "").strip()
+
+    start_date = None
+    end_date = None
+    if start_str and end_str:
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+        except ValueError:
+            start_date = None
+            end_date = None
+
+    if start_date and end_date:
+        since = start_date
+        today = end_date
+        if since > today:
+            since, today = today, since
+        range_days = (today - since).days + 1
+    else:
+        since = today - timedelta(days=range_days - 1)
+
+    def month_sequence(start_date: date, end_date: date):
+        cur = start_date.replace(day=1)
+        end = end_date.replace(day=1)
+        months = []
+        while cur <= end:
+            months.append(cur)
+            if cur.month == 12:
+                cur = cur.replace(year=cur.year + 1, month=1)
+            else:
+                cur = cur.replace(month=cur.month + 1)
+        return months
+
+    # ----- Sales KPIs (last 30 days) -----
+    sales_qs = Sale.objects.filter(sale_date__gte=since, sale_date__lte=today)
+    orders_count = sales_qs.count()
+
+    sales_agg = sales_qs.aggregate(
+        total_revenue=Coalesce(Sum("total"), Decimal("0.00")),
+        total_subtotal=Coalesce(Sum("subtotal"), Decimal("0.00")),
+        total_discount=Coalesce(Sum("discount"), Decimal("0.00")),
+    )
+
+    units_agg = SaleItem.objects.filter(sale__sale_date__gte=since).aggregate(
+        total_units=Coalesce(Sum("qty"), 0)
+    )
+
+    promo_orders = sales_qs.filter(promo_flag=True).count()
+
+    total_revenue = sales_agg["total_revenue"]
+    total_subtotal = sales_agg["total_subtotal"]
+    total_discount = sales_agg["total_discount"]
+    total_units = units_agg["total_units"]
+
+    avg_order_value = (total_revenue / orders_count) if orders_count else Decimal("0.00")
+    avg_basket_size = (Decimal(total_units) / orders_count) if orders_count else Decimal("0.00")
+    discount_rate = (total_discount / total_subtotal * Decimal("100")) if total_subtotal else Decimal("0.00")
+    promo_share = (Decimal(promo_orders) / orders_count * Decimal("100")) if orders_count else Decimal("0.00")
+
+    top_sellers = (
+        SaleItem.objects.filter(sale__sale_date__gte=since, sale__sale_date__lte=today)
+        .select_related("product", "product__category")
+        .values("product__sku", "product__product_name", "product__category__category_name")
+        .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+        .order_by("-units", "-revenue")[:6]
+    )
+
+    # ----- Inventory KPIs (current) -----
+    products_qs = Product.objects.filter(is_active=True)
+    total_skus = products_qs.count()
+    total_units_on_hand = products_qs.aggregate(total=Coalesce(Sum("qty_in_stock"), 0))["total"]
+
+    stock_value_expr = ExpressionWrapper(
+        F("qty_in_stock") * F("selling_price"),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+    stock_value = products_qs.aggregate(total=Coalesce(Sum(stock_value_expr), Decimal("0.00")))["total"]
+
+    out_of_stock_count = Product.objects.filter(qty_in_stock=0).count()
+    low_stock_count = products_qs.filter(qty_in_stock__gt=0, qty_in_stock__lte=4).count()
+    ok_stock_count = products_qs.filter(qty_in_stock__gte=5).count()
+
+    low_stock_items = (
+        products_qs.filter(qty_in_stock__lte=4)
+        .select_related("category")
+        .order_by("qty_in_stock", "product_name")[:6]
+    )
+
+    total_stock_count = total_skus or 1
+    ok_pct = int(round(ok_stock_count / total_stock_count * 100))
+    low_pct = int(round(low_stock_count / total_stock_count * 100))
+    out_pct = int(round(out_of_stock_count / total_stock_count * 100))
+
+    # ----- Charts (DailyProductSales) -----
+    dps_range = DailyProductSales.objects.filter(date__gte=since, date__lte=today)
+    has_daily_sales = dps_range.exists()
+
+    months = month_sequence(since, today)
+    month_labels = [m.strftime("%b %Y") for m in months]
+
+    rev_by_month = (
+        dps_range
+        .annotate(m=TruncMonth("date"))
+        .values("m")
+        .annotate(
+            revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")),
+            units=Coalesce(Sum("qty_sold"), 0),
+            days=Count("date", distinct=True),
+        )
+        .order_by("m")
+    )
+    rev_map = {}
+    units_map = {}
+    avg_daily_map = {}
+    for row in rev_by_month:
+        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+        rev_map[m] = row["revenue"]
+        units_map[m] = row["units"]
+        days = int(row["days"] or 0)
+        avg_daily_map[m] = (row["revenue"] / days) if days else Decimal("0.00")
+
+    orders_by_month = (
+        sales_qs
+        .annotate(m=TruncMonth("sale_date"))
+        .values("m")
+        .annotate(orders=Count("id"), gross=Coalesce(Sum("subtotal"), Decimal("0.00")))
+        .order_by("m")
+    )
+    orders_map = {}
+    gross_map = {}
+    for row in orders_by_month:
+        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+        orders_map[m] = row["orders"]
+        gross_map[m] = row["gross"]
+
+    revenue_series = [float(rev_map.get(m, 0)) for m in months]
+    units_series = [int(units_map.get(m, 0)) for m in months]
+    orders_series = [int(orders_map.get(m, 0)) for m in months]
+    avg_daily_series = [float(avg_daily_map.get(m, 0)) for m in months]
+
+    cat_qs = (
+        dps_range
+        .values("product__category__category_name")
+        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+        .order_by("-revenue")
+    )
+    cat_labels = []
+    cat_values = []
+    top_cat_names = []
+    other_total = Decimal("0.00")
+    for idx, row in enumerate(cat_qs):
+        name = row["product__category__category_name"] or "Uncategorized"
+        if idx < 5:
+            cat_labels.append(name)
+            cat_values.append(float(row["revenue"]))
+            top_cat_names.append(name)
+        else:
+            other_total += row["revenue"]
+    if other_total > 0:
+        cat_labels.append("Other")
+        cat_values.append(float(other_total))
+
+    # Top categories trend (stacked area)
+    trend_rows = (
+        dps_range
+        .filter(product__category__category_name__in=top_cat_names)
+        .annotate(m=TruncMonth("date"))
+        .values("m", "product__category__category_name")
+        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+        .order_by("m")
+    )
+    trend_map = {name: {} for name in top_cat_names}
+    for row in trend_rows:
+        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+        name = row["product__category__category_name"] or "Uncategorized"
+        if name in trend_map:
+            trend_map[name][m] = row["revenue"]
+    top_cat_series = [
+        [float(trend_map[name].get(m, 0)) for m in months] for name in top_cat_names
+    ]
+
+    # Promo vs non-promo revenue by month
+    promo_rows = (
+        dps_range
+        .annotate(m=TruncMonth("date"))
+        .values("m", "promo_flag")
+        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+        .order_by("m")
+    )
+    promo_map = {}
+    nonpromo_map = {}
+    for row in promo_rows:
+        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+        if row["promo_flag"]:
+            promo_map[m] = row["revenue"]
+        else:
+            nonpromo_map[m] = row["revenue"]
+    promo_series = [float(promo_map.get(m, 0)) for m in months]
+    nonpromo_series = [float(nonpromo_map.get(m, 0)) for m in months]
+
+    # Best-selling category per month
+    best_rows = (
+        dps_range
+        .annotate(m=TruncMonth("date"))
+        .values("m", "product__category__category_name")
+        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+        .order_by("m")
+    )
+    best_map = {}
+    for row in best_rows:
+        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
+        name = row["product__category__category_name"] or "Uncategorized"
+        rev = row["revenue"]
+        if m not in best_map or rev > best_map[m]["revenue"]:
+            best_map[m] = {"category": name, "revenue": rev}
+
+    best_cat_rows = []
+    for m in months:
+        info = best_map.get(m)
+        best_cat_rows.append({
+            "month": m.strftime("%b %Y"),
+            "category": info["category"] if info else "—",
+            "revenue": float(info["revenue"]) if info else 0.0,
+        })
+
+    context = {
+        "since_date": since,
+        "today_date": today,
+        "range_days": range_days,
+        "start_date": since,
+        "end_date": today,
+
+        # sales
+        "orders_count": orders_count,
+        "total_revenue": total_revenue,
+        "total_units": total_units,
+        "avg_order_value": avg_order_value,
+        "avg_basket_size": avg_basket_size,
+        "discount_rate": discount_rate,
+        "promo_share": promo_share,
+        "top_sellers": top_sellers,
+
+        # inventory
+        "total_skus": total_skus,
+        "total_units_on_hand": total_units_on_hand,
+        "stock_value": stock_value,
+        "out_of_stock_count": out_of_stock_count,
+        "low_stock_count": low_stock_count,
+        "ok_stock_count": ok_stock_count,
+        "low_stock_items": low_stock_items,
+        "ok_pct": ok_pct,
+        "low_pct": low_pct,
+        "out_pct": out_pct,
+
+        # charts
+        "has_daily_sales": has_daily_sales,
+        "month_labels": month_labels,
+        "revenue_series": revenue_series,
+        "orders_series": orders_series,
+        "units_series": units_series,
+        "avg_daily_series": avg_daily_series,
+        "promo_series": promo_series,
+        "nonpromo_series": nonpromo_series,
+        "cat_labels": cat_labels,
+        "cat_values": cat_values,
+        "top_cat_names": top_cat_names,
+        "top_cat_series": top_cat_series,
+        "best_cat_rows": best_cat_rows,
+    }
+
+    return render(request, "retail/dashboard.html", context)
 
 @admin_required
 def assistant(request):
     return render(request, "retail/assistant.html")
+
+
+def two_factor_verify(request):
+    user_id = request.session.get("pending_2fa_user_id")
+    code = request.session.get("pending_2fa_code")
+    exp = request.session.get("pending_2fa_exp")
+    remember = request.session.get("pending_2fa_remember", False)
+
+    if not (user_id and code and exp):
+        return redirect("admin_login")
+
+    now_ts = int(timezone.now().timestamp())
+    expired = now_ts > int(exp)
+
+    if request.GET.get("resend") == "1":
+        user = get_object_or_404(get_user_model(), id=user_id)
+        new_code = f"{secrets.randbelow(1000000):06d}"
+        request.session["pending_2fa_code"] = new_code
+        request.session["pending_2fa_exp"] = now_ts + 600
+        try:
+            send_mail(
+                subject="Your login verification code",
+                message=f"Your verification code is {new_code}. It expires in 10 minutes.",
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception:
+            pass
+        expired = False
+
+    form = TwoFactorForm(request.POST or None)
+    error = None
+
+    if request.method == "POST" and form.is_valid():
+        entered = form.cleaned_data["code"]
+        if expired:
+            error = "Code expired. Please request a new one."
+        elif entered != str(code):
+            error = "Invalid code. Try again."
+        else:
+            user = get_object_or_404(get_user_model(), id=user_id)
+            login(request, user)
+            request.session.pop("pending_2fa_user_id", None)
+            request.session.pop("pending_2fa_code", None)
+            request.session.pop("pending_2fa_exp", None)
+            request.session.pop("pending_2fa_remember", None)
+
+            if remember:
+                request.session.set_expiry(60 * 60 * 24 * TRUSTED_DEVICE_DAYS)
+            else:
+                request.session.set_expiry(0)
+
+            response = redirect("home")
+            if remember:
+                _create_trusted_device(response, request, user)
+            return response
+
+    context = {
+        "form": form,
+        "expired": expired,
+        "error": error,
+    }
+    return render(request, "registration/two_factor_verify.html", context)
+
+
+@staff_required
+def trusted_devices(request):
+    if request.method == "POST":
+        device_id = request.POST.get("device_id")
+        if device_id:
+            TrustedDevice.objects.filter(user=request.user, device_id=device_id).delete()
+            raw = request.COOKIES.get(TRUSTED_DEVICE_COOKIE, "")
+            if raw.startswith(f"{device_id}:"):
+                response = redirect("trusted_devices")
+                response.delete_cookie(TRUSTED_DEVICE_COOKIE)
+                return response
+        return redirect("trusted_devices")
+
+    devices = (
+        TrustedDevice.objects
+        .filter(user=request.user)
+        .order_by("-last_used_at", "-created_at")
+    )
+    context = {
+        "devices": devices,
+        "now": timezone.now(),
+    }
+    return render(request, "registration/trusted_devices.html", context)

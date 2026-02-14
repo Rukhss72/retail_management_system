@@ -5,7 +5,8 @@
 Create superuser: 
 ruk 
 baichoorukhsaar@gmail.com 
-ruk58140367 
+ruk58140367 xxx
+NewStrongPass123 
 
 
 admin2
@@ -19,6 +20,10 @@ Staff2@123
 
 staff3
 Staff3@123
+
+Gmail app name: django
+generated app password: ofok xspn ytpr ptbn
+
 '''
 #code below
 '''

@@ -13,13 +13,38 @@ class RoleAuthenticationForm(AuthenticationForm):
     )
 
     role = forms.ChoiceField(choices=ROLE_CHOICES)
+    remember_me = forms.BooleanField(required=False, initial=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Optional: add basic styling hooks
-        for name, field in self.fields.items():
-            field.widget.attrs.setdefault("style", "width:100%;padding:8px;")
+        self.fields["role"].widget.attrs.update({
+            "class": "form-control role-select",
+        })
+        self.fields["username"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "Enter your username",
+        })
+        self.fields["password"].widget.attrs.update({
+            "class": "form-control",
+            "placeholder": "Enter your password",
+        })
+        self.fields["remember_me"].widget.attrs.update({
+            "class": "remember-input",
+        })
+
+
+class TwoFactorForm(forms.Form):
+    code = forms.CharField(max_length=6, min_length=6)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["code"].widget.attrs.update({
+            "class": "input",
+            "placeholder": "------",
+            "inputmode": "numeric",
+            "autocomplete": "one-time-code",
+        })
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)

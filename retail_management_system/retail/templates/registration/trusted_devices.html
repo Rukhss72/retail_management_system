@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trusted Devices</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #fdf7f7 0%, #f9f9ff 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .login-container {
+      width: 1000px;
+      min-height: 520px;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(220, 220, 230, 0.5);
+      animation: fadeInUp 0.7s cubic-bezier(0.17, 0.67, 0.88, 1.01);
+    }
+
+    .decoration {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.15;
+    }
+    .decoration-1 {
+      top: -80px;
+      left: -80px;
+      width: 160px;
+      height: 160px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+    .decoration-2 {
+      bottom: -80px;
+      right: -80px;
+      width: 140px;
+      height: 140px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+    .decoration-3 {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+
+    .brand-logo {
+      text-align: center;
+      margin: 30px 0 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .brand-logo i {
+      font-size: 60px;
+      color: #ffd6e0;
+      margin-bottom: 14px;
+      display: inline-block;
+      text-shadow: 0 4px 10px rgba(255, 214, 224, 0.3);
+    }
+    .brand-logo h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #4a3a5a;
+      margin-bottom: 6px;
+    }
+    .brand-logo p {
+      color: #6a5a7a;
+      font-size: 16px;
+    }
+
+    .login-header {
+      padding: 20px 40px 10px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+    .login-header h1 {
+      font-size: 30px;
+      font-weight: 700;
+      color: #4a3a5a;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .login-header p {
+      color: #6a5a7a;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .login-form {
+      padding: 0 40px 40px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .device-list {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .device-card {
+      background: #fff;
+      border: 2px solid #f0eaf6;
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+    }
+    .device-card:hover {
+      transform: translateY(-2px);
+      border-color: #ffd6e0;
+      box-shadow: 0 12px 28px rgba(255, 214, 224, 0.2);
+    }
+
+    .device-title {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-weight: 700;
+      color: #4a3a5a;
+      margin-bottom: 6px;
+    }
+    .device-title i { color: #b0a0c0; }
+
+    .device-meta {
+      color: #6a5a7a;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .device-meta b {
+      color: #5a4a6a;
+      font-weight: 600;
+    }
+
+    .btn-revoke {
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 2px solid #ffd6e0;
+      background: #fff;
+      color: #7a5a6a;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-revoke:hover {
+      background: #ffd6e0;
+      color: #3a2a4a;
+    }
+
+    .empty-state {
+      margin-top: 18px;
+      background: #fff7f9;
+      border: 1px dashed #ffd6e0;
+      padding: 16px;
+      border-radius: 14px;
+      color: #6a5a7a;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      color: #6a5a7a;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.25s ease;
+    }
+    .back-link:hover { color: #4a3a5a; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(25px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .login-container { width: 100%; }
+      .login-header, .login-form { padding-left: 24px; padding-right: 24px; }
+      .device-card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="decoration decoration-1"></div>
+    <div class="decoration decoration-2"></div>
+    <div class="decoration decoration-3"></div>
+
+    <div class="brand-logo">
+      <i class="fas fa-shopping-bag"></i>
+      <h2>RetailFlow</h2>
+      <p>Management System</p>
+    </div>
+
+    <div class="login-header">
+      <h1>Trusted Devices</h1>
+      <p>Devices that can skip verification for 30 days.</p>
+    </div>
+
+    <div class="login-form">
+      {% if devices %}
+        <div class="device-list">
+          {% for d in devices %}
+            <div class="device-card">
+              <div>
+                <div class="device-title">
+                  <i class="fas fa-laptop"></i>
+                  Device {{ forloop.counter }}
+                </div>
+                <div class="device-meta">
+                  <div><b>Last used:</b> {{ d.last_used_at|date:"M d, Y H:i" }}</div>
+                  <div><b>Expires:</b> {{ d.expires_at|date:"M d, Y H:i" }}</div>
+                  <div><b>User:</b> {{ request.user.username }}</div>
+                  {% if d.user_agent %}
+                    <div><b>Agent:</b> {{ d.user_agent|truncatechars:80 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="device_id" value="{{ d.device_id }}">
+                <button class="btn-revoke" type="submit">
+                  <i class="fa-solid fa-trash"></i> Revoke
+                </button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          No trusted devices yet.
+        </div>
+      {% endif %}
+
+      <a class="back-link" href="{% url 'home' %}">
+        <i class="fa-solid fa-arrow-left"></i> Back to Home
+      </a>
+    </div>
+  </div>
+</body>
+</html>

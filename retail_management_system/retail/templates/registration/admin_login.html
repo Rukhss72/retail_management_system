@@ -1,33 +1,404 @@
-{% extends "retail/base.html" %}
-{% block content %}
-<div style="max-width:420px;margin:40px auto;padding:20px;border:1px solid #e5e7eb;border-radius:12px;">
-  <h2 style="margin:0 0 12px 0;">Admin Login</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retail Management System - Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
 
-  {% if form.errors %}
-    <div style="background:#fee2e2;padding:10px;border-radius:8px;margin-bottom:12px;">
-      Invalid details (or role mismatch).
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #fdf7f7 0%, #f9f9ff 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .login-container {
+      width: 1000px;
+      min-height: 480px;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(220, 220, 230, 0.5);
+      animation: fadeInUp 0.7s cubic-bezier(0.17, 0.67, 0.88, 1.01);
+    }
+
+    .decoration {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.15;
+    }
+    .decoration-1 {
+      top: -80px;
+      left: -80px;
+      width: 160px;
+      height: 160px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+    .decoration-2 {
+      bottom: -80px;
+      right: -80px;
+      width: 140px;
+      height: 140px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+    .decoration-3 {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+    }
+
+    .brand-logo {
+      text-align: center;
+      margin: 30px 0 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .brand-logo i {
+      font-size: 60px;
+      color: #ffd6e0;
+      margin-bottom: 14px;
+      display: inline-block;
+      text-shadow: 0 4px 10px rgba(255, 214, 224, 0.3);
+    }
+    .brand-logo h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #4a3a5a;
+      margin-bottom: 6px;
+    }
+    .brand-logo p {
+      color: #6a5a7a;
+      font-size: 16px;
+    }
+
+    .login-header {
+      padding: 20px 40px 16px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+    }
+    .login-header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #4a3a5a;
+      margin-bottom: 10px;
+      letter-spacing: -0.5px;
+    }
+    .login-header p {
+      color: #6a5a7a;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .login-form {
+      padding: 0 40px 40px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .form-group {
+      margin-bottom: 22px;
+      position: relative;
+      transition: transform 0.3s ease;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: 600;
+      color: #5a4a6a;
+      font-size: 15px;
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    .input-wrapper i {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #b0a0c0;
+      font-size: 16px;
+      pointer-events: none;
+    }
+    .toggle-pass {
+      position: absolute;
+      right: 30px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 0;
+      background: transparent;
+      color: #8a7aa0;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+    }
+    .toggle-pass:hover { color: #6a5a7a; background: rgba(176,160,192,0.12); }
+
+    .form-control {
+      width: 100%;
+      padding: 18px 18px 18px 50px;
+      border: 2px solid #eaeaf5;
+      border-radius: 14px;
+      font-size: 16px;
+      transition: all 0.35s ease;
+      background: white;
+      outline: none;
+      font-weight: 500;
+    }
+    .form-control.has-toggle{
+      padding-right: 56px;
+    }
+    .form-control:focus {
+      border-color: #ffd6e0;
+      box-shadow:
+        0 0 0 3px rgba(255, 214, 224, 0.35),
+        0 0 15px rgba(255, 214, 224, 0.2);
+    }
+    .form-group:hover .form-control {
+      border-color: #f5f0f5;
+    }
+
+    .remember-input{
+      width: 18px;
+      height: 18px;
+      accent-color: #ffd6e0;
+    }
+
+    .role-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23b0a0c0' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.704 5.464a1 1 0 0 1-1.498 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 18px center;
+      background-size: 16px;
+      padding-right: 45px;
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
+      border: none;
+      border-radius: 14px;
+      color: #3a2a4a;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.35s ease;
+      box-shadow:
+        0 6px 20px rgba(255, 214, 224, 0.4),
+        0 0 20px rgba(255, 214, 224, 0.2);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-login:hover {
+      transform: translateY(-3px);
+      box-shadow:
+        0 8px 25px rgba(255, 214, 224, 0.6),
+        0 0 20px rgba(255, 214, 224, 0.3);
+      background: linear-gradient(145deg, #ffcdd2, #fff9c4, #a5d6a7);
+    }
+    .btn-login:active {
+      transform: translateY(0);
+      box-shadow: 0 3px 12px rgba(255, 214, 224, 0.4);
+    }
+    .btn-login::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+      transition: 0.6s;
+    }
+    .btn-login:hover::after { left: 100%; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 26px 0;
+    }
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      border-bottom: 1px solid #eaeaf5;
+    }
+    .divider span {
+      padding: 0 16px;
+      color: #b0a0c0;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .forgot-password {
+      text-align: center;
+      margin-top: 16px;
+    }
+    .forgot-password a {
+      color: #ffd6e0;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      transition: all 0.35s ease;
+    }
+    .forgot-password a:hover {
+      text-decoration: underline;
+      color: #ff9aa2;
+    }
+
+    .form-error {
+      background: #ffebee;
+      color: #b71c1c;
+      border: 1px solid #ef9a9a;
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin: 0 40px 10px;
+      font-size: 14px;
+      font-weight: 600;
+      position: relative;
+      z-index: 2;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(25px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 480px) {
+      .login-container { width: 100%; }
+      .login-header, .login-form { padding-left: 24px; padding-right: 24px; }
+      .form-error { margin-left: 24px; margin-right: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="decoration decoration-1"></div>
+    <div class="decoration decoration-2"></div>
+    <div class="decoration decoration-3"></div>
+
+    <div class="brand-logo">
+      <i class="fas fa-shopping-bag"></i>
+      <h2>RetailFlow</h2>
+      <p>Management System</p>
     </div>
-  {% endif %}
 
-  <form method="post">
-    {% csrf_token %}
-
-    <div style="margin-bottom:12px;">
-      <label>Role</label>
-      {{ form.role }}
+    <div class="login-header">
+      <h1>Welcome Back</h1>
+      <p>Sign in to access your retail management dashboard</p>
     </div>
 
-    <div style="margin-bottom:12px;">
-      <label>Username</label>
-      {{ form.username }}
-    </div>
+    {% if form.errors %}
+      <div class="form-error">
+        {% for err in form.non_field_errors %}
+          {{ err }}<br>
+        {% endfor %}
+        {% if not form.non_field_errors %}
+          Invalid details. Check role, username, or password.
+        {% endif %}
+      </div>
+    {% endif %}
 
-    <div style="margin-bottom:12px;">
-      <label>Password</label>
-      {{ form.password }}
-    </div>
+    <form class="login-form" method="post">
+      {% csrf_token %}
 
-    <button type="submit">Log In</button>
-  </form>
-</div>
-{% endblock %}
+      <div class="form-group">
+        <label for="{{ form.role.id_for_label }}">Role</label>
+        <div class="input-wrapper">
+          {{ form.role }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="{{ form.username.id_for_label }}">Username</label>
+        <div class="input-wrapper">
+          <i class="fas fa-user"></i>
+          {{ form.username }}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        <div class="input-wrapper">
+          <i class="fas fa-lock"></i>
+          {{ form.password }}
+          <button type="button" class="toggle-pass" aria-label="Show password">
+            <i class="fa-regular fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+        {{ form.remember_me }}
+        <label for="{{ form.remember_me.id_for_label }}" style="margin:0; font-weight:600;">Remember me</label>
+      </div>
+
+      <button type="submit" class="btn-login">
+        <i class="fas fa-sign-in-alt"></i> Log In
+      </button>
+
+      <div class="divider">
+        <span>or continue with</span>
+      </div>
+
+      <div class="forgot-password">
+        <a href="{% url 'password_reset' %}">Forgot password?</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // Focus effects
+    const inputs = document.querySelectorAll(".form-control");
+    inputs.forEach(input => {
+      input.addEventListener("focus", function() {
+        this.parentElement.classList.add("focused");
+      });
+      input.addEventListener("blur", function() {
+        this.parentElement.classList.remove("focused");
+      });
+    });
+
+    // Subtle hover lift on groups
+    const groups = document.querySelectorAll(".form-group");
+    groups.forEach(group => {
+      group.addEventListener("mouseenter", function() {
+        this.style.transform = "translateY(-2px)";
+      });
+      group.addEventListener("mouseleave", function() {
+        this.style.transform = "translateY(0)";
+      });
+    });
+
+    // Toggle password visibility
+    const passInput = document.getElementById("{{ form.password.id_for_label }}");
+    const toggleBtn = document.querySelector(".toggle-pass");
+    if (passInput && toggleBtn) {
+      passInput.classList.add("has-toggle");
+      toggleBtn.addEventListener("click", () => {
+        const isHidden = passInput.type === "password";
+        passInput.type = isHidden ? "text" : "password";
+        toggleBtn.innerHTML = isHidden ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
+      });
+    }
+  </script>
+</body>
+</html>

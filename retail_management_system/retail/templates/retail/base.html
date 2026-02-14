@@ -292,6 +292,12 @@
             <span class="link-text">Assistant</span>
           </a>
 
+          <a href="{% url 'trusted_devices' %}"
+            class="side-link {% if '/admin-login/trusted-devices' in request.path %}active{% endif %}">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span class="link-text">Trusted Devices</span>
+          </a>
+
           <form method="post" action="{% url 'logout' %}" class="side-form">
             {% csrf_token %}
             <button type="submit" class="side-link side-btn">

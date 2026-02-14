@@ -1,7 +1,7 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
 from . import views
-from .views import home, inventory, sales, dashboard, assistant, suppliers, AdminLoginView
+from .views import home, inventory, sales, dashboard, assistant, suppliers, AdminLoginView, two_factor_verify, trusted_devices
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
@@ -14,6 +14,8 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("assistant/", views.assistant, name="assistant"),
     path("suppliers/", views.suppliers, name="suppliers"),
+    path("admin-login/verify/", two_factor_verify, name="two_factor_verify"),
+    path("admin-login/trusted-devices/", trusted_devices, name="trusted_devices"),
 
 
      # Admin login/logout page inside your app

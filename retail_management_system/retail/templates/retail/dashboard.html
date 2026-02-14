@@ -1,6 +1,660 @@
 {% extends "retail/base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-  <h1>Dashboard</h1>
-  <p>Next: sales per day/week, revenue per category, top sellers, inventory health.</p>
+  <style>
+    :root{
+      --white:#FFFFFF;
+      --sky:#84ACCE;
+      --charcoal:#404E5C;
+      --berry:#AA4465;
+      --cotton:#EDBFC6;
+
+      --border:#E5E7EB;
+      --muted:#6B7280;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+      --shadow:0 10px 22px rgba(0,0,0,.10);
+      --radius:14px;
+    }
+
+    .dash-page-wrap{
+      max-width: 1600px;
+      margin: 0 auto;
+      padding-left: 30px;
+    }
+    @media (max-width: 1200px){
+      .dash-page-wrap{ padding-left: 16px; }
+    }
+
+    .page-head{
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 18px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .page-title{
+      margin:0;
+      display:flex;
+      align-items:center;
+      justify-content: center;
+      gap:10px;
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+    .page-sub{ margin-top:6px; color: var(--muted); font-size: .92rem; }
+
+    .filter-row{
+      margin-top: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chip{
+      padding: .65rem 1rem;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: .82rem;
+      display:inline-flex;
+      align-items:center;
+      gap:.4rem;
+      border:1px solid var(--border);
+      background: var(--white);
+      box-shadow: var(--shadow-sm);
+    }
+    .chip-warn{ background: #fff8e1; color: #f57f17; border-color:#ffd54f; }
+    .chip-danger{ background: #ffebee; color: #c62828; border-color:#ef9a9a; }
+
+    input[type="date"]{
+      height: 40px;
+      line-height: 40px;
+      padding: 0 12px;
+      border: 1px solid #D1D5DB;
+      border-radius: 12px;
+      background: #FAFAFA;
+      font-size: .95rem;
+      outline: none;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 900;
+      cursor:pointer;
+      border: 1px solid transparent;
+      transition: opacity .15s ease, transform .15s ease;
+      user-select:none;
+      text-decoration:none;
+    }
+    .btn:hover{ opacity:.93; transform: translateY(-1px); }
+    .btn-primary{ background: var(--berry); color: var(--white); }
+    .btn-soft{
+      background: rgba(132,172,206,.18);
+      border-color: rgba(132,172,206,.35);
+      color: var(--charcoal);
+    }
+
+    .dash-section {
+      margin: 18px 0 8px 0;
+    }
+    .dash-section h2 {
+      font-size: 18px;
+      margin: 0 0 10px 0;
+      color: var(--charcoal);
+      font-weight: 900;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .kpi-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .kpi-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--charcoal);
+    }
+    .kpi-help {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+      margin-top: 6px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--charcoal);
+      margin-bottom: 10px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .status-pill {
+      padding: 10px 12px;
+      border-radius: 12px;
+      text-align: center;
+      font-weight: 900;
+      font-size: 13px;
+    }
+    .status-ok { background: #e8f5e9; color: #2e7d32; }
+    .status-low { background: #fff8e1; color: #f57f17; }
+    .status-out { background: #ffebee; color: #c62828; }
+
+    .status-bar {
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+      background: #e2e8f0;
+    }
+    .bar-ok { background: #22c55e; }
+    .bar-low { background: #f59e0b; }
+    .bar-out { background: #ef4444; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .95rem;
+    }
+    .table-wrap{
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .table-scroll-5{
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #F0F0F0;
+    }
+    th {
+      color: var(--charcoal);
+      font-weight: 900;
+      background: #FAFAFA;
+    }
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 900;
+    }
+    .badge-ok { background: #e8f5e9; color: #2e7d32; }
+    .badge-low { background: #fff8e1; color: #f57f17; }
+    .badge-out { background: #ffebee; color: #c62828; }
+
+    @media (max-width: 1100px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .chart-wrap {
+      height: 260px;
+    }
+    .chart-note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+  </style>
+
+  <div class="dash-page-wrap">
+    <div class="page-head">
+      <h1 class="page-title"><i class="fa-solid fa-chart-line"></i> Business Snapshot</h1>
+      <div class="page-sub">
+        Last {{ range_days }} days ({{ since_date|date:"M d, Y" }} – {{ today_date|date:"M d, Y" }})
+      </div>
+
+      <div class="filter-row">
+        <form method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;">
+          <label for="start" class="chip">From</label>
+          <input id="start" name="start" type="date" value="{{ start_date|date:'Y-m-d' }}">
+          <label for="end" class="chip">To</label>
+          <input id="end" name="end" type="date" value="{{ end_date|date:'Y-m-d' }}">
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </form>
+        <span class="chip chip-warn">Low stock: &le; 4</span>
+        <span class="chip chip-danger">Out of stock: 0</span>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <h2>Sales (last 30 days)</h2>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Revenue (Net)</div>
+          <div class="kpi-value">MUR {{ total_revenue|floatformat:2 }}</div>
+          <div class="kpi-help">Across {{ orders_count }} orders</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Units Sold</div>
+          <div class="kpi-value">{{ total_units }}</div>
+          <div class="kpi-help">Avg basket {{ avg_basket_size|floatformat:2 }}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Average Order Value</div>
+          <div class="kpi-value">MUR {{ avg_order_value|floatformat:2 }}</div>
+          <div class="kpi-help">Based on net totals</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Promo Share</div>
+          <div class="kpi-value">{{ promo_share|floatformat:1 }}%</div>
+          <div class="kpi-help">Discount rate {{ discount_rate|floatformat:1 }}%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <h2>Monthly Performance</h2>
+      {% if has_daily_sales %}
+        <div class="grid-3">
+          <div class="panel">
+            <div class="panel-title">Revenue by Month</div>
+            <div class="chart-wrap"><canvas id="revByMonth"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Orders by Month</div>
+            <div class="chart-wrap"><canvas id="ordersByMonth"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Units by Month</div>
+            <div class="chart-wrap"><canvas id="unitsByMonth"></canvas></div>
+          </div>
+        </div>
+      {% else %}
+        <div class="panel">
+          <div class="panel-title">No daily sales data</div>
+          <div class="chart-note">Run the daily sales build command to populate charts.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-section">
+      <h2>Efficiency & Promo</h2>
+      {% if has_daily_sales %}
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Average Daily Sales by Month</div>
+            <div class="chart-wrap"><canvas id="avgDailyByMonth"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Promo vs Non‑Promo Revenue</div>
+            <div class="chart-wrap"><canvas id="promoVsNon"></canvas></div>
+          </div>
+        </div>
+      {% else %}
+        <div class="panel">
+          <div class="panel-title">No daily sales data</div>
+          <div class="chart-note">Run the daily sales build command to populate charts.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-section">
+      <h2>Category Trends</h2>
+      {% if has_daily_sales %}
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-title">Top Categories Trend (Stacked)</div>
+            <div class="chart-wrap"><canvas id="catTrend"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Best‑Selling Category by Month</div>
+            <div class="table-wrap table-scroll-5">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Category</th>
+                    <th>Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in best_cat_rows %}
+                    <tr>
+                      <td>{{ row.month }}</td>
+                      <td>{{ row.category }}</td>
+                      <td>MUR {{ row.revenue|floatformat:2 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="panel">
+          <div class="panel-title">No daily sales data</div>
+          <div class="chart-note">Run the daily sales build command to populate charts.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-section">
+      <h2>Category Mix (Revenue Share)</h2>
+      {% if has_daily_sales %}
+        <div class="panel">
+          <div class="chart-wrap"><canvas id="categoryMix"></canvas></div>
+          <div class="chart-note">Top categories shown. Remaining grouped as “Other”.</div>
+        </div>
+      {% else %}
+        <div class="panel">
+          <div class="panel-title">No daily sales data</div>
+          <div class="chart-note">Run the daily sales build command to populate charts.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="dash-section">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <h2>Inventory (current)</h2>
+        <a href="{% url 'inventory' %}?status=LowOut" class="btn btn-soft">
+          <i class="fa-solid fa-filter"></i> View low &amp; out stock
+        </a>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Active SKUs</div>
+          <div class="kpi-value">{{ total_skus }}</div>
+          <div class="kpi-help">All active products</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Units on Hand</div>
+          <div class="kpi-value">{{ total_units_on_hand }}</div>
+          <div class="kpi-help">Total quantity in stock</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Stock Value</div>
+          <div class="kpi-value">MUR {{ stock_value|floatformat:2 }}</div>
+          <div class="kpi-help">Qty × selling price</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Needs Restock</div>
+          <div class="kpi-value">{{ low_stock_count|add:out_of_stock_count }}</div>
+          <div class="kpi-help">{{ low_stock_count }} low / {{ out_of_stock_count }} out</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">Stock Level Status</div>
+          <div class="status-row">
+            <div class="status-pill status-ok">OK: {{ ok_stock_count }}</div>
+            <div class="status-pill status-low">Low: {{ low_stock_count }}</div>
+            <div class="status-pill status-out">Out: {{ out_of_stock_count }}</div>
+          </div>
+          <div class="status-bar" aria-label="Stock status distribution">
+            <div class="bar-ok" style="width: {{ ok_pct }}%"></div>
+            <div class="bar-low" style="width: {{ low_pct }}%"></div>
+            <div class="bar-out" style="width: {{ out_pct }}%"></div>
+          </div>
+          <div class="kpi-help" style="margin-top: 8px;">
+            OK {{ ok_pct }}% • Low {{ low_pct }}% • Out {{ out_pct }}%
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Top Sellers (last 30 days)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Product</th>
+                <th>Units</th>
+                <th>Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in top_sellers %}
+                <tr>
+                  <td>{{ row.product__sku }}</td>
+                  <td>{{ row.product__product_name }}</td>
+                  <td>{{ row.units }}</td>
+                  <td>MUR {{ row.revenue|floatformat:2 }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4">No sales yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <div class="panel">
+        <div class="panel-title">Low / Out of Stock Items</div>
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th>Category</th>
+              <th>Qty</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in low_stock_items %}
+              <tr>
+                <td><a href="{% url 'inventory' %}?q={{ p.sku }}" style="color:#0f172a; font-weight:700; text-decoration:underline;">{{ p.sku }}</a></td>
+                <td><a href="{% url 'inventory' %}?q={{ p.sku }}" style="color:#0f172a; text-decoration:none;">{{ p.product_name }}</a></td>
+                <td>{{ p.category.category_name }}</td>
+                <td>{{ p.qty_in_stock }}</td>
+                <td>
+                  {% if p.qty_in_stock == 0 %}
+                    <a class="badge badge-out" href="{% url 'inventory' %}?q={{ p.sku }}&status=Out">Out</a>
+                  {% elif p.qty_in_stock <= 4 %}
+                    <a class="badge badge-low" href="{% url 'inventory' %}?q={{ p.sku }}&status=Low">Low</a>
+                  {% else %}
+                    <span class="badge badge-ok">OK</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5">No low or out-of-stock items.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {{ month_labels|json_script:"month-labels" }}
+  {{ revenue_series|json_script:"revenue-series" }}
+  {{ orders_series|json_script:"orders-series" }}
+  {{ units_series|json_script:"units-series" }}
+  {{ avg_daily_series|json_script:"avg-daily-series" }}
+  {{ promo_series|json_script:"promo-series" }}
+  {{ nonpromo_series|json_script:"nonpromo-series" }}
+  {{ top_cat_names|json_script:"top-cat-names" }}
+  {{ top_cat_series|json_script:"top-cat-series" }}
+  {{ cat_labels|json_script:"cat-labels" }}
+  {{ cat_values|json_script:"cat-values" }}
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      const getData = (id) => JSON.parse(document.getElementById(id).textContent || "[]");
+      const labels = getData("month-labels");
+      const revenue = getData("revenue-series");
+      const orders = getData("orders-series");
+      const units = getData("units-series");
+      const avgDaily = getData("avg-daily-series");
+      const promoSeries = getData("promo-series");
+      const nonpromoSeries = getData("nonpromo-series");
+      const topCatNames = getData("top-cat-names");
+      const topCatSeries = getData("top-cat-series");
+      const catLabels = getData("cat-labels");
+      const catValues = getData("cat-values");
+
+      const axisCommon = {
+        grid: { color: "rgba(148, 163, 184, 0.25)" },
+        ticks: { color: "#475569", font: { size: 11 } }
+      };
+
+      const makeLine = (ctx, label, data, color) => new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data,
+            borderColor: color,
+            backgroundColor: color + "55",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            pointHoverRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: axisCommon, y: axisCommon }
+        }
+      });
+
+      const makeBar = (ctx, label, data, color) => new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data,
+            backgroundColor: color,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: axisCommon, y: axisCommon }
+        }
+      });
+
+      const revEl = document.getElementById("revByMonth");
+      const ordersEl = document.getElementById("ordersByMonth");
+      const unitsEl = document.getElementById("unitsByMonth");
+      const avgDailyEl = document.getElementById("avgDailyByMonth");
+      const promoEl = document.getElementById("promoVsNon");
+      const catTrendEl = document.getElementById("catTrend");
+      const catEl = document.getElementById("categoryMix");
+
+      // pastel palette aligned with the rest of the UI
+      if (revEl) makeLine(revEl, "Revenue", revenue, "#b48ead");
+      if (ordersEl) makeBar(ordersEl, "Orders", orders, "#8bbbd9");
+      if (unitsEl) makeBar(unitsEl, "Units", units, "#9fd1b2");
+      if (avgDailyEl) makeLine(avgDailyEl, "Avg Daily Sales", avgDaily, "#c6d6f5");
+
+      if (promoEl) {
+        new Chart(promoEl, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              { label: "Promo", data: promoSeries, backgroundColor: "#f2c3a7", borderRadius: 6 },
+              { label: "Non‑Promo", data: nonpromoSeries, backgroundColor: "#9fd1b2", borderRadius: 6 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            scales: { x: { stacked: true, ...axisCommon }, y: { stacked: true, ...axisCommon } }
+          }
+        });
+      }
+
+      if (catTrendEl && topCatNames.length) {
+        const colors = ["#b48ead", "#8bbbd9", "#9fd1b2", "#f2c3a7", "#c6d6f5"];
+        const datasets = topCatNames.map((name, idx) => ({
+          label: name,
+          data: topCatSeries[idx] || [],
+          borderColor: colors[idx % colors.length],
+          backgroundColor: colors[idx % colors.length] + "55",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0
+        }));
+        new Chart(catTrendEl, {
+          type: "line",
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            scales: { x: axisCommon, y: { stacked: true, ...axisCommon } }
+          }
+        });
+      }
+
+      if (catEl) {
+        const colors = ["#b48ead", "#8bbbd9", "#9fd1b2", "#f2c3a7", "#f1d1e8", "#c6d6f5", "#f8e0a6"];
+        new Chart(catEl, {
+          type: "doughnut",
+          data: {
+            labels: catLabels,
+            datasets: [{
+              data: catValues,
+              backgroundColor: colors.slice(0, catLabels.length),
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            cutout: "62%"
+          }
+        });
+      }
+    })();
+  </script>
 {% endblock %}

@@ -161,6 +161,31 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} ({self.role})"    
+
+
+class TrustedDevice(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="trusted_devices")
+    device_id = models.CharField(max_length=64)
+    token_hash = models.CharField(max_length=64)
+
+    user_agent = models.TextField(blank=True)
+    ip_at_creation = models.GenericIPAddressField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "device_id"], name="uniq_trusted_device_per_user"),
+        ]
+        indexes = [
+            models.Index(fields=["user", "device_id"]),
+            models.Index(fields=["expires_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.device_id}"
     
 class Supplier(models.Model):
     supplier_name = models.CharField(max_length=150, unique=True)
@@ -354,6 +379,14 @@ class DailyProductSales(models.Model):
     """
     date = models.DateField()
     product = models.ForeignKey("Product", on_delete=models.PROTECT, related_name="daily_sales")
+    category = models.ForeignKey(
+        "Category",
+        on_delete=models.PROTECT,
+        related_name="daily_product_sales",
+        null=True,
+        blank=True,
+        db_index=False,
+    )
 
     qty_sold = models.PositiveIntegerField(default=0)
     sales_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
@@ -361,6 +394,9 @@ class DailyProductSales(models.Model):
     promo_flag = models.BooleanField(default=False)  # derived from Sale.promo_flag
     is_festive = models.BooleanField(default=False)
     festival_name = models.CharField(max_length=80, blank=True, default="")
+
+    product_active = models.BooleanField(default=True)
+    in_stock_flag = models.BooleanField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -373,8 +409,11 @@ class DailyProductSales(models.Model):
         indexes = [
             models.Index(fields=["date"]),
             models.Index(fields=["product", "date"]),
+            models.Index(fields=["category"], name="idx_dps_category_id"),
             models.Index(fields=["is_festive"]),
             models.Index(fields=["festival_name"]),
+            models.Index(fields=["product_active"]),
+            models.Index(fields=["in_stock_flag"]),
         ]
 
     def __str__(self):
