@@ -37,10 +37,20 @@ def apply_stock_movement(*, product, movement_type, qty, adjust_direction=None):
     product.save(update_fields=["qty_in_stock", "updated_at"])
 
 
-def generate_receipt_no():
-    now = timezone.now().strftime("S-%Y%m%d-%H%M%S")
-    tail = uuid.uuid4().hex[:4].upper()
-    return f"{now}-{tail}"
+def generate_receipt_no(*, sale_date=None):
+    sale_date = sale_date or timezone.localdate()
+    prefix = f"R{sale_date.strftime('%y%m%d')}"
+    last = (
+        Sale.objects
+        .filter(sale_date=sale_date, receipt_no__startswith=prefix)
+        .order_by("-receipt_no")
+        .first()
+    )
+    if last and last.receipt_no and last.receipt_no[len(prefix):].isdigit():
+        seq = int(last.receipt_no[len(prefix):]) + 1
+    else:
+        seq = 1
+    return f"{prefix}{seq:05d}"
 
 @transaction.atomic
 def record_stock_movement(*, product, movement_type, qty, user, reference=None, comments=None, reason=None, adjust_direction=None):

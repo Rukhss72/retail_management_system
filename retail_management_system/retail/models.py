@@ -104,6 +104,7 @@ class Sale(models.Model):
         CARD = "card", "Card"
         MOBILE = "mobile", "Mobile Payment"
         OTHER = "other", "Other"
+        JUICE = "juice", "Juice"
 
     receipt_no = models.CharField(max_length=40, unique=True)
     cashier = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sales")
