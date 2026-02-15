@@ -218,6 +218,57 @@
 
   .ra-empty { color: #64748b; font-size: 13px; padding: 14px; }
 
+  .ra-ai-insight {
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+    border: 1px solid #c7d7fe;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1e293b;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .ra-ai-insight strong { color: #1e3a8a; }
+  .ra-ai-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+  }
+
+  .ra-typing {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px;
+  }
+  .ra-typing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6366f1;
+    animation: raBounce 1.2s infinite ease-in-out;
+  }
+  .ra-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .ra-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes raBounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+  .ra-typing-label {
+    font-size: 13px;
+    color: #6366f1;
+    margin-left: 6px;
+    font-style: italic;
+  }
+
   @media (max-width: 860px) {
     .ra-layout { grid-template-columns: 1fr; }
     .ra-side { order: -1; min-height: auto; }
@@ -368,6 +419,24 @@
     msg.appendChild(body);
 
     if (role === "assistant" && payload && Object.keys(payload).length) {
+      // AI insight block (from Ollama)
+      if (payload.ai_insight) {
+        const insightWrap = document.createElement("div");
+        insightWrap.className = "ra-ai-insight";
+        const badge = document.createElement("span");
+        badge.className = "ra-ai-badge";
+        badge.textContent = "\u2728 AI Insight";
+        insightWrap.appendChild(badge);
+        const insightText = document.createElement("div");
+        // basic markdown-ish rendering
+        let formatted = escapeHtml(payload.ai_insight);
+        formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+        formatted = formatted.replace(/^[•\-]\s/gm, "\u2022 ");
+        insightText.innerHTML = formatted;
+        insightWrap.appendChild(insightText);
+        msg.appendChild(insightWrap);
+      }
+
       const meta = document.createElement("div");
       meta.className = "ra-meta";
       renderMeta(meta, payload);
@@ -452,6 +521,19 @@
     if (messagesRoot.querySelector(".ra-empty")) clearMessages();
     appendMessage("user", text, {});
 
+    // Show typing indicator
+    const typing = document.createElement("div");
+    typing.className = "ra-msg assistant";
+    typing.id = "raTyping";
+    typing.innerHTML = `<div class="ra-typing">
+      <div class="ra-typing-dot"></div>
+      <div class="ra-typing-dot"></div>
+      <div class="ra-typing-dot"></div>
+      <span class="ra-typing-label">Analyzing with AI...</span>
+    </div>`;
+    messagesRoot.appendChild(typing);
+    messagesRoot.scrollTop = messagesRoot.scrollHeight;
+
     const res = await fetch(`/assistant/threads/${activeThreadId}/messages/`, {
       method: "POST",
       headers: {
@@ -460,13 +542,19 @@
       },
       body: JSON.stringify({ query: text }),
     });
+
+    // Remove typing indicator
+    const typingEl = document.getElementById("raTyping");
+    if (typingEl) typingEl.remove();
+
     const payload = await res.json();
     if (!payload.ok) {
       appendMessage("assistant", payload.error || "Request failed.", {});
       return;
     }
 
-    appendMessage("assistant", payload.message.summary || "No summary.", payload.message);
+    const displayText = payload.message.ai_insight || payload.message.summary || "No summary.";
+    appendMessage("assistant", displayText, payload.message);
     await loadThreads();
   }
 

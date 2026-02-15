@@ -144,3 +144,6 @@ ASSISTANT_OLLAMA_MODEL = "qwen2.5:1.5b"
 ASSISTANT_OLLAMA_HOST = "http://127.0.0.1:11434"
 ASSISTANT_OLLAMA_TIMEOUT = 120
 
+# Ollama conversational analytics (generates natural-language insights)
+ASSISTANT_OLLAMA_CHAT_ENABLED = True
+

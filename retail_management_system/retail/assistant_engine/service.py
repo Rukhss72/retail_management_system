@@ -32,6 +32,7 @@ from .intents import (
 )
 from .llm_parser import parse_with_ollama
 from .normalization import normalize_confirmation
+from .ollama_chat import generate_insight
 
 
 def _parse_iso_date(value):
@@ -484,6 +485,16 @@ def process_query(query: str, session: dict) -> dict:
             "chart": None,
             "source": [],
         }
+
+    # ── Ollama conversational insight ─────────────────────────────────
+    chat_history = session.get("_chat_history", [])
+    ai_insight = generate_insight(query, payload, history=chat_history)
+    if ai_insight:
+        payload["ai_insight"] = ai_insight
+    # keep a rolling window of recent exchanges for follow-up context
+    chat_history.append({"role": "user", "content": query})
+    chat_history.append({"role": "assistant", "content": ai_insight or payload.get("summary", "")})
+    session["_chat_history"] = chat_history[-12:]   # last 6 turns
 
     session["last_user_query"] = query
     session["last_intent"] = intent

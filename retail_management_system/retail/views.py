@@ -1484,7 +1484,7 @@ def assistant_thread_message(request, thread_id: int):
     memory = dict(thread.context_json or {})
     result = process_query(query, memory)
 
-    assistant_text = result.get("summary") or "No response."
+    assistant_text = result.get("ai_insight") or result.get("summary") or "No response."
     ChatMessage.objects.create(thread=thread, role=ChatMessage.Role.ASSISTANT, content=assistant_text, payload_json=result)
 
     if thread.title == "New Chat":
@@ -1517,7 +1517,7 @@ def assistant_query(request):
             ChatMessage.objects.create(
                 thread=thread,
                 role=ChatMessage.Role.ASSISTANT,
-                content=result.get("summary") or "No response.",
+                content=result.get("ai_insight") or result.get("summary") or "No response.",
                 payload_json=result,
             )
             if thread.title == "New Chat":
