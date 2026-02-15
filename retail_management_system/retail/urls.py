@@ -13,6 +13,7 @@ urlpatterns = [
     path("sales/", views.sales, name="sales"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("assistant/", views.assistant, name="assistant"),
+    path("assistant/query/", views.assistant_query, name="assistant_query"),
     path("suppliers/", views.suppliers, name="suppliers"),
     path("admin-login/verify/", two_factor_verify, name="two_factor_verify"),
     path("admin-login/trusted-devices/", trusted_devices, name="trusted_devices"),

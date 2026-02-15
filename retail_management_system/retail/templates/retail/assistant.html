@@ -1,6 +1,288 @@
 {% extends "retail/base.html" %}
 {% block title %}Assistant{% endblock %}
 {% block content %}
-  <h1>Assistant</h1>
-  <p>The widget is on the bottom-right. Next we will connect it to a Django endpoint.</p>
+<style>
+  .ra-wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    display: grid;
+    gap: 14px;
+  }
+  .ra-card {
+    background: #ffffff;
+    border: 1px solid #d8dee6;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  }
+  .ra-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .ra-title {
+    margin: 0;
+    font-size: 22px;
+    color: #1f2937;
+  }
+  .ra-sub {
+    margin: 4px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+  }
+  .ra-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ra-chip {
+    border: 1px solid #b8c4d3;
+    background: #f8fafc;
+    color: #1f2937;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ra-input {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+  .ra-input input {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 11px 12px;
+    font-size: 15px;
+  }
+  .ra-btn {
+    border: 0;
+    border-radius: 10px;
+    background: #111827;
+    color: #fff;
+    padding: 0 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .ra-summary {
+    font-size: 15px;
+    color: #111827;
+    margin: 0;
+  }
+  .ra-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .ra-pill {
+    font-size: 12px;
+    background: #eef2ff;
+    color: #1e3a8a;
+    border-radius: 999px;
+    padding: 5px 10px;
+  }
+  .ra-table-wrap {
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+  .ra-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .ra-table th,
+  .ra-table td {
+    border-bottom: 1px solid #edf2f7;
+    padding: 9px 10px;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .ra-table th {
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 600;
+  }
+  .ra-chart {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .ra-bar-row {
+    display: grid;
+    grid-template-columns: 180px 1fr 70px;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .ra-track {
+    background: #e2e8f0;
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .ra-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1d4ed8, #0ea5e9);
+  }
+  .ra-empty {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0;
+  }
+  @media (max-width: 740px) {
+    .ra-input {
+      grid-template-columns: 1fr;
+    }
+    .ra-btn {
+      height: 42px;
+    }
+    .ra-bar-row {
+      grid-template-columns: 110px 1fr 50px;
+    }
+  }
+</style>
+
+<div class="ra-wrap">
+  <section class="ra-card">
+    <div class="ra-head">
+      <div>
+        <h1 class="ra-title">Retail Assistant</h1>
+        <p class="ra-sub">Controlled chatbot using your ORM data and forecast outputs.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ra-card">
+    <div class="ra-chips">
+      <button class="ra-chip" data-query="Total sales today (revenue + quantity)">Today Sales</button>
+      <button class="ra-chip" data-query="Show me all low-stock items (below 5)">Low Stock</button>
+      <button class="ra-chip" data-query="Top 10 best-selling products this month">Top Sellers (30d)</button>
+      <button class="ra-chip" data-query="Predict top 10 best-sellers for next 7 days">Forecast (7d)</button>
+      <button class="ra-chip" data-query="What should I restock for next week?">Reorder Suggestions</button>
+    </div>
+    <div style="height: 10px;"></div>
+    <div class="ra-input">
+      <input id="raQuery" type="text" placeholder="Ask: stock of blue saree, sales this week, top sellers, forecast..." />
+      <button id="raSend" class="ra-btn" type="button">Ask</button>
+    </div>
+  </section>
+
+  <section id="raResult" class="ra-card" style="display:none;">
+    <p id="raSummary" class="ra-summary"></p>
+    <div id="raMeta" class="ra-meta"></div>
+    <div style="height:10px;"></div>
+    <div id="raTableWrap" class="ra-table-wrap"></div>
+    <div id="raChart" class="ra-chart"></div>
+  </section>
+</div>
+
+<script>
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return "";
+  }
+
+  function renderTable(table) {
+    const wrap = document.getElementById("raTableWrap");
+    if (!table || !table.columns || !table.columns.length) {
+      wrap.innerHTML = "<p class='ra-empty'>No table rows for this answer.</p>";
+      return;
+    }
+    const cols = table.columns;
+    const rows = table.rows || [];
+    const thead = `<tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr>`;
+    const tbody = rows.length
+      ? rows.map(r => `<tr>${cols.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`).join("")
+      : `<tr><td colspan="${cols.length}">No rows</td></tr>`;
+    wrap.innerHTML = `<table class="ra-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  }
+
+  function renderChart(chart) {
+    const root = document.getElementById("raChart");
+    root.innerHTML = "";
+    if (!chart || !chart.labels || !chart.datasets || !chart.datasets.length) return;
+
+    const data = chart.datasets[0].data || [];
+    const labels = chart.labels || [];
+    const max = Math.max(...data, 1);
+
+    labels.slice(0, 12).forEach((label, idx) => {
+      const val = Number(data[idx] || 0);
+      const pct = Math.max(0, Math.min(100, Math.round((val / max) * 100)));
+      const row = document.createElement("div");
+      row.className = "ra-bar-row";
+      row.innerHTML = `
+        <div title="${label}">${label}</div>
+        <div class="ra-track"><div class="ra-fill" style="width:${pct}%"></div></div>
+        <div>${val}</div>
+      `;
+      root.appendChild(row);
+    });
+  }
+
+  function renderMeta(intent, source) {
+    const meta = document.getElementById("raMeta");
+    const sourceText = (source && source.length) ? source.join(", ") : "N/A";
+    meta.innerHTML = `
+      <span class="ra-pill">Intent: ${intent || "Unknown"}</span>
+      <span class="ra-pill">Source: ${sourceText}</span>
+    `;
+  }
+
+  async function askAssistant(query) {
+    const resultCard = document.getElementById("raResult");
+    const summary = document.getElementById("raSummary");
+    resultCard.style.display = "block";
+    summary.textContent = "Working on it...";
+    document.getElementById("raMeta").innerHTML = "";
+    document.getElementById("raTableWrap").innerHTML = "";
+    document.getElementById("raChart").innerHTML = "";
+
+    const res = await fetch("{% url 'assistant_query' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const payload = await res.json();
+    if (!res.ok || !payload.ok) {
+      summary.textContent = payload.error || "Request failed.";
+      return;
+    }
+
+    summary.textContent = payload.summary || "No summary available.";
+    renderMeta(payload.intent, payload.source);
+    renderTable(payload.table);
+    renderChart(payload.chart);
+  }
+
+  document.getElementById("raSend").addEventListener("click", () => {
+    const input = document.getElementById("raQuery");
+    const q = input.value.trim();
+    if (!q) return;
+    askAssistant(q);
+  });
+
+  document.getElementById("raQuery").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      document.getElementById("raSend").click();
+    }
+  });
+
+  document.querySelectorAll(".ra-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const q = chip.getAttribute("data-query") || "";
+      document.getElementById("raQuery").value = q;
+      askAssistant(q);
+    });
+  });
+</script>
 {% endblock %}

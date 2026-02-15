@@ -3,6 +3,7 @@
 from django.db.models import Q, Sum, F, IntegerField, DecimalField, ExpressionWrapper, Count
 from django.db.models.functions import Coalesce, TruncMonth
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, get_user_model
@@ -23,6 +24,7 @@ from django.contrib.auth.views import LoginView
 from django.urls import reverse_lazy
 
 from django.contrib.auth.decorators import user_passes_test
+from django.views.decorators.http import require_POST
 
 from django.core.exceptions import ValidationError
 from .services import apply_stock_movement
@@ -43,6 +45,7 @@ from .models import Sale, SaleItem
 from .services import create_sale
 
 from decimal import Decimal, InvalidOperation
+from .assistant_engine.service import process_query
 
 
 # Create your views here.
@@ -1420,6 +1423,23 @@ def dashboard(request):
 @admin_required
 def assistant(request):
     return render(request, "retail/assistant.html")
+
+
+@staff_required
+@require_POST
+def assistant_query(request):
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+    query = (body.get("query") or "").strip()
+    if not query:
+        return JsonResponse({"ok": False, "error": "Query is required."}, status=400)
+
+    result = process_query(query, request.session)
+    request.session.modified = True
+    return JsonResponse({"ok": True, **result})
 
 
 def two_factor_verify(request):
