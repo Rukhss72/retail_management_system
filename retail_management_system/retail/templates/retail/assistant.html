@@ -2,28 +2,105 @@
 {% block title %}Assistant{% endblock %}
 {% block content %}
 <style>
-  .ra-wrap {
-    max-width: 980px;
-    margin: 0 auto;
+  .ra-layout {
     display: grid;
-    gap: 14px;
+    grid-template-columns: 220px 1fr;
+    gap: 18px;
+    width: 100%;
+    margin: 0;
+    padding-left: 20px;
   }
-  .ra-card {
-    background: #ffffff;
+  .ra-layout.collapsed { grid-template-columns: 56px 1fr; }
+
+  .ra-panel {
+    background: #fff;
     border: 1px solid #d8dee6;
     border-radius: 12px;
-    padding: 14px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
   }
-  .ra-head {
-    display: flex;
-    justify-content: space-between;
+
+  .ra-side {
+    grid-column: 1;
+    grid-row: 1;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 72vh;
+    overflow: hidden;
+  }
+  .ra-side-head {
+    padding: 12px;
+    border-bottom: 1px solid #e6ebf1;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
     align-items: center;
-    gap: 10px;
+  }
+  .ra-toggle {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    cursor: pointer;
+    color: #334155;
+  }
+  .ra-side-title {
+    margin: 0;
+    font-size: 14px;
+    color: #334155;
+    text-align: center;
+  }
+  .ra-side-actions { display: flex; justify-content: flex-end; }
+  .ra-thread-list {
+    overflow: auto;
+    padding: 8px;
+    display: grid;
+    gap: 6px;
+    max-height: calc(72vh - 70px);
+  }
+  .ra-thread {
+    border: 1px solid #dbe3ef;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: 9px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ra-thread.active {
+    border-color: #2563eb;
+    background: #eef2ff;
+  }
+  .ra-thread-time {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
+  }
+
+  .ra-layout.collapsed .ra-side-title,
+  .ra-layout.collapsed .ra-side-actions,
+  .ra-layout.collapsed .ra-thread-list {
+    display: none !important;
+  }
+  .ra-layout.collapsed .ra-side-head {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 8px 6px;
+  }
+
+  .ra-main {
+    grid-column: 2;
+    grid-row: 1;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    min-height: 72vh;
+  }
+  .ra-header {
+    padding: 14px;
+    border-bottom: 1px solid #e6ebf1;
   }
   .ra-title {
     margin: 0;
-    font-size: 22px;
+    font-size: 24px;
     color: #1f2937;
   }
   .ra-sub {
@@ -31,7 +108,10 @@
     color: #6b7280;
     font-size: 14px;
   }
+
   .ra-chips {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e6ebf1;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -41,35 +121,33 @@
     background: #f8fafc;
     color: #1f2937;
     border-radius: 999px;
-    padding: 8px 12px;
+    padding: 7px 12px;
     font-size: 13px;
     cursor: pointer;
   }
-  .ra-input {
+
+  .ra-messages {
+    padding: 14px;
+    overflow: auto;
+    max-height: 66vh;
     display: grid;
-    grid-template-columns: 1fr auto;
     gap: 10px;
   }
-  .ra-input input {
-    border: 1px solid #cbd5e1;
-    border-radius: 10px;
-    padding: 11px 12px;
-    font-size: 15px;
+  .ra-msg {
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e3e8ef;
+    background: #f9fbff;
   }
-  .ra-btn {
-    border: 0;
-    border-radius: 10px;
-    background: #111827;
+  .ra-msg.user {
+    background: #0f172a;
     color: #fff;
-    padding: 0 16px;
-    font-size: 14px;
-    cursor: pointer;
+    border-color: #0f172a;
+    margin-left: 16%;
   }
-  .ra-summary {
-    font-size: 15px;
-    color: #111827;
-    margin: 0;
-  }
+  .ra-msg.assistant { margin-right: 10%; }
+  .ra-msg-text { margin: 0; line-height: 1.4; }
+
   .ra-meta {
     display: flex;
     flex-wrap: wrap;
@@ -81,9 +159,11 @@
     background: #eef2ff;
     color: #1e3a8a;
     border-radius: 999px;
-    padding: 5px 10px;
+    padding: 4px 9px;
   }
+
   .ra-table-wrap {
+    margin-top: 8px;
     overflow: auto;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -91,71 +171,83 @@
   .ra-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 12px;
   }
-  .ra-table th,
-  .ra-table td {
+  .ra-table th, .ra-table td {
     border-bottom: 1px solid #edf2f7;
-    padding: 9px 10px;
+    padding: 8px;
     text-align: left;
     white-space: nowrap;
   }
-  .ra-table th {
-    background: #f8fafc;
-    color: #334155;
-    font-weight: 600;
-  }
-  .ra-chart {
+  .ra-table th { background: #f8fafc; color: #334155; }
+
+  .ra-chart { margin-top: 10px; display: grid; gap: 8px; }
+  .ra-chart-title { font-size: 13px; font-weight: 700; color: #1f2937; }
+  .ra-legend { display: flex; gap: 12px; font-size: 12px; color: #334155; }
+  .ra-dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 4px; }
+  .ra-compare-grid { display: grid; gap: 8px; }
+  .ra-compare-row { display: grid; grid-template-columns: 160px 1fr 120px; gap: 8px; align-items: center; font-size: 12px; }
+  .ra-track-stack { background: #e2e8f0; border-radius: 999px; height: 10px; position: relative; overflow: hidden; }
+  .ra-dumbbell-line { position: absolute; top: 50%; height: 2px; transform: translateY(-50%); background: #94a3b8; border-radius: 999px; }
+  .ra-dot-a,.ra-dot-b { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 999px; transform: translate(-50%, -50%); border: 1px solid rgba(15,23,42,.15); }
+  .ra-dot-a { background: #2563eb; }
+  .ra-dot-b { background: #14b8a6; }
+  .ra-values { font-size: 11px; color: #334155; white-space: nowrap; }
+
+  .ra-inputbar {
+    padding: 12px;
+    border-top: 1px solid #e6ebf1;
     display: grid;
-    gap: 6px;
-    margin-top: 12px;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
   }
-  .ra-bar-row {
-    display: grid;
-    grid-template-columns: 180px 1fr 70px;
-    gap: 10px;
-    align-items: center;
-    font-size: 12px;
+  .ra-inputbar input {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
   }
-  .ra-track {
-    background: #e2e8f0;
-    border-radius: 999px;
-    height: 10px;
-    overflow: hidden;
+  .ra-btn {
+    border: 0;
+    border-radius: 10px;
+    background: #111827;
+    color: #fff;
+    padding: 0 16px;
+    cursor: pointer;
   }
-  .ra-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #1d4ed8, #0ea5e9);
-  }
-  .ra-empty {
-    color: #6b7280;
-    font-size: 14px;
-    margin: 0;
-  }
-  @media (max-width: 740px) {
-    .ra-input {
-      grid-template-columns: 1fr;
-    }
-    .ra-btn {
-      height: 42px;
-    }
-    .ra-bar-row {
-      grid-template-columns: 110px 1fr 50px;
+
+  .ra-empty { color: #64748b; font-size: 13px; padding: 14px; }
+
+  @media (max-width: 860px) {
+    .ra-layout { grid-template-columns: 1fr; }
+    .ra-side { order: -1; min-height: auto; }
+    .ra-thread-list { max-height: 220px; }
+    .ra-main, .ra-side { grid-column: auto; grid-row: auto; }
+    .ra-layout.collapsed { grid-template-columns: 1fr; }
+    .ra-layout.collapsed .ra-side-title,
+    .ra-layout.collapsed .ra-side-actions,
+    .ra-layout.collapsed .ra-thread-list {
+      display: block !important;
     }
   }
 </style>
 
-<div class="ra-wrap">
-  <section class="ra-card">
-    <div class="ra-head">
-      <div>
-        <h1 class="ra-title">Retail Assistant</h1>
-        <p class="ra-sub">Controlled chatbot using your ORM data and forecast outputs.</p>
-      </div>
+<div class="ra-layout">
+  <aside class="ra-panel ra-side">
+    <div class="ra-side-head">
+      <button id="raToggleThreads" class="ra-toggle" type="button" title="Collapse/Expand"><<</button>
+      <h3 class="ra-side-title">Chat History</h3>
+      <div class="ra-side-actions"><button id="raNewChat" class="ra-btn" type="button">+ New Chat</button></div>
     </div>
-  </section>
+    <div id="raThreadList" class="ra-thread-list"></div>
+  </aside>
 
-  <section class="ra-card">
+  <section class="ra-panel ra-main">
+    <div class="ra-header">
+      <h1 class="ra-title">Retail Assistant</h1>
+      <p class="ra-sub">Persistent chat with thread history and memory-aware responses.</p>
+    </div>
+
     <div class="ra-chips">
       <button class="ra-chip" data-query="Total sales today (revenue + quantity)">Today Sales</button>
       <button class="ra-chip" data-query="Show me all low-stock items (below 5)">Low Stock</button>
@@ -163,23 +255,24 @@
       <button class="ra-chip" data-query="Predict top 10 best-sellers for next 7 days">Forecast (7d)</button>
       <button class="ra-chip" data-query="What should I restock for next week?">Reorder Suggestions</button>
     </div>
-    <div style="height: 10px;"></div>
-    <div class="ra-input">
-      <input id="raQuery" type="text" placeholder="Ask: stock of blue saree, sales this week, top sellers, forecast..." />
+
+    <div id="raMessages" class="ra-messages">
+      <p class="ra-empty">Select a chat on the left, or click New Chat.</p>
+    </div>
+
+    <div class="ra-inputbar">
+      <input id="raInput" type="text" placeholder="Type your message..." />
       <button id="raSend" class="ra-btn" type="button">Ask</button>
     </div>
-  </section>
-
-  <section id="raResult" class="ra-card" style="display:none;">
-    <p id="raSummary" class="ra-summary"></p>
-    <div id="raMeta" class="ra-meta"></div>
-    <div style="height:10px;"></div>
-    <div id="raTableWrap" class="ra-table-wrap"></div>
-    <div id="raChart" class="ra-chart"></div>
   </section>
 </div>
 
 <script>
+  let activeThreadId = null;
+  const layoutRoot = document.querySelector(".ra-layout");
+  const messagesRoot = document.getElementById("raMessages");
+  const threadRoot = document.getElementById("raThreadList");
+
   function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -187,102 +280,242 @@
     return "";
   }
 
-  function renderTable(table) {
-    const wrap = document.getElementById("raTableWrap");
-    if (!table || !table.columns || !table.columns.length) {
-      wrap.innerHTML = "<p class='ra-empty'>No table rows for this answer.</p>";
-      return;
-    }
-    const cols = table.columns;
-    const rows = table.rows || [];
-    const thead = `<tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr>`;
-    const tbody = rows.length
-      ? rows.map(r => `<tr>${cols.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`).join("")
-      : `<tr><td colspan="${cols.length}">No rows</td></tr>`;
-    wrap.innerHTML = `<table class="ra-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
 
-  function renderChart(chart) {
-    const root = document.getElementById("raChart");
-    root.innerHTML = "";
-    if (!chart || !chart.labels || !chart.datasets || !chart.datasets.length) return;
-
-    const data = chart.datasets[0].data || [];
-    const labels = chart.labels || [];
-    const max = Math.max(...data, 1);
-
-    labels.slice(0, 12).forEach((label, idx) => {
-      const val = Number(data[idx] || 0);
-      const pct = Math.max(0, Math.min(100, Math.round((val / max) * 100)));
-      const row = document.createElement("div");
-      row.className = "ra-bar-row";
-      row.innerHTML = `
-        <div title="${label}">${label}</div>
-        <div class="ra-track"><div class="ra-fill" style="width:${pct}%"></div></div>
-        <div>${val}</div>
-      `;
-      root.appendChild(row);
-    });
-  }
-
-  function renderMeta(intent, source) {
-    const meta = document.getElementById("raMeta");
-    const sourceText = (source && source.length) ? source.join(", ") : "N/A";
+  function renderMeta(meta, payload) {
+    const sourceText = (payload.source && payload.source.length) ? payload.source.join(", ") : "N/A";
+    const confidenceText = (typeof payload.parser_confidence === "number") ? ` (${Math.round(payload.parser_confidence * 100)}%)` : "";
     meta.innerHTML = `
-      <span class="ra-pill">Intent: ${intent || "Unknown"}</span>
-      <span class="ra-pill">Source: ${sourceText}</span>
+      <span class="ra-pill">Intent: ${escapeHtml(payload.intent || "Unknown")}</span>
+      <span class="ra-pill">Parser: ${escapeHtml(payload.parser_used || "rules")}${confidenceText}</span>
+      <span class="ra-pill">Source: ${escapeHtml(sourceText)}</span>
     `;
   }
 
-  async function askAssistant(query) {
-    const resultCard = document.getElementById("raResult");
-    const summary = document.getElementById("raSummary");
-    resultCard.style.display = "block";
-    summary.textContent = "Working on it...";
-    document.getElementById("raMeta").innerHTML = "";
-    document.getElementById("raTableWrap").innerHTML = "";
-    document.getElementById("raChart").innerHTML = "";
+  function renderTable(root, table) {
+    if (!table || !table.columns || !table.columns.length) return;
+    const cols = table.columns;
+    const rows = table.rows || [];
+    const thead = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    const tbody = rows.length
+      ? rows.map(r => `<tr>${cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join("")}</tr>`).join("")
+      : `<tr><td colspan="${cols.length}">No rows</td></tr>`;
+    root.innerHTML = `<table class="ra-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  }
 
-    const res = await fetch("{% url 'assistant_query' %}", {
+  function renderCompareChart(root, chartObj) {
+    const labels = chartObj.labels || [];
+    const datasets = chartObj.datasets || [];
+    if (datasets.length !== 2 || !labels.length) return;
+
+    const colorA = "#2563eb";
+    const colorB = "#14b8a6";
+    const dataA = datasets[0].data || [];
+    const dataB = datasets[1].data || [];
+    const max = Math.max(...dataA.map(v => Number(v || 0)), ...dataB.map(v => Number(v || 0)), 1);
+
+    const container = document.createElement("div");
+    container.className = "ra-chart";
+    container.innerHTML = `
+      <div class="ra-chart-title">${escapeHtml(chartObj.title || "Comparison")}</div>
+      <div class="ra-legend">
+        <span><span class="ra-dot" style="background:${colorA}"></span>${escapeHtml(datasets[0].label || "A")}</span>
+        <span><span class="ra-dot" style="background:${colorB}"></span>${escapeHtml(datasets[1].label || "B")}</span>
+      </div>
+    `;
+
+    const grid = document.createElement("div");
+    grid.className = "ra-compare-grid";
+    labels.slice(0, 12).forEach((label, idx) => {
+      const a = Number(dataA[idx] || 0);
+      const b = Number(dataB[idx] || 0);
+      const aPct = Math.max(0, Math.min(100, (a / max) * 100));
+      const bPct = Math.max(0, Math.min(100, (b / max) * 100));
+      const left = Math.min(aPct, bPct);
+      const width = Math.max(Math.abs(aPct - bPct), 1);
+
+      const row = document.createElement("div");
+      row.className = "ra-compare-row";
+      row.innerHTML = `
+        <div title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+        <div class="ra-track-stack">
+          <div class="ra-dumbbell-line" style="left:${left}%; width:${width}%"></div>
+          <div class="ra-dot-a" style="left:${aPct}%"></div>
+          <div class="ra-dot-b" style="left:${bPct}%"></div>
+        </div>
+        <div class="ra-values">A:${a} | B:${b}</div>
+      `;
+      grid.appendChild(row);
+    });
+    container.appendChild(grid);
+    root.appendChild(container);
+  }
+
+  function renderCharts(root, chart) {
+    if (!chart) return;
+    const charts = Array.isArray(chart.charts) ? chart.charts : [chart];
+    charts.forEach(one => renderCompareChart(root, one));
+  }
+
+  function appendMessage(role, text, payload) {
+    const msg = document.createElement("div");
+    msg.className = `ra-msg ${role}`;
+    const body = document.createElement("p");
+    body.className = "ra-msg-text";
+    body.textContent = text || "";
+    msg.appendChild(body);
+
+    if (role === "assistant" && payload && Object.keys(payload).length) {
+      const meta = document.createElement("div");
+      meta.className = "ra-meta";
+      renderMeta(meta, payload);
+      msg.appendChild(meta);
+
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "ra-table-wrap";
+      renderTable(tableWrap, payload.table || {});
+      if (tableWrap.innerHTML) msg.appendChild(tableWrap);
+
+      const chartWrap = document.createElement("div");
+      renderCharts(chartWrap, payload.chart);
+      if (chartWrap.innerHTML) msg.appendChild(chartWrap);
+    }
+
+    messagesRoot.appendChild(msg);
+    messagesRoot.scrollTop = messagesRoot.scrollHeight;
+  }
+
+  function clearMessages() {
+    messagesRoot.innerHTML = "";
+  }
+
+  async function loadThreads() {
+    const res = await fetch("{% url 'assistant_threads' %}");
+    const payload = await res.json();
+    if (!payload.ok) return;
+
+    threadRoot.innerHTML = "";
+    payload.threads.forEach((t) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "ra-thread" + (t.id === activeThreadId ? " active" : "");
+      item.innerHTML = `<div>${escapeHtml(t.title)}</div><div class="ra-thread-time">${new Date(t.updated_at).toLocaleString()}</div>`;
+      item.addEventListener("click", () => openThread(t.id));
+      threadRoot.appendChild(item);
+    });
+
+    if (!payload.threads.length) {
+      threadRoot.innerHTML = `<p class="ra-empty">No chats yet.</p>`;
+    }
+  }
+
+  async function createThread(title = "New Chat") {
+    const res = await fetch("{% url 'assistant_threads' %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": getCookie("csrftoken"),
+      },
+      body: `title=${encodeURIComponent(title)}`,
+    });
+    const payload = await res.json();
+    if (!payload.ok) return null;
+    return payload.thread;
+  }
+
+  async function openThread(threadId) {
+    activeThreadId = threadId;
+    await loadThreads();
+    clearMessages();
+    const res = await fetch(`/assistant/threads/${threadId}/`);
+    const payload = await res.json();
+    if (!payload.ok) return;
+
+    if (!payload.messages.length) {
+      messagesRoot.innerHTML = `<p class="ra-empty">Start chatting in this thread.</p>`;
+      return;
+    }
+    payload.messages.forEach((m) => appendMessage(m.role, m.content, m.payload || {}));
+  }
+
+  async function sendMessage(text) {
+    if (!activeThreadId) {
+      const t = await createThread();
+      if (!t) return;
+      activeThreadId = t.id;
+      await loadThreads();
+      clearMessages();
+    }
+
+    if (messagesRoot.querySelector(".ra-empty")) clearMessages();
+    appendMessage("user", text, {});
+
+    const res = await fetch(`/assistant/threads/${activeThreadId}/messages/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRFToken": getCookie("csrftoken"),
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query: text }),
     });
-
     const payload = await res.json();
-    if (!res.ok || !payload.ok) {
-      summary.textContent = payload.error || "Request failed.";
+    if (!payload.ok) {
+      appendMessage("assistant", payload.error || "Request failed.", {});
       return;
     }
 
-    summary.textContent = payload.summary || "No summary available.";
-    renderMeta(payload.intent, payload.source);
-    renderTable(payload.table);
-    renderChart(payload.chart);
+    appendMessage("assistant", payload.message.summary || "No summary.", payload.message);
+    await loadThreads();
   }
 
-  document.getElementById("raSend").addEventListener("click", () => {
-    const input = document.getElementById("raQuery");
-    const q = input.value.trim();
-    if (!q) return;
-    askAssistant(q);
+  document.getElementById("raSend").addEventListener("click", async () => {
+    const input = document.getElementById("raInput");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    await sendMessage(text);
   });
 
-  document.getElementById("raQuery").addEventListener("keydown", (e) => {
+  document.getElementById("raInput").addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
+      e.preventDefault();
       document.getElementById("raSend").click();
     }
   });
 
+  document.getElementById("raNewChat").addEventListener("click", async () => {
+    const t = await createThread("New Chat");
+    if (!t) return;
+    await openThread(t.id);
+  });
+
   document.querySelectorAll(".ra-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
+    chip.addEventListener("click", async () => {
       const q = chip.getAttribute("data-query") || "";
-      document.getElementById("raQuery").value = q;
-      askAssistant(q);
+      document.getElementById("raInput").value = q;
+      await sendMessage(q);
     });
+  });
+
+  (async function init() {
+    const savedCollapsed = localStorage.getItem("ra_threads_collapsed");
+    if (savedCollapsed === "1") {
+      layoutRoot.classList.add("collapsed");
+      document.getElementById("raToggleThreads").textContent = ">>";
+    }
+    await loadThreads();
+    const first = threadRoot.querySelector(".ra-thread");
+    if (first) {
+      first.click();
+    }
+  })();
+
+  document.getElementById("raToggleThreads").addEventListener("click", () => {
+    const collapsed = layoutRoot.classList.toggle("collapsed");
+    document.getElementById("raToggleThreads").textContent = collapsed ? ">>" : "<<";
+    localStorage.setItem("ra_threads_collapsed", collapsed ? "1" : "0");
   });
 </script>
 {% endblock %}

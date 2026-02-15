@@ -41,7 +41,7 @@ from .services import get_reorder_queryset, compute_reorder_row
 #sales import
 import json
 from django.contrib import messages
-from .models import Sale, SaleItem
+from .models import Sale, SaleItem, ChatThread, ChatMessage
 from .services import create_sale
 
 from decimal import Decimal, InvalidOperation
@@ -1425,6 +1425,76 @@ def assistant(request):
     return render(request, "retail/assistant.html")
 
 
+def _serialize_thread(thread: ChatThread) -> dict:
+    return {
+        "id": thread.id,
+        "title": thread.title,
+        "created_at": thread.created_at.isoformat(),
+        "updated_at": thread.updated_at.isoformat(),
+    }
+
+
+def _serialize_message(msg: ChatMessage) -> dict:
+    return {
+        "id": msg.id,
+        "role": msg.role,
+        "content": msg.content,
+        "payload": msg.payload_json or {},
+        "created_at": msg.created_at.isoformat(),
+    }
+
+
+@staff_required
+def assistant_threads(request):
+    if request.method == "GET":
+        threads = ChatThread.objects.filter(user=request.user, is_archived=False).order_by("-updated_at")[:100]
+        return JsonResponse({"ok": True, "threads": [_serialize_thread(t) for t in threads]})
+
+    if request.method == "POST":
+        title = (request.POST.get("title") or "").strip()
+        if not title:
+            title = "New Chat"
+        thread = ChatThread.objects.create(user=request.user, title=title, context_json={})
+        return JsonResponse({"ok": True, "thread": _serialize_thread(thread)})
+
+    return JsonResponse({"ok": False, "error": "Method not allowed."}, status=405)
+
+
+@staff_required
+def assistant_thread_detail(request, thread_id: int):
+    thread = get_object_or_404(ChatThread, id=thread_id, user=request.user, is_archived=False)
+    messages = thread.messages.order_by("created_at")
+    return JsonResponse({"ok": True, "thread": _serialize_thread(thread), "messages": [_serialize_message(m) for m in messages]})
+
+
+@staff_required
+@require_POST
+def assistant_thread_message(request, thread_id: int):
+    thread = get_object_or_404(ChatThread, id=thread_id, user=request.user, is_archived=False)
+    try:
+        body = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+    query = (body.get("query") or "").strip()
+    if not query:
+        return JsonResponse({"ok": False, "error": "Query is required."}, status=400)
+
+    ChatMessage.objects.create(thread=thread, role=ChatMessage.Role.USER, content=query, payload_json={})
+    memory = dict(thread.context_json or {})
+    result = process_query(query, memory)
+
+    assistant_text = result.get("summary") or "No response."
+    ChatMessage.objects.create(thread=thread, role=ChatMessage.Role.ASSISTANT, content=assistant_text, payload_json=result)
+
+    if thread.title == "New Chat":
+        thread.title = (query[:70] + "...") if len(query) > 70 else query
+    thread.context_json = memory
+    thread.save(update_fields=["title", "context_json", "updated_at"])
+
+    return JsonResponse({"ok": True, "thread": _serialize_thread(thread), "message": result})
+
+
 @staff_required
 @require_POST
 def assistant_query(request):
@@ -1436,6 +1506,25 @@ def assistant_query(request):
     query = (body.get("query") or "").strip()
     if not query:
         return JsonResponse({"ok": False, "error": "Query is required."}, status=400)
+
+    thread_id = body.get("thread_id")
+    if thread_id:
+        thread = ChatThread.objects.filter(id=thread_id, user=request.user, is_archived=False).first()
+        if thread:
+            ChatMessage.objects.create(thread=thread, role=ChatMessage.Role.USER, content=query, payload_json={})
+            memory = dict(thread.context_json or {})
+            result = process_query(query, memory)
+            ChatMessage.objects.create(
+                thread=thread,
+                role=ChatMessage.Role.ASSISTANT,
+                content=result.get("summary") or "No response.",
+                payload_json=result,
+            )
+            if thread.title == "New Chat":
+                thread.title = (query[:70] + "...") if len(query) > 70 else query
+            thread.context_json = memory
+            thread.save(update_fields=["title", "context_json", "updated_at"])
+            return JsonResponse({"ok": True, "thread": _serialize_thread(thread), **result})
 
     result = process_query(query, request.session)
     request.session.modified = True

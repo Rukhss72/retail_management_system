@@ -4,6 +4,8 @@ from .normalization import normalize_text
 INTENT_STOCK_LOOKUP = "StockLookup"
 INTENT_SALES_SUMMARY = "SalesSummary"
 INTENT_TOP_SELLERS = "TopSellers"
+INTENT_COMPARE_SALES = "CompareSales"
+INTENT_SEASONALITY = "Seasonality"
 INTENT_STOCK_MOVEMENTS = "StockMovements"
 INTENT_FORECAST_BEST_SELLERS = "ForecastBestSellers"
 INTENT_REORDER_SUGGESTIONS = "ReorderSuggestions"
@@ -13,6 +15,12 @@ INTENT_UNKNOWN = "Unknown"
 
 def detect_intent(query: str) -> str:
     text = normalize_text(query)
+
+    if any(k in text for k in ("compare", "compared to", "versus", " vs ")):
+        return INTENT_COMPARE_SALES
+
+    if any(k in text for k in ("season", "seasonal", "which season")):
+        return INTENT_SEASONALITY
 
     if any(k in text for k in ("restock", "reorder suggestion", "reorder", "what should i restock")):
         return INTENT_REORDER_SUGGESTIONS
@@ -26,7 +34,16 @@ def detect_intent(query: str) -> str:
     if "movement" in text or "stock in" in text or "stock out" in text or "adjustment" in text:
         return INTENT_STOCK_MOVEMENTS
 
-    if "top seller" in text or "best-selling" in text or "best selling" in text or "trend" in text:
+    if (
+        "top seller" in text
+        or "top selling" in text
+        or "best-selling" in text
+        or "best selling" in text
+        or "trend" in text
+    ):
+        return INTENT_TOP_SELLERS
+
+    if "sold" in text:
         return INTENT_TOP_SELLERS
 
     if "sale" in text or "revenue" in text:
@@ -42,4 +59,3 @@ def detect_intent(query: str) -> str:
         return INTENT_STOCK_LOOKUP
 
     return INTENT_UNKNOWN
-

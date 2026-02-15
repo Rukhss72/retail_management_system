@@ -138,3 +138,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 # Email (development: console backend)
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
+# Assistant LLM fallback (local Ollama)
+ASSISTANT_OLLAMA_ENABLED = True
+ASSISTANT_OLLAMA_MODEL = "qwen2.5:1.5b"
+ASSISTANT_OLLAMA_HOST = "http://127.0.0.1:11434"
+ASSISTANT_OLLAMA_TIMEOUT = 120
+

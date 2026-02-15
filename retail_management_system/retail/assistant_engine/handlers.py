@@ -1,6 +1,7 @@
 import math
 from datetime import timedelta
 from decimal import Decimal
+from calendar import monthrange
 
 from django.db.models import Case, Count, F, IntegerField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
@@ -21,6 +22,19 @@ from retail.models import (
 
 def _table(columns, rows):
     return {"columns": columns, "rows": rows}
+
+
+def _range_label(start_date, end_date) -> str:
+    if (
+        start_date
+        and end_date
+        and start_date.year == end_date.year
+        and start_date.month == end_date.month
+        and start_date.day == 1
+        and end_date.day == monthrange(end_date.year, end_date.month)[1]
+    ):
+        return start_date.strftime("%B %Y")
+    return f"{start_date} to {end_date}"
 
 
 def handle_stock_lookup(query: str, entities: dict) -> dict:
@@ -197,14 +211,116 @@ def handle_sales_summary(query: str, entities: dict) -> dict:
     }
 
 
+def handle_compare_sales(query: str, entities: dict) -> dict:
+    start_a, end_a = entities["start"], entities["end"]
+    start_b = entities.get("compare_start") or start_a
+    end_b = entities.get("compare_end") or end_a
+    category = entities.get("category")
+    label_a = _range_label(start_a, end_a)
+    label_b = _range_label(start_b, end_b)
+
+    qs_a = SaleItem.objects.filter(sale__sale_date__gte=start_a, sale__sale_date__lte=end_a)
+    qs_b = SaleItem.objects.filter(sale__sale_date__gte=start_b, sale__sale_date__lte=end_b)
+    if category:
+        qs_a = qs_a.filter(product__category=category)
+        qs_b = qs_b.filter(product__category=category)
+
+    agg_a = {
+        row["product__sku"]: row
+        for row in qs_a.values("product__sku", "product__product_name")
+        .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+    }
+    agg_b = {
+        row["product__sku"]: row
+        for row in qs_b.values("product__sku", "product__product_name")
+        .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+    }
+
+    keys = set(agg_a.keys()) | set(agg_b.keys())
+    rows = []
+    for sku in keys:
+        a = agg_a.get(sku)
+        b = agg_b.get(sku)
+        units_a = int((a or {}).get("units", 0))
+        units_b = int((b or {}).get("units", 0))
+        revenue_a = float((a or {}).get("revenue", 0))
+        revenue_b = float((b or {}).get("revenue", 0))
+        rows.append(
+            {
+                "sku": sku,
+                "product": (a or b or {}).get("product__product_name", ""),
+                f"units ({label_a})": units_a,
+                f"units ({label_b})": units_b,
+                "delta units (A-B)": units_a - units_b,
+                f"revenue ({label_a})": revenue_a,
+                f"revenue ({label_b})": revenue_b,
+                "delta revenue (A-B)": round(revenue_a - revenue_b, 2),
+            }
+        )
+
+    rows.sort(key=lambda r: (r[f"units ({label_a})"] + r[f"units ({label_b})"]), reverse=True)
+    rows = rows[:15]
+
+    total_rev_a = round(sum(r[f"revenue ({label_a})"] for r in rows), 2)
+    total_rev_b = round(sum(r[f"revenue ({label_b})"] for r in rows), 2)
+    total_qty_a = sum(r[f"units ({label_a})"] for r in rows)
+    total_qty_b = sum(r[f"units ({label_b})"] for r in rows)
+
+    category_suffix = f" in {category.category_name}" if category else ""
+    return {
+        "summary": (
+            f"Compared sales{category_suffix}: {label_a} vs {label_b}. "
+            f"Delta columns are A-B. Revenue delta {round(total_rev_a-total_rev_b, 2)} and qty delta {total_qty_a-total_qty_b}."
+        ),
+        "table": _table(
+            [
+                "sku",
+                "product",
+                f"units ({label_a})",
+                f"units ({label_b})",
+                "delta units (A-B)",
+                f"revenue ({label_a})",
+                f"revenue ({label_b})",
+                "delta revenue (A-B)",
+            ],
+            rows,
+        ),
+        "chart": {
+            "charts": [
+                {
+                    "title": f"Units Comparison: {label_a} vs {label_b}",
+                    "labels": [r["product"] for r in rows[:10]],
+                    "datasets": [
+                        {"label": label_a, "data": [r[f"units ({label_a})"] for r in rows[:10]]},
+                        {"label": label_b, "data": [r[f"units ({label_b})"] for r in rows[:10]]},
+                    ],
+                },
+                {
+                    "title": f"Revenue Comparison: {label_a} vs {label_b}",
+                    "labels": [r["product"] for r in rows[:10]],
+                    "datasets": [
+                        {"label": label_a, "data": [r[f"revenue ({label_a})"] for r in rows[:10]]},
+                        {"label": label_b, "data": [r[f"revenue ({label_b})"] for r in rows[:10]]},
+                    ],
+                },
+            ]
+        },
+        "source": ["Sale", "SaleItem", "Product"],
+    }
+
+
 def handle_top_sellers(query: str, entities: dict) -> dict:
     text = query.lower()
     start, end = entities["start"], entities["end"]
     product = entities.get("product")
+    category = entities.get("category")
+    base_qs = SaleItem.objects.filter(sale__sale_date__gte=start, sale__sale_date__lte=end)
+    if category:
+        base_qs = base_qs.filter(product__category=category)
 
     if "category" in text:
         qs = (
-            SaleItem.objects.filter(sale__sale_date__gte=start, sale__sale_date__lte=end)
+            base_qs
             .values("product__category__category_name")
             .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
             .order_by("-units", "-revenue")[:10]
@@ -252,7 +368,7 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
         }
 
     qs = (
-        SaleItem.objects.filter(sale__sale_date__gte=start, sale__sale_date__lte=end)
+        base_qs
         .values("product__sku", "product__product_name")
         .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
         .order_by("-units", "-revenue")[:10]
@@ -266,8 +382,9 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
         }
         for r in qs
     ]
+    category_suffix = f" in {category.category_name}" if category else ""
     return {
-        "summary": f"Top sellers from {start} to {end}.",
+        "summary": f"Top sellers{category_suffix} from {start} to {end}.",
         "table": _table(["sku", "product", "units", "revenue"], rows),
         "chart": {
             "type": "bar",
@@ -412,11 +529,47 @@ def handle_reorder_suggestions(query: str, entities: dict) -> dict:
 
 def handle_festival_insights(query: str, entities: dict) -> dict:
     festival = entities.get("festival_name")
+    product = entities.get("product")
     qs = DailyProductSales.objects.all()
+    if product:
+        qs = qs.filter(product=product)
     if festival:
         qs = qs.filter(festival_name__icontains=festival)
     else:
         qs = qs.filter(is_festive=True)
+
+    if product and not festival:
+        by_festival = (
+            qs.exclude(festival_name="")
+            .values("festival_name")
+            .annotate(total_qty=Coalesce(Sum("qty_sold"), 0), total_sales=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+            .order_by("-total_qty")[:10]
+        )
+        rows = [
+            {
+                "festival": r["festival_name"] or "Unknown",
+                "qty": int(r["total_qty"]),
+                "sales": float(r["total_sales"]),
+            }
+            for r in by_festival
+        ]
+        if not rows:
+            return {
+                "summary": f"No festive sales records found for {product.product_name}.",
+                "table": _table(["festival", "qty", "sales"], []),
+                "chart": None,
+                "source": ["DailyProductSales", "FestiveCalendar", "Product"],
+            }
+        return {
+            "summary": f"{product.product_name} sells best during {rows[0]['festival']}.",
+            "table": _table(["festival", "qty", "sales"], rows),
+            "chart": {
+                "type": "bar",
+                "labels": [r["festival"] for r in rows],
+                "datasets": [{"label": "Qty sold", "data": [r["qty"] for r in rows]}],
+            },
+            "source": ["DailyProductSales", "FestiveCalendar", "Product"],
+        }
 
     top = (
         qs.values("product__sku", "product__product_name")
@@ -437,4 +590,59 @@ def handle_festival_insights(query: str, entities: dict) -> dict:
             "datasets": [{"label": "Qty sold", "data": [r["qty"] for r in rows]}],
         },
         "source": ["DailyProductSales", "FestiveCalendar", "Product"],
+    }
+
+
+def handle_seasonality(query: str, entities: dict) -> dict:
+    product = entities.get("product")
+    if not product:
+        return {
+            "summary": "Please provide a product name or SKU for seasonality analysis.",
+            "table": _table(["product", "note"], []),
+            "chart": None,
+            "source": ["DailyProductSales", "Product"],
+        }
+
+    rows_qs = (
+        DailyProductSales.objects.filter(product=product)
+        .values("date__month")
+        .annotate(total_qty=Coalesce(Sum("qty_sold"), 0), total_sales=Coalesce(Sum("sales_amt"), Decimal("0.00")))
+        .order_by("date__month")
+    )
+    if not rows_qs:
+        return {
+            "summary": f"No seasonality history found for {product.product_name}.",
+            "table": _table(["season", "qty", "sales"], []),
+            "chart": None,
+            "source": ["DailyProductSales", "Product"],
+        }
+
+    def month_to_season(m):
+        if m in (12, 1, 2):
+            return "Summer"
+        if m in (3, 4, 5):
+            return "Autumn"
+        if m in (6, 7, 8):
+            return "Winter"
+        return "Spring"
+
+    by_season = {}
+    for r in rows_qs:
+        season = month_to_season(int(r["date__month"]))
+        by_season.setdefault(season, {"qty": 0, "sales": 0.0})
+        by_season[season]["qty"] += int(r["total_qty"] or 0)
+        by_season[season]["sales"] += float(r["total_sales"] or 0)
+
+    ordered = sorted(by_season.items(), key=lambda kv: kv[1]["qty"], reverse=True)
+    rows = [{"season": s, "qty": v["qty"], "sales": round(v["sales"], 2)} for s, v in ordered]
+    best = rows[0]["season"] if rows else "Unknown"
+    return {
+        "summary": f"{product.product_name} sells best in {best}.",
+        "table": _table(["season", "qty", "sales"], rows),
+        "chart": {
+            "type": "bar",
+            "labels": [r["season"] for r in rows],
+            "datasets": [{"label": "Qty sold", "data": [r["qty"] for r in rows]}],
+        },
+        "source": ["DailyProductSales", "Product"],
     }

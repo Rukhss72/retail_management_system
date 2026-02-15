@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
+from calendar import monthrange
 from difflib import SequenceMatcher
 
 from django.db.models import Q
@@ -81,10 +82,61 @@ def parse_date_window(query: str) -> tuple:
         label = f"{start} to {end}"
         return start, end, label, (end - start).days + 1
 
+    # Handle month-year phrases like "december 2025" or "jan2023"
+    month_map = {
+        "jan": 1, "january": 1,
+        "feb": 2, "february": 2,
+        "mar": 3, "march": 3,
+        "apr": 4, "april": 4,
+        "may": 5,
+        "jun": 6, "june": 6,
+        "jul": 7, "july": 7,
+        "aug": 8, "august": 8,
+        "sep": 9, "sept": 9, "september": 9,
+        "oct": 10, "october": 10,
+        "nov": 11, "november": 11,
+        "dec": 12, "december": 12,
+    }
+    compact = re.search(
+        r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)(20\d{2})\b",
+        text,
+    )
+    spaced = re.search(
+        r"\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+(20\d{2})\b",
+        text,
+    )
+    hit = compact or spaced
+    if hit:
+        m_name = hit.group(1)
+        year = int(hit.group(2))
+        month = month_map[m_name]
+        last_day = monthrange(year, month)[1]
+        start = datetime(year, month, 1).date()
+        end = datetime(year, month, last_day).date()
+        label = f"{start} to {end}"
+        return start, end, label, (end - start).days + 1
+
+    tokens = re.findall(r"[a-z0-9]+", text)
+
+    def has_last_month_phrase() -> bool:
+        if "last month" in text:
+            return True
+        for i, tok in enumerate(tokens[:-1]):
+            if tok == "last":
+                nxt = tokens[i + 1]
+                if SequenceMatcher(None, nxt, "month").ratio() >= 0.7:
+                    return True
+        return False
+
     if "this week" in text:
         start = today - timedelta(days=today.weekday())
         end = today
         label = "this week"
+    elif has_last_month_phrase():
+        first_this_month = today.replace(day=1)
+        end = first_this_month - timedelta(days=1)
+        start = end.replace(day=1)
+        label = "last month"
     elif "this month" in text:
         start = today.replace(day=1)
         end = today
