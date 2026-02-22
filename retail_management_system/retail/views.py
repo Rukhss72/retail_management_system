@@ -47,6 +47,7 @@ from .services import create_sale
 from decimal import Decimal, InvalidOperation
 from .assistant_engine.service import process_query
 
+import re
 
 # Create your views here.
 
@@ -120,6 +121,27 @@ def _rotate_trusted_device(response, request, td):
     td.expires_at = now + timedelta(days=TRUSTED_DEVICE_DAYS)
     td.save(update_fields=["token_hash", "last_used_at", "expires_at"])
     _set_trusted_device_cookie(response, td.device_id, token)
+
+
+def _next_po_number():
+    year = timezone.localdate().year
+    prefix = f"PO-{year}-"
+    last = (
+        PurchaseOrder.objects
+        .filter(po_number__startswith=prefix)
+        .values_list("po_number", flat=True)
+        .order_by("-po_number")
+        .first()
+    )
+    if last:
+        m = re.search(rf"{re.escape(prefix)}(\d+)$", last)
+        if m:
+            seq = int(m.group(1)) + 1
+        else:
+            seq = 1
+    else:
+        seq = 1
+    return f"{prefix}{seq:03d}"
 
 
 class AdminLoginView(LoginView):
@@ -735,24 +757,13 @@ def suppliers(request):
         elif form_type == "update_supplier":
             supplier_id = request.POST.get("supplier_id")
             s = get_object_or_404(Supplier, pk=supplier_id)
-
-            s.supplier_name = request.POST.get("supplier_name", "").strip()
-            s.email = request.POST.get("email", "").strip()
-            s.phone = request.POST.get("phone", "").strip()
-
-            lead = request.POST.get("lead_time_days")
-            s.lead_time_days = int(lead) if lead not in (None, "") else 0
-
-            s.notes = request.POST.get("notes", "").strip()
-            s.is_active = (request.POST.get("is_active") == "on")
-
-            if not s.supplier_name:
-                messages.error(request, "Company Name is required.")
+            supplier_form = SupplierForm(request.POST, instance=s)
+            if supplier_form.is_valid():
+                supplier_form.save()
+                messages.success(request, "Supplier updated.")
                 return redirect(f"{request.path}?tab=suppliers")
-
-            s.save()
-            messages.success(request, "Supplier updated.")
-            return redirect(f"{request.path}?tab=suppliers")
+            messages.error(request, "Please fix the errors in the supplier form.")
+            tab = "suppliers"
 
         # DELETE SUPPLIER
         elif form_type == "delete_supplier":
@@ -770,7 +781,11 @@ def suppliers(request):
                 po.created_by = request.user
                 # Ensure Draft unless user picks otherwise (optional)
                 if not po.status:
-                    po.status = PurchaseOrder.STATUS_DRAFT
+                    po.status = PurchaseOrder.STATUS_PENDING
+                if not po.order_date:
+                    po.order_date = timezone.localdate()
+                # Always auto-generate to avoid invalid manual input
+                po.po_number = _next_po_number()
                 po.save()
 
                 messages.success(request, f"PO created: {po}")
@@ -784,9 +799,13 @@ def suppliers(request):
         elif form_type == "update_po":
             po_id = request.POST.get("po_id")
             po = get_object_or_404(PurchaseOrder, pk=po_id)
+            original_status = po.status
 
             # Basic fields
-            po.po_number = request.POST.get("po_number", "").strip()
+            po_number = (po.po_number or "").strip()
+            if "\\u002D" in po_number:
+                po_number = po_number.replace("\\u002D", "-")
+            po.po_number = po_number
             po.notes = request.POST.get("notes", "").strip()
 
             # supplier
@@ -798,12 +817,20 @@ def suppliers(request):
             po.order_date = request.POST.get("order_date") or None
             po.delivery_date = request.POST.get("delivery_date") or None
 
-            # amount
-            amt = request.POST.get("total_amount", "").strip()
-            try:
-                po.total_amount = Decimal(amt) if amt else Decimal("0.00")
-            except InvalidOperation:
-                po.total_amount = Decimal("0.00")
+            # amount (auto-calc from items when present)
+            item_total = Decimal("0.00")
+            items = po.items.all()
+            for it in items:
+                if it.unit_cost is not None:
+                    item_total += (it.unit_cost * Decimal(it.qty_ordered))
+            if item_total > 0:
+                po.total_amount = item_total
+            else:
+                amt = request.POST.get("total_amount", "").strip()
+                try:
+                    po.total_amount = Decimal(amt) if amt else Decimal("0.00")
+                except InvalidOperation:
+                    po.total_amount = Decimal("0.00")
 
             # status
             status_val = request.POST.get("status")
@@ -814,12 +841,38 @@ def suppliers(request):
                 messages.error(request, "PO Number is required.")
                 return redirect(f"{request.path}?tab=purchase-orders")
 
-            # add hard check: only DRAFT can be edited            
-            if po.status != PurchaseOrder.STATUS_DRAFT:
-                messages.error(request, "Only DRAFT purchase orders can be edited.")
+            # block edits after received/cancelled
+            if original_status in (PurchaseOrder.STATUS_RECEIVED, PurchaseOrder.STATUS_CANCELLED):
+                messages.error(request, "Received/Cancelled purchase orders cannot be edited.")
                 return redirect(f"{request.path}?tab=purchase-orders")
 
             po.save()
+
+            # If marked as RECEIVED, add stock and set received timestamp (only once)
+            if po.status == PurchaseOrder.STATUS_RECEIVED and not po.received_at:
+                now = timezone.now()
+                with transaction.atomic():
+                    items = po.items.select_related("product")
+                    for it in items:
+                        qty_to_receive = max(int(it.qty_ordered) - int(it.qty_received or 0), 0)
+                        if qty_to_receive <= 0:
+                            continue
+                        StockMovement.objects.create(
+                            product=it.product,
+                            movement_type=StockMovement.MovementType.PO,
+                            qty_moved=qty_to_receive,
+                            created_by=request.user,
+                            reference=po.po_number or None,
+                            comments="Stock in from PO receipt",
+                        )
+                        it.product.qty_in_stock += qty_to_receive
+                        it.product.save(update_fields=["qty_in_stock", "updated_at"])
+                        it.qty_received += qty_to_receive
+                        it.save(update_fields=["qty_received"])
+
+                    po.received_at = now
+                    po.save(update_fields=["received_at"])
+
             messages.success(request, "Purchase order updated.")
             return redirect(f"{request.path}?tab=purchase-orders")
 
@@ -860,20 +913,34 @@ def suppliers(request):
             with transaction.atomic():
                 po = PurchaseOrder.objects.create(
                     supplier_id=rr.supplier_id,
-                    status=PurchaseOrder.STATUS_DRAFT,
+                    status=PurchaseOrder.STATUS_PENDING,
                     created_by=request.user,
+                    order_date=timezone.localdate(),
+                    po_number=_next_po_number(),
                     reorder_request=rr,
                 )
 
                 items = rr.items.select_related("product")
+                total = Decimal("0.00")
                 for it in items:
+                    # prefer supplier last_unit_cost if available
+                    unit_cost = None
+                    link = it.product.supplier_links.filter(
+                        supplier_id=rr.supplier_id
+                    ).first()
+                    if link and link.last_unit_cost is not None:
+                        unit_cost = link.last_unit_cost
                     PurchaseOrderItem.objects.create(
                         po=po,
                         product=it.product,
                         qty_ordered=it.qty_requested,
-                        unit_cost=None,
+                        unit_cost=unit_cost,
                     )
+                    if unit_cost is not None:
+                        total += (unit_cost * Decimal(it.qty_requested))
 
+                po.total_amount = total
+                po.save(update_fields=["total_amount"])
                 rr.status = ReorderRequest.STATUS_APPROVED
                 rr.decided_at = timezone.now()
                 rr.decided_by = request.user
@@ -898,6 +965,7 @@ def suppliers(request):
     }
 
     context["suppliers_all"] = Supplier.objects.filter(is_active=True).order_by("supplier_name")
+    context["categories"] = Category.objects.order_by("category_name")
 
     # ----------------------------
     # TAB: SUPPLIERS
@@ -939,6 +1007,29 @@ def suppliers(request):
 
         if status != "all":
             po_qs = po_qs.filter(status=status)
+
+        # Backfill missing PO numbers/order dates for older records
+        missing_qs = po_qs.filter(Q(po_number__isnull=True) | Q(po_number="") | Q(order_date__isnull=True)).order_by("created_at")
+        if missing_qs.exists():
+            with transaction.atomic():
+                for po in missing_qs:
+                    changed = False
+                    if not po.po_number:
+                        po.po_number = _next_po_number()
+                        changed = True
+                    if not po.order_date:
+                        po.order_date = timezone.localdate()
+                        changed = True
+                    if changed:
+                        po.save(update_fields=["po_number", "order_date"])
+
+        # Normalize any escaped PO numbers that were saved from HTML/JS
+        escaped_qs = po_qs.filter(po_number__contains="\\u002D")
+        if escaped_qs.exists():
+            with transaction.atomic():
+                for po in escaped_qs:
+                    po.po_number = (po.po_number or "").replace("\\u002D", "-")
+                    po.save(update_fields=["po_number"])
 
         paginator = Paginator(po_qs, 10)
         context["purchase_orders"] = paginator.get_page(page_number)
@@ -1098,21 +1189,34 @@ def reorder_request_approve(request, rr_id):
         for supplier_id, its in by_supplier.items():
             po = PurchaseOrder.objects.create(
                 supplier_id=supplier_id,
-                status=PurchaseOrder.STATUS_DRAFT,
+                status=PurchaseOrder.STATUS_PENDING,
                 created_by=request.user,
+                order_date=timezone.localdate(),
+                po_number=_next_po_number(),
             )
+            total = Decimal("0.00")
             for it in its:
+                unit_cost = None
+                link = it.product.supplier_links.filter(
+                    supplier_id=supplier_id
+                ).first()
+                if link and link.last_unit_cost is not None:
+                    unit_cost = link.last_unit_cost
                 PurchaseOrderItem.objects.create(
                     po=po,
                     product=it.product,
                     qty_ordered=it.qty_requested,
-                    unit_cost=None,
+                    unit_cost=unit_cost,
                 )
+                if unit_cost is not None:
+                    total += (unit_cost * Decimal(it.qty_requested))
 
-        rr.status = ReorderRequest.STATUS_APPROVED
-        rr.decided_at = timezone.now()
-        rr.decided_by = request.user
-        rr.save(update_fields=["status", "decided_at", "decided_by"])
+            po.total_amount = total
+            po.save(update_fields=["total_amount"])
+            rr.status = ReorderRequest.STATUS_APPROVED
+            rr.decided_at = timezone.now()
+            rr.decided_by = request.user
+            rr.save(update_fields=["status", "decided_at", "decided_by"])
 
     messages.success(request, f"RR-{rr.id} approved. Draft PO(s) created.")
     return redirect("/suppliers/?tab=reorders")

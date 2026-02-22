@@ -210,7 +210,8 @@ def compute_reorder_row(product, safety_stock=SAFETY_STOCK_DEFAULT):
         suggested = fallback
     else:
         raw = (avg_daily * lead_time) + safety_stock - product.qty_in_stock
-        suggested = max(int(math.ceil(raw)), 0)
+        demand_based = max(int(math.ceil(raw)), 0)
+        suggested = max(demand_based, fallback)
 
     status = "OUT" if product.qty_in_stock == 0 else "LOW"
 

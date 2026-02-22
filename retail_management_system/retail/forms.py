@@ -1,4 +1,5 @@
 from django import forms
+import re
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -102,8 +103,8 @@ class ProductCreateForm(forms.ModelForm):
 
     primary_supplier = forms.ModelChoiceField(
         queryset=Supplier.objects.filter(is_active=True).order_by("supplier_name"),
-        required=False,
-        empty_label="-- Select primary supplier (optional) --",
+        required=True,
+        empty_label="-- Select primary supplier (required) --",
         label="Primary Supplier",
     )
 
@@ -114,11 +115,11 @@ class ProductCreateForm(forms.ModelForm):
     )
 
     last_unit_cost = forms.DecimalField(
-        required=False,
+        required=True,
         min_value=Decimal("0.00"),
         decimal_places=2,
         max_digits=12,
-        label="Last unit cost (optional)",
+        label="Last unit cost",
     )
 
     class Meta:
@@ -156,8 +157,11 @@ class ProductCreateForm(forms.ModelForm):
             cleaned["opening_comments"] = ""
         
         if not cleaned.get("primary_supplier"):
+            self.add_error("primary_supplier", "Select a primary supplier.")
             cleaned["supplier_lead_time_days"] = None
             cleaned["last_unit_cost"] = None
+        elif cleaned.get("last_unit_cost") in (None, ""):
+            self.add_error("last_unit_cost", "Enter the last unit cost.")
 
 
         return cleaned
@@ -266,8 +270,20 @@ class HistoryFilterForm(forms.Form):
         empty_label="All products",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = (existing + " form-control").strip()
+
 
 class SupplierForm(forms.ModelForm):
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.order_by("category_name"),
+        required=False,
+        empty_label="Select category",
+        label="Category",
+    )
     class Meta:
         model = Supplier
         fields = [
@@ -276,7 +292,7 @@ class SupplierForm(forms.ModelForm):
             "email",
             "phone",
             "address",
-            "products_services",
+            "category",
             "lead_time_days",
             "is_active",
             "notes",
@@ -298,10 +314,6 @@ class SupplierForm(forms.ModelForm):
                 "placeholder": "Street, city, country…",
                 "rows": 2,
             }),
-            "products_services": forms.Textarea(attrs={
-                "placeholder": "e.g. Fabrics, accessories, delivery…",
-                "rows": 2,
-            }),
             "lead_time_days": forms.NumberInput(attrs={
                 "min": 0,
             }),
@@ -321,6 +333,25 @@ class SupplierForm(forms.ModelForm):
             existing = f.widget.attrs.get("class", "")
             f.widget.attrs["class"] = (existing + " scm-input").strip()
 
+    def clean_supplier_name(self):
+        name = (self.cleaned_data.get("supplier_name") or "").strip()
+        if not name:
+            raise ValidationError("Company Name is required.")
+        qs = Supplier.objects.filter(supplier_name__iexact=name)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("A supplier with this company name already exists.")
+        return name
+
+    def clean_phone(self):
+        phone = (self.cleaned_data.get("phone") or "").strip()
+        if not phone:
+            return ""
+        if not re.fullmatch(r"[0-9+\-\s()]{7,20}", phone):
+            raise ValidationError("Enter a valid phone number.")
+        return phone
+
 
 class PurchaseOrderCreateForm(forms.ModelForm):
     class Meta:
@@ -335,7 +366,7 @@ class PurchaseOrderCreateForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "po_number": forms.TextInput(attrs={"placeholder": "PO-2026-001"}),
+            "po_number": forms.TextInput(attrs={"placeholder": "Auto-generated", "readonly": "readonly"}),
             "order_date": forms.DateInput(attrs={"type": "date"}),
             "delivery_date": forms.DateInput(attrs={"type": "date"}),
             "total_amount": forms.NumberInput(attrs={"placeholder": "0.00", "min": "0", "step": "0.01"}),

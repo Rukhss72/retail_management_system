@@ -212,6 +212,10 @@
     border: 1px solid var(--border);
     border-radius: 12px;
   }
+  .table-wrap.product-list{
+    max-height: 620px; /* ~10 rows */
+    overflow-y: auto;
+  }
   table{
     width: 100%;
     border-collapse: collapse;
@@ -375,6 +379,20 @@
     .two-col{ grid-template-columns: 1fr; }
     .grid-2{ grid-template-columns: 1fr; }
   }
+
+  @media print{
+    body *{ visibility: hidden; }
+    .receipt-print-area, .receipt-print-area *{ visibility: visible; }
+    .receipt-print-area{
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+    }
+    .no-print{ display: none !important; }
+    .receipt-print-area .card{ box-shadow: none; }
+    .receipt-print-area .table-wrap{ overflow: visible; }
+  }
 </style>
 
 <div class="sales-page-wrap">
@@ -475,7 +493,7 @@
             </div>
           </form>
 
-          <div class="table-wrap">
+          <div class="table-wrap product-list">
             <table>
               <thead>
                 <tr>
@@ -740,6 +758,7 @@
           </div>
         {% else %}
 
+          <div class="receipt-print-area">
           <div class="grid-4">
             <div class="fg">
               <label>Receipt No</label>
@@ -811,15 +830,16 @@
                 <span class="val">{{ sale.total }}</span>
               </div>
             </div>
+          </div>
+          </div>
 
-            <div style="display:flex; gap:10px; margin-top:14px;">
-              <a class="btn btn-outline" href="{% url 'sales' %}?tab=history">
-                <i class="fa-solid fa-arrow-left"></i> Back to History
-              </a>
-              <button type="button" class="btn btn-soft" onclick="window.print()">
-                <i class="fa-solid fa-print"></i> Print Receipt
-              </button>
-            </div>
+          <div class="no-print" style="display:flex; gap:10px; margin-top:14px;">
+            <a class="btn btn-outline" href="{% url 'sales' %}?tab=history">
+              <i class="fa-solid fa-arrow-left"></i> Back to History
+            </a>
+            <button type="button" class="btn btn-soft" onclick="window.print()">
+              <i class="fa-solid fa-print"></i> Print Receipt
+            </button>
           </div>
 
         {% endif %}

@@ -6,7 +6,7 @@
   .home-wrap{ max-width:1100px; margin:0 auto; padding: 6px 0; }
 
   .home-topbar{
-    display:flex; align-items:center; justify-content:space-between;
+    display:flex; align-items:center; justify-content:flex-end;
     gap:16px; margin-bottom: 16px;
   }
   .crumb{ color: rgba(64,78,92,.65); font-size: 13px; }
@@ -76,10 +76,10 @@
   .tile-ico{ font-size: 26px; margin-bottom: 12px; }
   .tile-title{ font-weight: 800; color: var(--charcoal); }
 
-  .tile-sky{ background: rgba(132,172,206,.12); }
-  .tile-berry{ background: rgba(170,68,101,.10); }
-  .tile-cotton{ background: rgba(237,191,198,.20); }
-  .tile-gray{ background: rgba(64,78,92,.08); }
+  .tile-sky{ background: rgba(132,172,206,.22); }
+  .tile-berry{ background: rgba(170,68,101,.16); }
+  .tile-cotton{ background: rgba(237,191,198,.28); }
+  .tile-gray{ background: rgba(64,78,92,.12); }
 
   .home-attn{ padding: 10px 14px; margin-bottom: 16px; }
   .chips{ display:flex; justify-content:center; gap: 12px; flex-wrap: wrap; }
@@ -90,9 +90,9 @@
     border: 1px solid rgba(64,78,92,.12);
   }
   .chip b{ font-weight: 900; }
-  .chip-low{ background:#FFF7E6; border-color:#FFE0A3; color:#9A6A00; }
-  .chip-out{ background: rgba(170,68,101,.10); border-color: rgba(170,68,101,.18); color: var(--berry); }
-  .chip-req{ background: rgba(132,172,206,.12); border-color: rgba(132,172,206,.25); color:#2f5b7a; }
+  .chip-low{ background:#fff8e1; border-color:#ffd54f; color:#f57f17; }
+  .chip-out{ background:#ffebee; border-color:#ef9a9a; color:#c62828; }
+  .chip-req{ background:#e3f2fd; border-color:#bbdefb; color:#1565c0; }
 
   .home-bottom{
     display:grid;
@@ -146,10 +146,56 @@
     color: var(--charcoal);
     font-weight: 900;
     font-size: 13px;
+    background: var(--white);
   }
   .shortcut:hover{
     border-color: rgba(132,172,206,.55);
     background: rgba(132,172,206,.06);
+  }
+  .shortcut-inventory:hover{
+    background: rgba(132,172,206,.40);
+    border-color: rgba(132,172,206,.80);
+  }
+  .shortcut-sales:hover{
+    background: #a5d6a7;
+    border-color: #66bb6a;
+  }
+  .shortcut-suppliers:hover{
+    background: rgba(237,191,198,.60);
+    border-color: rgba(237,191,198,.85);
+  }
+  .shortcut-reorders:hover{
+    background: #ffcdd2;
+    border-color: #ef9a9a;
+  }
+  .shortcut-reports:hover{
+    background: #90caf9;
+    border-color: #42a5f5;
+  }
+  .shortcut-inventory{
+    background: rgba(132,172,206,.30);
+    border-color: rgba(132,172,206,.60);
+    color: var(--charcoal);
+  }
+  .shortcut-sales{
+    background: #c8e6c9;
+    border-color: #81c784;
+    color: #2e7d32;
+  }
+  .shortcut-suppliers{
+    background: rgba(237,191,198,.45);
+    border-color: rgba(237,191,198,.70);
+    color: #7a2f45;
+  }
+  .shortcut-reorders{
+    background: #ffebee;
+    border-color: #ef9a9a;
+    color: #c62828;
+  }
+  .shortcut-reports{
+    background: #bbdefb;
+    border-color: #64b5f6;
+    color: #1565c0;
   }
 
   .helpbox{ border-top: 1px solid rgba(64,78,92,.12); padding-top: 14px; }
@@ -170,13 +216,6 @@
 <div class="home-wrap">
 
   <div class="home-topbar">
-    <div class="crumb">Retail Management System / <span>Home</span></div>
-
-    <div class="home-search">
-      <span class="home-search-ico">🔎</span>
-      <input type="text" placeholder="Search..." />
-    </div>
-
     <div class="home-profile">
       <span>{{ request.user.first_name|default:request.user.username }}</span>
       <span class="home-online-dot"></span>
@@ -265,11 +304,11 @@
       </div>
 
       <div class="shortcut-grid">
-        <a class="shortcut" href="{% url 'inventory' %}">Inventory</a>
-        <a class="shortcut" href="{% url 'sales' %}">Sales</a>
-        <a class="shortcut" href="{% url 'suppliers' %}">Suppliers</a>
-        <a class="shortcut" href="{% url 'suppliers' %}?tab=reorders">Reorders</a>
-        <a class="shortcut" href="{% url 'dashboard' %}">Reports</a>
+        <a class="shortcut shortcut-inventory" href="{% url 'inventory' %}">Inventory</a>
+        <a class="shortcut shortcut-sales" href="{% url 'sales' %}">Sales</a>
+        <a class="shortcut shortcut-suppliers" href="{% url 'suppliers' %}">Suppliers</a>
+        <a class="shortcut shortcut-reorders" href="{% url 'suppliers' %}?tab=reorders">Reorders</a>
+        <a class="shortcut shortcut-reports" href="{% url 'dashboard' %}">Reports</a>
       </div>
 
       <div class="helpbox">
@@ -292,3 +331,4 @@
 
 </div>
 {% endblock %}
+

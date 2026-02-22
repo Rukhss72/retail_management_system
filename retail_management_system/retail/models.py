@@ -198,6 +198,13 @@ class Supplier(models.Model):
     contact_person = models.CharField(max_length=120, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     products_services = models.TextField(blank=True, null=True)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="suppliers",
+    )
 
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -226,21 +233,19 @@ class ProductSupplier(models.Model):
         ]
 class PurchaseOrder(models.Model):
     STATUS_DRAFT = "DRAFT"
-    STATUS_ORDERED = "ORDERED"
-    STATUS_PARTIAL = "PARTIAL"
+    STATUS_PENDING = "PENDING"
     STATUS_RECEIVED = "RECEIVED"
     STATUS_CANCELLED = "CANCELLED"
 
     STATUS_CHOICES = [
         (STATUS_DRAFT, "Draft"),
-        (STATUS_ORDERED, "Ordered"),
-        (STATUS_PARTIAL, "Partially Received"),
-        (STATUS_RECEIVED, "Received / Closed"),
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RECEIVED, "Received"),
         (STATUS_CANCELLED, "Cancelled"),
     ]
 
     supplier = models.ForeignKey("Supplier", on_delete=models.PROTECT, related_name="purchase_orders")
-    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING)
 
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -255,7 +260,8 @@ class PurchaseOrder(models.Model):
 
     notes = models.TextField(blank=True)
 
-    po_number = models.CharField(max_length=20, unique=True, blank=True)
+    po_number = models.CharField(max_length=50, unique=True, blank=True)
+    received_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

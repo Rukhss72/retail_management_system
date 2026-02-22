@@ -180,6 +180,11 @@
   color:#f57f17;          /* orange text */
   border-color:#ffd54f;   /* soft orange border */
 }
+.mtype.po-in{
+  background:#e2e6e4;
+  color:#4f5d57;
+  border-color:#c8d0cc;
+}
 
 
 /* KPI + Actions in one row */
@@ -237,13 +242,14 @@
     margin-bottom:1rem;
   }
   .form-group{ display:flex; flex-direction:column; gap:.5rem; }
-  .form-group label{ font-size:.9rem; font-weight:800; color:var(--charcoal); }
+  .form-group label{ font-size:.9rem; font-weight:800; color:var(--charcoal); font-family: inherit; }
   .form-control{
     padding:.75rem;
     border:1px solid var(--charcoal-border);
     border-radius:8px;
     font-size:.95rem;
     background:var(--white);
+    font-family: inherit;
   }
   .form-control:focus{
     outline:none;
@@ -400,24 +406,40 @@
   }
   .modal{
     width:100%;
-    max-width:640px;
+    max-width:900px;
     background:#fff;
     border-radius:14px;
     overflow:hidden;
-    border:1px solid #e5e7eb;
+    border:0;
+  }
+  .modal *{
+    box-sizing: border-box;
   }
   .modal-head{
-    background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9);
-    color:#3a2a4a;
-    padding:12px 14px;
+    background: transparent;
+    color: var(--berry);
+    padding:14px 16px 6px;
     display:flex;
     justify-content:space-between;
     align-items:center;
   }
+  .modal-head > div{
+    font-weight:900;
+    font-size:1.2rem;
+    color: var(--berry);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex:1;
+  }
+  .modal-head > div.title-green{ color:#2e7d32; }
+  .modal-head > div.title-red{ color:#c62828; }
+  .modal-head > div.title-blue{ color:#1565c0; }
   .modal-body{ padding:14px; }
-  .modal-close{ background:transparent; border:0; color:#3a2a4a; cursor:pointer; font-size:18px; }
+  .modal-close{ background:transparent; border:0; color: var(--charcoal); cursor:pointer; font-size:20px; }
   .field{ margin-bottom:12px; }
-  .field label{ display:block; font-size:.85rem; font-weight:700; color:#5a4a6a; margin-bottom:6px; }
+  .field{ min-width:0; }
+  .field label{ display:block; font-size:1rem; font-weight:700; color:#5a4a6a; margin-bottom:6px; }
   .modal .field input[type="text"],
   .modal .field input[type="number"],
   .modal .field input[type="email"],
@@ -432,14 +454,18 @@
   .modal textarea{
     width:100%;
     height:44px;
-    line-height:44px;
-    padding:0 14px;
+    line-height:1.2;
+    padding:10px 14px;
     border:2px solid #eaeaf5;
     border-radius:14px;
     background:#ffffff;
-    font-size:.95rem;
+    font-size:1rem;
     outline:none;
     color:#5a4a6a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width:0;
   }
   .field textarea{
     min-height:84px;
@@ -474,6 +500,42 @@
   .modal .btn.red{ background: linear-gradient(145deg, #ffd6de, #ffbfc9); }
   .modal .btn.blue{ background: linear-gradient(145deg, #cfe6ff, #bcd6ff); }
   .modal .btn.gray{ background: linear-gradient(145deg, #ffd6e0, #ffeaa7, #c8e6c9); }
+  .modal .btn.green{ border:1px solid #81c784; }
+  .modal .btn.red{ border:1px solid #ef9a9a; }
+  .modal .btn.blue{ border:1px solid #90caf9; }
+  .modal .btn.gray{ border:1px solid #f0c1c9; }
+  .modal .btn.green,
+  .modal .btn.red,
+  .modal .btn.blue,
+  .modal .btn.gray{
+    position: relative;
+    overflow: hidden;
+  }
+  .modal .btn.green::after,
+  .modal .btn.red::after,
+  .modal .btn.blue::after,
+  .modal .btn.gray::after{
+    content:"";
+    position:absolute;
+    top:0;
+    left:-100%;
+    width:100%;
+    height:100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    transition: 0.6s;
+  }
+  .modal .btn.green:hover,
+  .modal .btn.red:hover,
+  .modal .btn.blue:hover,
+  .modal .btn.gray:hover{
+    transform: translateY(-2px);
+  }
+  .modal .btn.green:hover::after,
+  .modal .btn.red:hover::after,
+  .modal .btn.blue:hover::after,
+  .modal .btn.gray:hover::after{
+    left:100%;
+  }
   .field input[type="checkbox"]{
     width:18px;
     height:18px;
@@ -496,6 +558,20 @@
   .modal .btn.blue{
     border-radius:14px;
     box-shadow:0 6px 20px rgba(255,214,224,0.25);
+  }
+  .modal-grid-3{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap:12px;
+  }
+  .modal-grid-2{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:12px;
+  }
+  @media (max-width: 900px){
+    .modal-grid-3{ grid-template-columns: 1fr; }
+    .modal-grid-2{ grid-template-columns: 1fr; }
   }
 
   @media (max-width:768px){
@@ -626,6 +702,40 @@
       </form>
     </div>
 
+    <!-- Pagination (same URLs) -->
+    <div class="pager">
+      <div style="color:#6b7280; font-size:13px;">
+        {% if products_page.paginator.count %}
+          Showing <strong>{{ products_page.start_index }}</strong>-<strong>{{ products_page.end_index }}</strong>
+          of <strong>{{ products_page.paginator.count }}</strong> products
+        {% else %}
+          Page <strong>{{ products_page.number }}</strong> of <strong>{{ products_page.paginator.num_pages }}</strong>
+        {% endif %}
+      </div>
+
+      <div class="pager-controls">
+        {% if products_page.has_previous %}
+          <a class="page-btn"
+             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
+            <i class="fas fa-chevron-left"></i>
+          </a>
+        {% else %}
+          <span class="page-btn disabled"><i class="fas fa-chevron-left"></i></span>
+        {% endif %}
+
+        <span class="page-btn active">{{ products_page.number }}</span>
+
+        {% if products_page.has_next %}
+          <a class="page-btn"
+             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
+            <i class="fas fa-chevron-right"></i>
+          </a>
+        {% else %}
+          <span class="page-btn disabled"><i class="fas fa-chevron-right"></i></span>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Product Cards (same JS hooks: js-move/js-history + data-product-id/data-modal) -->
     <div class="product-grid">
       {% for p in products_page %}
@@ -687,40 +797,6 @@
       {% empty %}
         <div class="inv-panel">No products found.</div>
       {% endfor %}
-    </div>
-
-    <!-- Pagination (same URLs) -->
-    <div class="pager">
-      <div style="color:#6b7280; font-size:13px;">
-        {% if products_page.paginator.count %}
-          Showing <strong>{{ products_page.start_index }}</strong>-<strong>{{ products_page.end_index }}</strong>
-          of <strong>{{ products_page.paginator.count }}</strong> products
-        {% else %}
-          Page <strong>{{ products_page.number }}</strong> of <strong>{{ products_page.paginator.num_pages }}</strong>
-        {% endif %}
-      </div>
-
-      <div class="pager-controls">
-        {% if products_page.has_previous %}
-          <a class="page-btn"
-             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.previous_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
-            <i class="fas fa-chevron-left"></i>
-          </a>
-        {% else %}
-          <span class="page-btn disabled"><i class="fas fa-chevron-left"></i></span>
-        {% endif %}
-
-        <span class="page-btn active">{{ products_page.number }}</span>
-
-        {% if products_page.has_next %}
-          <a class="page-btn"
-             href="{% if base_qs %}?{{ base_qs }}&tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% else %}?tab=products&ppage={{ products_page.next_page_number }}&hpage={{ history_page.number|default:1 }}{% endif %}">
-            <i class="fas fa-chevron-right"></i>
-          </a>
-        {% else %}
-          <span class="page-btn disabled"><i class="fas fa-chevron-right"></i></span>
-        {% endif %}
-      </div>
     </div>
 
   </div>
@@ -830,8 +906,14 @@
                 <td>
                   {% if m.movement_type == "IN" %}
                     <span style="color:#2e7d32; font-weight:900;">+{{ m.qty_moved }}</span>
+                  {% elif m.movement_type == "PO" %}
+                    <span style="color:#4f5d57; font-weight:900;">+{{ m.qty_moved }}</span>
                   {% elif m.movement_type == "ADJUST" and m.adjust_direction == "INC" %}
-                    <span style="color:#2e7d32; font-weight:900;">+{{ m.qty_moved }}</span>
+                    <span style="color:#1565c0; font-weight:900;">+{{ m.qty_moved }}</span>
+                  {% elif m.movement_type == "ADJUST" and m.adjust_direction == "DEC" %}
+                    <span style="color:#1565c0; font-weight:900;">-{{ m.qty_moved }}</span>
+                  {% elif m.movement_type == "SALE" %}
+                    <span style="color:#f57f17; font-weight:900;">-{{ m.qty_moved }}</span>
                   {% else %}
                     <span style="color:#c62828; font-weight:900;">-{{ m.qty_moved }}</span>
                   {% endif %}
@@ -845,6 +927,8 @@
                     <span class="mtype adjust"><i class="fas fa-sliders-h"></i> ADJUST</span>
                   {% elif m.movement_type == "SALE" %}
                     <span class="mtype sale"><i class="fas fa-receipt"></i> SALE</span>
+                  {% elif m.movement_type == "PO" %}
+                    <span class="mtype po-in"><i class="fas fa-arrow-down"></i> PO - IN</span>
                   {% else %}
                     <span class="mtype">{{ m.movement_type }}</span>
                   {% endif %}
@@ -879,7 +963,7 @@
 <div id="modalIn" class="modal-backdrop">
   <div class="modal">
     <div class="modal-head">
-      <div style="font-weight:900;">Stock In</div>
+      <div class="title-green">Stock In</div>
       <button class="modal-close" onclick="closeModal('modalIn')" type="button">×</button>
     </div>
 
@@ -933,7 +1017,7 @@
 <div id="modalOut" class="modal-backdrop">
   <div class="modal">
     <div class="modal-head">
-      <div style="font-weight:900;">Stock Out</div>
+      <div class="title-red">Stock Out</div>
       <button class="modal-close" onclick="closeModal('modalOut')" type="button">×</button>
     </div>
     <form method="post">
@@ -986,7 +1070,7 @@
 <div id="modalAdj" class="modal-backdrop">
   <div class="modal">
     <div class="modal-head">
-      <div style="font-weight:900;">Adjustment</div>
+      <div class="title-blue">Adjustment</div>
       <button class="modal-close" onclick="closeModal('modalAdj')" type="button">×</button>
     </div>
     <form method="post">
@@ -1050,32 +1134,45 @@
       <input type="hidden" name="action" value="CREATE_PRODUCT">
 
       <div class="modal-body">
-        <div class="field"><label>Product Name</label>{{ product_create_form.product_name }}</div>
-        <div class="field"><label>Category</label>{{ product_create_form.category }}</div>
-        <div class="field"><label>Section</label>{{ product_create_form.section }}</div>
-        <div class="field"><label>Primary Supplier</label>{{ product_create_form.primary_supplier }}</div>
-        <div class="field"><label>Lead time override (days)</label>{{ product_create_form.supplier_lead_time_days }}</div>
-        <div class="field"><label>Last unit cost (optional)</label>{{ product_create_form.last_unit_cost }}</div>
+        <div class="modal-grid-3">
+          <div class="field"><label>Product Name</label>{{ product_create_form.product_name }}</div>
+          <div class="field"><label>Category</label>{{ product_create_form.category }}</div>
+          <div class="field"><label>Section</label>{{ product_create_form.section }}</div>
+        </div>
 
-        <div class="field"><label>Selling Price</label>{{ product_create_form.selling_price }}</div>
-        <div class="field"><label>Reorder Level</label>{{ product_create_form.reorder_level }}</div>
+        <div class="modal-grid-2">
+          <div class="field"><label>Primary Supplier</label>{{ product_create_form.primary_supplier }}</div>
+          <div class="field"><label>Lead time override (days)</label>{{ product_create_form.supplier_lead_time_days }}</div>
+        </div>
 
-        <div class="field">
-          <label>{{ product_create_form.is_active.label }}</label>
-          {{ product_create_form.is_active }}
+        <div class="modal-grid-2">
+          <div class="field"><label>Last unit cost</label>{{ product_create_form.last_unit_cost }}</div>
+          <div class="field"><label>Selling Price</label>{{ product_create_form.selling_price }}</div>
+        </div>
+
+        <div class="modal-grid-2">
+          <div class="field"><label>Reorder Level</label>{{ product_create_form.reorder_level }}</div>
+          <div class="field">
+            <label>{{ product_create_form.is_active.label }}</label>
+            {{ product_create_form.is_active }}
+          </div>
         </div>
 
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
 
-        <div class="field">
-          <label>{{ product_create_form.add_opening_stock.label }}</label>
-          {{ product_create_form.add_opening_stock }}
+        <div class="modal-grid-2">
+          <div class="field">
+            <label>{{ product_create_form.add_opening_stock.label }}</label>
+            {{ product_create_form.add_opening_stock }}
+          </div>
+          <div class="field"><label>Opening Quantity</label>{{ product_create_form.opening_qty }}</div>
         </div>
 
         <div id="openingStockFields" style="display:none;">
-          <div class="field"><label>Opening Quantity</label>{{ product_create_form.opening_qty }}</div>
-          <div class="field"><label>Reference (optional)</label>{{ product_create_form.opening_reference }}</div>
-          <div class="field"><label>Comments (optional)</label>{{ product_create_form.opening_comments }}</div>
+          <div class="modal-grid-2">
+            <div class="field"><label>Reference (optional)</label>{{ product_create_form.opening_reference }}</div>
+            <div class="field"><label>Comments (optional)</label>{{ product_create_form.opening_comments }}</div>
+          </div>
         </div>
       </div>
 
