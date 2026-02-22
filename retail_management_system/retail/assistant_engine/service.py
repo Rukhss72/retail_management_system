@@ -147,6 +147,25 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
 def _needs_product_confirmation(intent: str, query: str) -> bool:
     text = query.lower()
     if intent == INTENT_STOCK_LOOKUP:
+        # Stock list/filter queries should not trigger product disambiguation.
+        if any(
+            p in text
+            for p in (
+                "low stock",
+                "low-stock",
+                "below ",
+                "under ",
+                "less than ",
+                "out of stock",
+                "no stock",
+                "summary by category",
+                "stock summary by category",
+                "how many items",
+                "how many products",
+                "show me all",
+            )
+        ):
+            return False
         return True
     if intent == INTENT_FORECAST_BEST_SELLERS and ("for " in text or "product" in text):
         return True
@@ -293,6 +312,100 @@ def _extract_explicit_month_year_range(query: str):
     return datetime(year, month_num, 1).date(), datetime(year, month_num, last_day).date()
 
 
+def _extract_two_month_year_ranges(query: str):
+    text = query.lower()
+    month_map = {
+        "jan": 1,
+        "january": 1,
+        "feb": 2,
+        "february": 2,
+        "mar": 3,
+        "march": 3,
+        "apr": 4,
+        "april": 4,
+        "may": 5,
+        "jun": 6,
+        "june": 6,
+        "jul": 7,
+        "july": 7,
+        "aug": 8,
+        "august": 8,
+        "sep": 9,
+        "sept": 9,
+        "september": 9,
+        "oct": 10,
+        "october": 10,
+        "nov": 11,
+        "november": 11,
+        "dec": 12,
+        "december": 12,
+    }
+    hits = list(
+        re.finditer(
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s*(20\d{2})\b",
+            text,
+        )
+    )
+    if len(hits) < 2:
+        return None
+
+    def _to_month_range(month_name: str, year_text: str):
+        month = month_map[month_name]
+        year = int(year_text)
+        last_day = monthrange(year, month)[1]
+        return datetime(year, month, 1).date(), datetime(year, month, last_day).date()
+
+    a = _to_month_range(hits[0].group(1), hits[0].group(2))
+    b = _to_month_range(hits[1].group(1), hits[1].group(2))
+    return a, b
+
+
+def _extract_month_with_two_years_ranges(query: str):
+    text = query.lower()
+    month_map = {
+        "jan": 1,
+        "january": 1,
+        "feb": 2,
+        "february": 2,
+        "mar": 3,
+        "march": 3,
+        "apr": 4,
+        "april": 4,
+        "may": 5,
+        "jun": 6,
+        "june": 6,
+        "jul": 7,
+        "july": 7,
+        "aug": 8,
+        "august": 8,
+        "sep": 9,
+        "sept": 9,
+        "september": 9,
+        "oct": 10,
+        "october": 10,
+        "nov": 11,
+        "november": 11,
+        "dec": 12,
+        "december": 12,
+    }
+    m = re.search(
+        r"\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s*(20\d{2})\b.*?\b(20\d{2})\b",
+        text,
+    )
+    if not m:
+        return None
+    month = month_map[m.group(1)]
+    y1 = int(m.group(2))
+    y2 = int(m.group(3))
+    if y1 == y2:
+        return None
+    a_last = monthrange(y1, month)[1]
+    b_last = monthrange(y2, month)[1]
+    a = (datetime(y1, month, 1).date(), datetime(y1, month, a_last).date())
+    b = (datetime(y2, month, 1).date(), datetime(y2, month, b_last).date())
+    return a, b
+
+
 def _should_explicit_range_be_primary(query: str) -> bool:
     text = query.lower()
     idx_last_month = text.find("last month")
@@ -340,6 +453,30 @@ def _query_is_product_only(query: str) -> bool:
     return not any(k in text for k in keywords)
 
 
+def _is_generic_stock_count_query(query: str) -> bool:
+    text = query.lower()
+    if "stock" not in text:
+        return False
+    if "how many" not in text:
+        return False
+    return any(k in text for k in ("set", "sets", "items", "products", "skus"))
+
+
+def _is_small_talk(query: str) -> bool:
+    text = re.sub(r"[^a-z0-9\s]", "", query.lower().strip())
+    return text in {
+        "hi",
+        "hello",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "how are you",
+        "thanks",
+        "thank you",
+    }
+
+
 def _should_try_ollama(intent: str, entities: dict, query: str) -> bool:
     if intent == INTENT_UNKNOWN:
         return True
@@ -370,6 +507,67 @@ def _apply_memory_to_query(query: str, memory: dict) -> str:
     return query
 
 
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def _clean_answer_text(raw_text: str) -> str:
+    text = (raw_text or "").replace("\r", "").strip()
+    if not text:
+        return ""
+
+    # Remove common markdown artifacts and normalize bullets.
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"__(.*?)__", r"\1", text)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"^[\-\*\u2022]+\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for sentence in _split_sentences(text):
+        normalized = re.sub(r"[^a-z0-9]+", " ", sentence.lower()).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(sentence)
+
+    if not deduped:
+        return text
+    return "\n".join(deduped)
+
+
+def _is_simple_intent(intent: str) -> bool:
+    return intent in {
+        INTENT_STOCK_LOOKUP,
+        INTENT_SALES_SUMMARY,
+        INTENT_TOP_SELLERS,
+        INTENT_REORDER_SUGGESTIONS,
+        INTENT_UNKNOWN,
+    }
+
+
+def _build_answer_text(intent: str, payload: dict) -> str:
+    raw = payload.get("summary") or payload.get("ai_insight") or ""
+    cleaned = _clean_answer_text(raw)
+    if not cleaned:
+        return "No response."
+
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    if not lines:
+        return "No response."
+
+    max_lines = 2 if _is_simple_intent(intent) else 4
+    return "\n".join(lines[:max_lines]).strip()
+
+
+def _with_answer_text(intent: str, payload: dict) -> dict:
+    out = dict(payload or {})
+    out["answer_text"] = _build_answer_text(intent, out)
+    return out
+
+
 def process_query(query: str, session: dict) -> dict:
     query = _apply_memory_to_query(query, session)
     confirmation = normalize_confirmation(query)
@@ -386,13 +584,24 @@ def process_query(query: str, session: dict) -> dict:
         session.pop("assistant_pending", None)
     elif confirmation == "NO" and pending:
         session.pop("assistant_pending", None)
-        return {
+        payload = {
             "intent": "Clarification",
             "summary": "No problem. Please type product name, SKU, date range, or click a quick action.",
             "table": {"columns": [], "rows": []},
             "chart": None,
             "source": [],
         }
+        return _with_answer_text("Clarification", payload)
+
+    if _is_small_talk(query):
+        payload = {
+            "summary": "Hi. Ask about sales, stock, compare periods, forecast, or reorder.",
+            "table": {"columns": [], "rows": []},
+            "chart": None,
+            "source": [],
+        }
+        payload = _with_answer_text(INTENT_UNKNOWN, payload)
+        return {"intent": INTENT_UNKNOWN, "parser_used": "rules", "parser_confidence": 1.0, **payload}
 
     intent = detect_intent(query)
     entities = build_entities(query)
@@ -414,9 +623,15 @@ def process_query(query: str, session: dict) -> dict:
             entities = build_entities(query, llm_result.get("entities") or {})
 
     if intent == INTENT_COMPARE_SALES:
+        pair_ranges = _extract_two_month_year_ranges(query) or _extract_month_with_two_years_ranges(query)
+        if pair_ranges:
+            (a_start, a_end), (b_start, b_end) = pair_ranges
+            entities["start"], entities["end"] = a_start, a_end
+            entities["compare_start"], entities["compare_end"] = b_start, b_end
+
         explicit = _extract_explicit_month_year_range(query)
         has_last_month = _has_last_month_phrase(query)
-        if explicit and has_last_month:
+        if (not pair_ranges) and explicit and has_last_month:
             lm_start, lm_end = _last_month_range()
             if _should_explicit_range_be_primary(query):
                 entities["start"], entities["end"] = explicit
@@ -424,7 +639,7 @@ def process_query(query: str, session: dict) -> dict:
             else:
                 entities["start"], entities["end"] = lm_start, lm_end
                 entities["compare_start"], entities["compare_end"] = explicit
-        else:
+        elif not pair_ranges:
             a = (entities.get("start"), entities.get("end"))
             b = (entities.get("compare_start"), entities.get("compare_end"))
             if (not all(b)) or (a == b):
@@ -445,8 +660,18 @@ def process_query(query: str, session: dict) -> dict:
                         entities["end"],
                     )
 
-    if intent in (INTENT_UNKNOWN, INTENT_SALES_SUMMARY) and entities.get("product") is not None and _query_is_product_only(query):
+    if (
+        intent in (INTENT_UNKNOWN, INTENT_SALES_SUMMARY)
+        and entities.get("product") is not None
+        and entities.get("product_confidence", 0) >= 0.75
+        and _query_is_product_only(query)
+    ):
         intent = INTENT_STOCK_LOOKUP
+
+    if intent == INTENT_STOCK_LOOKUP and _is_generic_stock_count_query(query):
+        entities["product"] = None
+        entities["product_candidates"] = []
+        entities["product_confidence"] = 1.0
 
     low_confidence = _low_confidence_product_prompt(intent, query, entities)
     if low_confidence:
@@ -455,6 +680,7 @@ def process_query(query: str, session: dict) -> dict:
             "product_id": entities["product_candidates"][0]["id"],
             "created_at": timezone.now().isoformat(),
         }
+        low_confidence = _with_answer_text(intent, low_confidence)
         return {"intent": intent, "parser_used": parser_used, "parser_confidence": parser_confidence, **low_confidence}
 
     if intent == INTENT_COMPARE_SALES:
@@ -504,4 +730,5 @@ def process_query(query: str, session: dict) -> dict:
     if entities.get("category") is not None:
         session["last_category_name"] = entities["category"].category_name
 
+    payload = _with_answer_text(intent, payload)
     return {"intent": intent, "parser_used": parser_used, "parser_confidence": parser_confidence, **payload}

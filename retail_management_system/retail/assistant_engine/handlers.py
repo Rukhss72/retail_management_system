@@ -11,6 +11,7 @@ from retail.models import (
     DailyProductSales,
     ForecastDaily,
     ForecastRun,
+    PurchaseOrder,
     Product,
     ProductSupplier,
     ReorderSnooze,
@@ -42,8 +43,73 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
     threshold = entities.get("threshold")
     category = entities.get("category")
     product = entities.get("product")
+    low_phrases = ("low stock", "low in stock", "running low", "below reorder")
+    asks_low = any(p in text for p in low_phrases)
+    asks_oos = ("out of stock" in text) or ("no stock" in text)
+    asks_set_count = ("how many" in text) and ("stock" in text) and (" set " in f" {text} " or " sets " in f" {text} ")
 
-    if "out of stock" in text:
+    if asks_set_count:
+        qs = Product.objects.filter(is_active=True, qty_in_stock__gt=0, product_name__icontains="set").select_related("category")
+        if category:
+            qs = qs.filter(category=category)
+        total_units = sum(int(p.qty_in_stock or 0) for p in qs)
+        rows = [
+            {
+                "sku": p.sku,
+                "product": p.product_name,
+                "category": p.category.category_name,
+                "stock": p.qty_in_stock,
+            }
+            for p in qs.order_by("product_name")[:25]
+        ]
+        return {
+            "summary": f"There are {total_units} set units in stock across {qs.count()} products.",
+            "table": _table(["sku", "product", "category", "stock"], rows),
+            "chart": None,
+            "source": ["Product", "Category"],
+        }
+
+    if asks_low and asks_oos:
+        low_qs = Product.objects.filter(
+            is_active=True,
+            qty_in_stock__gt=0,
+            qty_in_stock__lte=F("reorder_level"),
+        ).select_related("category")
+        oos_qs = Product.objects.filter(is_active=True, qty_in_stock=0).select_related("category")
+        if category:
+            low_qs = low_qs.filter(category=category)
+            oos_qs = oos_qs.filter(category=category)
+
+        rows = [
+            {
+                "sku": p.sku,
+                "product": p.product_name,
+                "category": p.category.category_name,
+                "stock": p.qty_in_stock,
+                "status": "low",
+            }
+            for p in low_qs.order_by("qty_in_stock", "product_name")[:15]
+        ]
+        rows.extend(
+            [
+                {
+                    "sku": p.sku,
+                    "product": p.product_name,
+                    "category": p.category.category_name,
+                    "stock": p.qty_in_stock,
+                    "status": "out_of_stock",
+                }
+                for p in oos_qs.order_by("product_name")[:15]
+            ]
+        )
+        return {
+            "summary": f"{low_qs.count()} low-stock and {oos_qs.count()} out-of-stock items.",
+            "table": _table(["sku", "product", "category", "stock", "status"], rows),
+            "chart": None,
+            "source": ["Product", "Category"],
+        }
+
+    if asks_oos:
         qs = Product.objects.filter(is_active=True, qty_in_stock=0).select_related("category").order_by("product_name")
         rows = [
             {"sku": p.sku, "product": p.product_name, "category": p.category.category_name, "stock": p.qty_in_stock}
@@ -96,12 +162,16 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
             "source": ["Product", "Category"],
         }
 
-    if "low stock" in text:
-        low_threshold = threshold if threshold is not None else 5
-        qs = Product.objects.filter(is_active=True, qty_in_stock__lt=low_threshold).select_related("category")
+    if asks_low:
+        qs = Product.objects.filter(
+            is_active=True,
+            qty_in_stock__gt=0,
+            qty_in_stock__lte=F("reorder_level"),
+        ).select_related("category")
         if category:
             qs = qs.filter(category=category)
         qs = qs.order_by("qty_in_stock", "product_name")
+        summary = f"{qs.count()} items are low stock (qty in stock <= reorder level)."
         rows = [
             {
                 "sku": p.sku,
@@ -113,7 +183,7 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
             for p in qs[:25]
         ]
         return {
-            "summary": f"{qs.count()} items are below {low_threshold} units.",
+            "summary": summary,
             "table": _table(["sku", "product", "category", "stock", "reorder_level"], rows),
             "chart": None,
             "source": ["Product", "Category"],
@@ -456,6 +526,55 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
 
 
 def handle_reorder_suggestions(query: str, entities: dict) -> dict:
+    text = query.lower()
+    asks_reorder_history = any(
+        p in text
+        for p in (
+            "did i reorder",
+            "did we reorder",
+            "reordered this week",
+            "reorder this week",
+            "purchase order this week",
+            "did i place an order",
+        )
+    )
+    if asks_reorder_history:
+        start, end = entities["start"], entities["end"]
+        pos = (
+            PurchaseOrder.objects.filter(order_date__gte=start, order_date__lte=end)
+            .exclude(status=PurchaseOrder.STATUS_DRAFT)
+            .select_related("supplier")
+            .order_by("-order_date", "-id")
+        )
+        rows = [
+            {
+                "po_number": po.po_number or f"PO-{po.id}",
+                "supplier": po.supplier.supplier_name,
+                "status": po.status,
+                "order_date": str(po.order_date),
+                "delivery_date": str(po.delivery_date) if po.delivery_date else "",
+                "total_amount": float(po.total_amount or 0),
+                "total_qty_ordered": int(po.total_qty_ordered or 0),
+            }
+            for po in pos[:20]
+        ]
+        if rows:
+            return {
+                "summary": f"Yes. {pos.count()} purchase orders were created from {start} to {end}.",
+                "table": _table(
+                    ["po_number", "supplier", "status", "order_date", "delivery_date", "total_amount", "total_qty_ordered"],
+                    rows,
+                ),
+                "chart": None,
+                "source": ["PurchaseOrder", "Supplier", "PurchaseOrderItem"],
+            }
+        return {
+            "summary": f"No purchase orders were created from {start} to {end}.",
+            "table": _table(["po_number", "supplier", "status", "order_date"], []),
+            "chart": None,
+            "source": ["PurchaseOrder"],
+        }
+
     today = timezone.localdate()
     horizon_days = entities["horizon_days"]
     horizon_end = today + timedelta(days=horizon_days - 1)

@@ -1,20 +1,15 @@
 """
-Conversational analytics module — sends handler output to local Ollama
-so that the chatbot returns rich, natural-language analytics insights
-instead of bare one-line summaries.
+Conversational analytics module - sends handler output to local Ollama
+so that the chatbot can return natural-language analytics insights.
 """
 
-import json
 import logging
-from typing import Any
 
 from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-
-# ── helpers ────────────────────────────────────────────────────────────
 
 def _serialize_payload_for_prompt(payload: dict) -> str:
     """Compact text representation of handler output for the LLM context."""
@@ -29,7 +24,7 @@ def _serialize_payload_for_prompt(payload: dict) -> str:
     if columns and rows:
         parts.append("Data table:")
         parts.append(" | ".join(columns))
-        for row in rows[:15]:                       # cap to avoid token overflow
+        for row in rows[:15]:
             parts.append(" | ".join(str(row.get(c, "")) for c in columns))
 
     chart = payload.get("chart")
@@ -53,15 +48,13 @@ def _serialize_payload_for_prompt(payload: dict) -> str:
 def _build_history_messages(history: list[dict]) -> list[dict]:
     """Convert thread history into Ollama chat messages (last 6 turns max)."""
     msgs: list[dict] = []
-    for entry in history[-12:]:                     # 6 user + 6 assistant
+    for entry in history[-12:]:
         role = entry.get("role", "user")
         content = entry.get("content", "")
         if role in ("user", "assistant") and content:
             msgs.append({"role": role, "content": content})
     return msgs
 
-
-# ── main entry point ───────────────────────────────────────────────────
 
 def generate_insight(
     query: str,
@@ -72,8 +65,7 @@ def generate_insight(
     Send the user's query + handler analytics data to local Ollama and
     return a natural-language insight.
 
-    Returns ``None`` on any failure so the caller can fall back to the
-    rule-based ``summary``.
+    Returns None on any failure so the caller can fall back to rule summary.
     """
     if not getattr(settings, "ASSISTANT_OLLAMA_CHAT_ENABLED", True):
         return None
@@ -83,40 +75,34 @@ def generate_insight(
     timeout = getattr(settings, "ASSISTANT_OLLAMA_TIMEOUT", 120)
 
     try:
-        import ollama                              # noqa: E402
+        import ollama  # noqa: E402
     except ImportError:
-        logger.warning("ollama package not installed — skipping AI insight.")
+        logger.warning("ollama package not installed - skipping AI insight.")
         return None
 
     today = timezone.localdate().isoformat()
     data_context = _serialize_payload_for_prompt(payload)
 
     system_prompt = (
-        "You are a friendly, expert retail analytics assistant embedded inside "
-        "a retail management system. The store is based in Mauritius.\n"
+        "You are a retail analytics assistant embedded in a retail management system.\n"
         f"Today's date is {today}.\n\n"
-        "The system has already queried the database and produced the analytics "
-        "data shown below. Your job is to explain the data to the user in a "
-        "clear, insightful, and conversational way.\n\n"
+        "The system already queried the database and provided the analytics data below.\n"
+        "Explain that data clearly and do not repeat yourself.\n\n"
         "Guidelines:\n"
-        "• Highlight key numbers, trends, and actionable insights.\n"
-        "• Use bullet points or short paragraphs — keep it concise but informative.\n"
-        "• If the data shows something noteworthy (spikes, drops, out-of-stock, "
-        "low stock), call it out.\n"
-        "• Do NOT invent data that is not present below.\n"
-        "• Do NOT repeat the raw table verbatim — instead, summarize it.\n"
-        "• Keep your response under 200 words unless the data is complex.\n"
-        "• Be warm and professional. Use emojis sparingly (1-2 max).\n\n"
-        "─── ANALYTICS DATA ───\n"
+        "- Straightforward questions: answer in 1-2 short lines.\n"
+        "- Compare/forecast/festival/seasonality questions: up to 4 short lines.\n"
+        "- Mention key numbers and one practical action when relevant.\n"
+        "- No repeated phrasing and no restating the same fact.\n"
+        "- Do not invent data.\n"
+        "- Do not repeat raw table rows verbatim.\n"
+        "- Plain text only.\n\n"
+        "--- ANALYTICS DATA ---\n"
         f"{data_context}\n"
-        "─── END DATA ───"
+        "--- END DATA ---"
     )
 
-    messages: list[dict[str, str]] = [
-        {"role": "system", "content": system_prompt},
-    ]
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
 
-    # inject recent chat history for conversational context
     if history:
         messages.extend(_build_history_messages(history))
 
@@ -126,14 +112,13 @@ def generate_insight(
         client = ollama.Client(host=host, timeout=timeout)
         response = client.chat(
             model=model,
-            options={"temperature": 0.4, "num_predict": 400},
+            options={"temperature": 0.2, "num_predict": 140},
             messages=messages,
         )
     except Exception as exc:
-        logger.info("Ollama chat unavailable (%s) — falling back to rule summary.", exc)
+        logger.info("Ollama chat unavailable (%s) - falling back to rule summary.", exc)
         return None
 
-    # extract text from response
     content = ""
     if isinstance(response, dict):
         content = response.get("message", {}).get("content", "") or ""

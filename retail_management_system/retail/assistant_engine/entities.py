@@ -129,9 +129,10 @@ def parse_date_window(query: str) -> tuple:
         return False
 
     if "this week" in text:
-        start = today - timedelta(days=today.weekday())
+        # Product expectation: "this week" should mean the rolling last 7 days.
+        start = today - timedelta(days=6)
         end = today
-        label = "this week"
+        label = "last 7 days"
     elif has_last_month_phrase():
         first_this_month = today.replace(day=1)
         end = first_this_month - timedelta(days=1)
@@ -165,6 +166,8 @@ def resolve_category(query: str) -> Category | None:
 def resolve_product(query: str) -> ProductResolution:
     text = normalize_text(query)
     search_text = _product_search_text(text)
+    if len(search_text.strip()) < 3:
+        return ProductResolution(product=None, candidates=[], confidence=0.0)
     products = list(Product.objects.filter(is_active=True).only("id", "sku", "product_name", "qty_in_stock"))
 
     exact = None
