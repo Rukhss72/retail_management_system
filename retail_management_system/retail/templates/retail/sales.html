@@ -44,17 +44,17 @@
     }
   }
 
-  /* Force the top 2 blocks to span the same full width as the section below */
+  /* Keep top blocks aligned to the normal page width */
   .top-full {
-    width: 103% !important;
-    max-width: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
 
   /* Sales page: move content a bit further from sidebar */
   .sales-page-wrap{
-    max-width: 1600px;
+    max-width: 1400px;
     margin: 0 auto;              /* keeps it centered in the available area */
     padding-left: 30px;          /* extra breathing room from the sidebar */
   }
@@ -140,6 +140,29 @@
     font-weight: 900;
     font-size: 1.05rem;
   }
+  .collapse-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom: 12px;
+  }
+  .collapse-head .card-title{ margin:0; }
+  .collapse-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    border:1px solid #D1D5DB;
+    background:#fff;
+    color:var(--charcoal);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: .82rem;
+    font-weight: 900;
+    cursor:pointer;
+  }
+  .collapse-toggle:hover{ background:#F9FAFB; }
+  .collapse-body.is-collapsed{ display:none; }
 
   /* Messages */
   .msg{
@@ -201,7 +224,7 @@
   /* Two column */
   .two-col{
     display:grid;
-    grid-template-columns: 1.15fr .95fr;
+    grid-template-columns: 1.3fr .7fr;
     gap: 14px;
     align-items:start;
   }
@@ -235,6 +258,19 @@
     vertical-align: top;
   }
   tbody tr:last-child td{ border-bottom: none; }
+
+  /* Cart table: give Product more room */
+  #cartTable{
+    min-width: 760px;
+  }
+  #cartTable th:nth-child(1), #cartTable td:nth-child(1){
+    min-width: 210px; /* Product */
+  }
+  #cartTable th:nth-child(2), #cartTable td:nth-child(2){ width: 104px; } /* Qty */
+  #cartTable th:nth-child(3), #cartTable td:nth-child(3){ width: 116px; } /* Unit Price */
+  #cartTable th:nth-child(4), #cartTable td:nth-child(4){ width: 94px; }  /* Disc % */
+  #cartTable th:nth-child(5), #cartTable td:nth-child(5){ width: 92px; }  /* Line Total */
+  #cartTable th:nth-child(6), #cartTable td:nth-child(6){ width: 28px; }  /* Delete */
 
   /* Badges */
   .badge{
@@ -455,6 +491,14 @@
 
         <!-- Product Picker (GET filters, not nested inside POST form) -->
         <div class="card">
+          <div class="collapse-head">
+            <div class="card-title"><i class="fa-solid fa-table-list"></i> Products</div>
+            <button type="button" class="collapse-toggle js-collapse-toggle" data-target="salesProductsBody" aria-expanded="true">
+              <i class="fa-solid fa-chevron-up"></i>
+              <span class="collapse-label">Collapse</span>
+            </button>
+          </div>
+          <div id="salesProductsBody" class="collapse-body">
 
           <form method="get" class="grid-2" style="margin-bottom:12px;">
             <input type="hidden" name="tab" value="new">
@@ -603,11 +647,19 @@
               Use the product list to add items. The cart will prevent quantities above available stock.
             </div>
           </div>
+          </div>
         </div>
 
         <!-- Cart (POST form) -->
         <div class="card">
-          <div class="card-title"><i class="fa-solid fa-basket-shopping"></i> Cart</div>
+          <div class="collapse-head">
+            <div class="card-title"><i class="fa-solid fa-basket-shopping"></i> Cart</div>
+            <button type="button" class="collapse-toggle js-collapse-toggle" data-target="salesCartBody" aria-expanded="true">
+              <i class="fa-solid fa-chevron-up"></i>
+              <span class="collapse-label">Collapse</span>
+            </button>
+          </div>
+          <div id="salesCartBody" class="collapse-body">
 
           <form id="saleForm" method="post" action="{% url 'sales' %}?tab=new">
             {% csrf_token %}
@@ -676,6 +728,7 @@
               </div>
             </div>
           </form>
+          </div>
         </div>
       </div>
 
@@ -848,6 +901,37 @@
 
   </div>
 </div>
+
+<script>
+  (function(){
+    const toggles = document.querySelectorAll(".js-collapse-toggle");
+    if (!toggles.length) return;
+
+    function syncButton(btn, body){
+      const collapsed = body.classList.contains("is-collapsed");
+      const icon = btn.querySelector("i");
+      const label = btn.querySelector(".collapse-label");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      if (icon){
+        icon.classList.toggle("fa-chevron-up", !collapsed);
+        icon.classList.toggle("fa-chevron-down", collapsed);
+      }
+      if (label) label.textContent = collapsed ? "Expand" : "Collapse";
+    }
+
+    toggles.forEach((btn) => {
+      const targetId = btn.getAttribute("data-target");
+      const body = targetId ? document.getElementById(targetId) : null;
+      if (!body) return;
+
+      syncButton(btn, body);
+      btn.addEventListener("click", () => {
+        body.classList.toggle("is-collapsed");
+        syncButton(btn, body);
+      });
+    });
+  })();
+</script>
 
 <script>
   (function(){

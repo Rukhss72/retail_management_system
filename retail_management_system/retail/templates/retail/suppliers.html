@@ -76,23 +76,9 @@
     font-weight: 700;
     color: var(--charcoal);
   }
-  /* Suppliers page only: keep sidebar brand on one line */
-  .sidebar .brand-title{
-    white-space: nowrap;
-  }
-  /* Suppliers page only: extend pill width to the right */
-  .sidebar .side-link,
-  .sidebar .side-btn{
-    width: calc(92% + 22px);
-  }
-/*
   .sup-wrap{
     position: static;
     right: auto;
-  } */
-.sup-wrap{
-    position: relative;
-    right: -20px;   /* try -60px or -50px if too much */
   }
 
   /* Center the whole Suppliers page content */
@@ -146,6 +132,8 @@
 
   .iconbtn.edit{ color:#2563EB; border-color: rgba(37,99,235,0.25); }
   .iconbtn.edit:hover{ background: rgba(37,99,235,0.08); }
+  .iconbtn.view{ color:#0E7490; border-color: rgba(14,116,144,0.28); }
+  .iconbtn.view:hover{ background: rgba(14,116,144,0.10); }
 
   /* Messages */
   .msg{
@@ -554,7 +542,7 @@
             <th style="padding:10px;">CATEGORY</th>
             <th style="padding:10px;">LEAD TIME</th>
             <th style="padding:10px;">STATUS</th>
-            <th style="padding:10px; width:120px;">ACTIONS</th>
+            <th style="padding:10px; width:170px;">ACTIONS</th>
           </tr>
         </thead>
 
@@ -608,6 +596,14 @@
               <!-- ACTIONS (unchanged) -->
               <td style="padding:12px 10px;">
                 <div class="act">
+
+                  <a
+                    class="iconbtn view"
+                    title="View Supplier Products"
+                    href="{% url 'inventory' %}?tab=products&supplier={{ s.id }}"
+                  >
+                    <i class="fa-solid fa-eye"></i>
+                  </a>
 
                   <!-- EDIT (opens modal, no page navigation) -->
                   <button
@@ -1569,7 +1565,9 @@
   const state = document.getElementById("pageState");
   const currentTab = state?.dataset.tab;
   const hasSupplierErrors = state?.dataset.hasSupplierErrors === "1";
+  const openParam = new URLSearchParams(window.location.search).get("open");
   if (currentTab === "suppliers" && hasSupplierErrors) openSupplierModal();
+  if (currentTab === "suppliers" && openParam === "add-supplier") openSupplierModal();
 
 </script>
 

@@ -1,14 +1,17 @@
-{% extends 'retail/base.html' %}
+﻿{% extends 'retail/base.html' %}
 {% block title %}Home{% endblock %}
 
 {% block content %}
 <style>
-  .home-wrap{ max-width:1100px; margin:0 auto; padding: 6px 0; }
-
-  .home-topbar{
-    display:flex; align-items:center; justify-content:flex-end;
-    gap:16px; margin-bottom: 16px;
+  .home-wrap{
+    max-width:1400px;
+    margin:0 auto;
+    padding: 6px 0;
+    width:100%;
+    position: relative;
+    left: 22px;
   }
+
   .crumb{ color: rgba(64,78,92,.65); font-size: 13px; }
   .crumb span{ color: var(--charcoal); font-weight: 800; }
 
@@ -31,15 +34,6 @@
     opacity: .6;
   }
 
-  .home-profile{
-    background: var(--charcoal);
-    color:#fff;
-    padding: 9px 14px;
-    border-radius: 999px;
-    font-size: 13px;
-    display:flex; align-items:center; gap:10px;
-  }
-  .home-online-dot{ width:8px; height:8px; background:#35d07f; border-radius:50%; }
 
   .card{
     background: var(--white);
@@ -80,6 +74,30 @@
   .tile-berry{ background: rgba(170,68,101,.16); }
   .tile-cotton{ background: rgba(237,191,198,.28); }
   .tile-gray{ background: rgba(64,78,92,.12); }
+  .tile-create-sale{
+    background:#fff8dc; /* pale yellow */
+    border-color:#d4b24f; /* darker border */
+  }
+  .tile-stock-in{
+    background:#dff3df; /* green */
+    border-color:#63a867;
+  }
+  .tile-add-product{
+    background:#ffdce8; /* pink */
+    border-color:#de8faa;
+  }
+  .tile-add-supplier{
+    background:#efd7ff; /* purple/pink */
+    border-color:#b77ad8;
+  }
+  .tile-create-po{
+    background:#e6f2ff; /* pale blue */
+    border-color:#8fb5e6;
+  }
+  .tile-stock-out{
+    background:#ffe5e5; /* pale red */
+    border-color:#e9a8a8;
+  }
 
   .home-attn{ padding: 10px 14px; margin-bottom: 16px; }
   .chips{ display:flex; justify-content:center; gap: 12px; flex-wrap: wrap; }
@@ -100,6 +118,10 @@
     gap: 16px;
   }
   .home-activity, .home-shortcuts{ padding: 16px; }
+  .home-shortcuts .home-tiles{
+    grid-template-columns: repeat(2, 1fr);
+    margin-bottom: 14px;
+  }
 
   .card-head{
     display:flex; align-items:center; justify-content:space-between;
@@ -203,6 +225,7 @@
   .help-text{ margin-top: 6px; font-size: 13px; color: rgba(64,78,92,.72); }
 
   @media (max-width: 980px){
+    .home-wrap{ left: 0; }
     .home-bottom{ grid-template-columns: 1fr; }
     .home-tiles{ grid-template-columns: repeat(2,1fr); }
     .shortcut-grid{ grid-template-columns: repeat(2, 1fr); }
@@ -215,53 +238,13 @@
 
 <div class="home-wrap">
 
-  <div class="home-topbar">
-    <div class="home-profile">
-      <span>{{ request.user.first_name|default:request.user.username }}</span>
-      <span class="home-online-dot"></span>
-    </div>
-  </div>
-
   <section class="card home-welcome">
     <div class="home-welcome-center">
       <h1>Welcome back, {{ request.user.first_name|default:request.user.username }}</h1>
       <div class="home-store">{{ store_name }}</div>
-      <div class="home-datetime">{{ today_date }} • {{ now_time }}</div>
+      <div class="home-datetime">{{ today_date }} &bull; {{ now_time }}</div>
       <p class="home-subtext">Choose what you want to do next.</p>
-    </div>
-
-    <div class="home-tiles">
-      <a class="tile tile-sky" href="{% url 'sales' %}">
-        <div class="tile-ico">🛒</div>
-        <div class="tile-title">Create Sale</div>
-      </a>
-
-      <a class="tile tile-berry" href="{% url 'inventory' %}?tab=products&open=modalIn">
-        <div class="tile-ico">📦</div>
-        <div class="tile-title">Stock In</div>
-      </a>
-
-      <a class="tile tile-cotton" href="{% url 'inventory' %}?tab=products&open=modalOut">
-        <div class="tile-ico">📤</div>
-        <div class="tile-title">Stock Out</div>
-      </a>
-
-      <a class="tile tile-gray" href="{% url 'inventory' %}?tab=products&open=modalCreateProduct">
-        <div class="tile-ico">➕</div>
-        <div class="tile-title">Add Product</div>
-      </a>
-
-      <a class="tile tile-sky" href="{% url 'suppliers' %}?tab=suppliers">
-        <div class="tile-ico">👤</div>
-        <div class="tile-title">Add Supplier</div>
-      </a>
-
-      <a class="tile tile-berry" href="{% url 'suppliers' %}?tab=purchase-orders">
-        <div class="tile-ico">📄</div>
-        <div class="tile-title">Create PO</div>
-      </a>
-    </div>
-  </section>
+    </div></section>
 
   <section class="card home-attn">
     <div class="chips">
@@ -289,7 +272,7 @@
               </div>
               <div class="activity-item">{{ a.item }}</div>
             </div>
-            <div style="color: var(--sky); margin-top:2px;">✎</div>
+            <div style="color: var(--sky); margin-top:2px;"><i class="fa-solid fa-pen"></i></div>
           </div>
         {% empty %}
           <div style="color: rgba(64,78,92,.65); font-size:13px;">No recent activity yet.</div>
@@ -300,15 +283,39 @@
     <div class="card home-shortcuts">
       <div class="card-head">
         <h2>Shortcuts</h2>
-        <span style="opacity:.6;">↗</span>
+        <span style="opacity:.6;"><i class="fa-solid fa-up-right-from-square"></i></span>
       </div>
 
-      <div class="shortcut-grid">
-        <a class="shortcut shortcut-inventory" href="{% url 'inventory' %}">Inventory</a>
-        <a class="shortcut shortcut-sales" href="{% url 'sales' %}">Sales</a>
-        <a class="shortcut shortcut-suppliers" href="{% url 'suppliers' %}">Suppliers</a>
-        <a class="shortcut shortcut-reorders" href="{% url 'suppliers' %}?tab=reorders">Reorders</a>
-        <a class="shortcut shortcut-reports" href="{% url 'dashboard' %}">Reports</a>
+            <div class="home-tiles">
+        <a class="tile tile-create-sale" href="{% url 'sales' %}">
+          <div class="tile-ico"><i class="fa-solid fa-cart-plus"></i></div>
+          <div class="tile-title">Create Sale</div>
+        </a>
+
+        <a class="tile tile-stock-in" href="{% url 'inventory' %}?tab=products&open=modalIn">
+          <div class="tile-ico"><i class="fa-solid fa-arrow-down"></i></div>
+          <div class="tile-title">Stock In</div>
+        </a>
+
+        <a class="tile tile-stock-out" href="{% url 'inventory' %}?tab=products&open=modalOut">
+          <div class="tile-ico"><i class="fa-solid fa-arrow-up"></i></div>
+          <div class="tile-title">Stock Out</div>
+        </a>
+
+        <a class="tile tile-add-product" href="{% url 'inventory' %}?tab=products&open=modalCreateProduct">
+          <div class="tile-ico"><i class="fa-solid fa-plus"></i></div>
+          <div class="tile-title">Add Product</div>
+        </a>
+
+        <a class="tile tile-add-supplier" href="{% url 'suppliers' %}?tab=suppliers&open=add-supplier">
+          <div class="tile-ico"><i class="fa-solid fa-user-plus"></i></div>
+          <div class="tile-title">Add Supplier</div>
+        </a>
+
+        <a class="tile tile-create-po" href="{% url 'suppliers' %}?tab=purchase-orders">
+          <div class="tile-ico"><i class="fa-solid fa-file-circle-plus"></i></div>
+          <div class="tile-title">Create PO</div>
+        </a>
       </div>
 
       <div class="helpbox">
@@ -331,4 +338,3 @@
 
 </div>
 {% endblock %}
-

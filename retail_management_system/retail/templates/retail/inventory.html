@@ -263,7 +263,14 @@
     min-width: 360px;     /* lets full placeholder fit better */
   }
   .form-group.search-wide .form-control{
-    width: 80%;          /* ensures input fills the grid cell */
+    width: 100%;          /* ensures input fills the grid cell */
+  }
+  .form-group.actions-inline{
+    grid-column: span 2;
+    align-self:end;
+  }
+  .form-group.actions-inline label{
+    visibility:hidden;
   }
 
 
@@ -274,17 +281,27 @@
 
   /* Proper icon placement */
   .search-wrap{ position:relative; }
-  .search-wrap input{ padding-right: 1.0rem; } /* room for icon */
+  .search-wrap input{
+    padding-left: 2.2rem;   /* room for icon on left */
+    padding-right: .9rem;
+  }
   .search-wrap .search-icon{
     position:absolute;
-    right:5.5rem;
+    left:12px;
     top:50%;
     transform:translateY(-50%);
     color:#6c757d;
     pointer-events:none;
   }
 
-  .filter-actions{ display:flex; gap:1rem; justify-content:flex-end; flex-wrap:wrap; }
+  .filter-actions{
+    display:flex;
+    gap:1rem;
+    justify-content:flex-end;
+    align-items:center;
+    flex-wrap:nowrap;
+    white-space:nowrap;
+  }
 
   /* Product grid/cards */
   .product-grid{
@@ -575,7 +592,7 @@
   }
 
   @media (max-width:768px){
-    .filter-actions{ justify-content:flex-start; }
+    .filter-actions{ justify-content:flex-end; }
   }
 </style>
 
@@ -670,12 +687,16 @@
             </select>
           </div>
 
-          <div class="form-group search-wide">
-            <label>Search</label>
-            <div class="search-wrap">
-              <input class="form-control" name="q" placeholder="Search product name or SKU" value="{{ q }}">
-              <i class="fas fa-search search-icon"></i>
-            </div>
+          <div class="form-group">
+            <label>Supplier</label>
+            <select class="form-control" name="supplier">
+              <option value="">All Suppliers</option>
+              {% for s in suppliers_for_filter %}
+                <option value="{{ s.id }}" {% if selected_supplier|slugify == s.id|slugify %}selected{% endif %}>
+                  {{ s.supplier_name }}
+                </option>
+              {% endfor %}
+            </select>
           </div>
 
           <div class="form-group">
@@ -687,16 +708,27 @@
               <option value="Out" {% if status == "Out" %}selected{% endif %}>Out</option>
             </select>
           </div>
-        </div>
+          
+          <div class="form-group search-wide">
+            <label>Search</label>
+            <div class="search-wrap">
+              <input class="form-control" name="q" placeholder="Search product name or SKU" value="{{ q }}">
+              <i class="fas fa-search search-icon"></i>
+            </div>
+          </div>
 
-        <div class="filter-actions">
-          <button class="btn btn-soft" type="submit">
-            <i class="fas fa-filter"></i> Apply Filters
-          </button>
+          <div class="form-group actions-inline">
+            <label>Actions</label>
+            <div class="filter-actions">
+              <button class="btn btn-soft" type="submit">
+                <i class="fas fa-filter"></i> Apply Filters
+              </button>
 
-          <a class="btn btn-outline" href="{% url 'inventory' %}?tab=products">
-            <i class="fas fa-undo"></i> Reset
-          </a>
+              <a class="btn btn-outline" href="{% url 'inventory' %}?tab=products">
+                <i class="fas fa-undo"></i> Reset
+              </a>
+            </div>
+          </div>
         </div>
 
       </form>

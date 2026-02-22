@@ -336,9 +336,11 @@ def home(request):
 def inventory(request):
     # ---------- Filters (GET) ----------
     categories = Category.objects.order_by("category_name")
+    suppliers_for_filter = Supplier.objects.order_by("supplier_name")
 
     category_id = request.GET.get("category", "")
     section = request.GET.get("section", "")
+    supplier_id = request.GET.get("supplier", "")
     q = (request.GET.get("q") or "").strip()
     status = request.GET.get("status", "")
     tab = request.GET.get("tab", "products")
@@ -362,12 +364,18 @@ def inventory(request):
     if section:
         products_qs = products_qs.filter(section=section)
 
+    if supplier_id:
+        products_qs = products_qs.filter(
+            Q(supplier_links__supplier_id=supplier_id) |
+            Q(purchaseorderitem__po__supplier_id=supplier_id)
+        )
+
     if q:
         products_qs = products_qs.filter(
             Q(product_name__icontains=q) | Q(sku__icontains=q)
         )
 
-    products_qs = products_qs.select_related("category").order_by("product_name")
+    products_qs = products_qs.select_related("category").distinct().order_by("product_name")
     all_products = Product.objects.filter(is_active=True).select_related("category").order_by("product_name")
 
     # Compute status in python + counts
@@ -589,6 +597,8 @@ def inventory(request):
         "categories": categories,
         "selected_category": category_id,
         "section": section,
+        "selected_supplier": supplier_id,
+        "suppliers_for_filter": suppliers_for_filter,
         "q": q,
         "status": status,
 
