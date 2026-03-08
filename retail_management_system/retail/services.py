@@ -111,6 +111,7 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
 
     subtotal = Decimal("0.00")
     discount_total = Decimal("0.00")
+    has_promo_item = False
 
     for item in cart_items:
         pid = int(item["product_id"])
@@ -129,6 +130,8 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
 
         discount_amt = (gross * discount_pct) / Decimal("100")
         discount_total += discount_amt
+        if discount_amt > 0:
+            has_promo_item = True
 
         SaleItem.objects.create(
             sale=sale,
@@ -150,7 +153,8 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
     sale.subtotal = subtotal
     sale.discount = discount_total
     sale.total = max(Decimal("0.00"), subtotal - discount_total)
-    sale.save(update_fields=["subtotal", "discount", "total"])
+    sale.promo_flag = has_promo_item
+    sale.save(update_fields=["subtotal", "discount", "total", "promo_flag"])
 
     return sale
 
@@ -232,6 +236,9 @@ def set_primary_supplier(*, product, supplier, lead_time_days=None, last_unit_co
     if not supplier:
         return
     ProductSupplier.objects.filter(product=product).update(is_primary=False)
+    if product.supplier_id != supplier.id:
+        product.supplier = supplier
+        product.save(update_fields=["supplier", "updated_at"])
     ProductSupplier.objects.update_or_create(
         product=product,
         supplier=supplier,

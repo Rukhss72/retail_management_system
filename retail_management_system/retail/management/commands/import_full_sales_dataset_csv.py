@@ -1,0 +1,298 @@
+import csv
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
+
+from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+
+from retail.models import Product, Sale, SaleItem
+
+
+def parse_date(value: str):
+    v = (value or "").strip()
+    if not v:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(v, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def parse_decimal(value, default="0.00"):
+    try:
+        return Decimal(str(value).strip() if value is not None else default)
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
+
+
+def quant2(value: Decimal):
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def parse_bool(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
+@dataclass
+class ItemRow:
+    product: Product
+    qty: int
+    unit_price: Decimal
+    discount_pct: Decimal
+    item_promo: bool
+    gross: Decimal
+    discount_amt: Decimal
+    line_total: Decimal
+
+
+class Command(BaseCommand):
+    help = "Import one full sales CSV and backfill retail_sale + retail_saleitem."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--file", required=True, help="Path to full source CSV")
+        parser.add_argument(
+            "--create-missing-users",
+            action="store_true",
+            help="Create missing cashier usernames with unusable passwords.",
+        )
+        parser.add_argument(
+            "--replace-receipts",
+            action="store_true",
+            help="Replace existing receipts found in CSV (default: update sale + replace its items).",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Validate and summarize only; do not write to DB.",
+        )
+
+    @transaction.atomic
+    def handle(self, *args, **options):
+        file_path = Path(options["file"])
+        create_missing_users = options["create_missing_users"]
+        replace_receipts = options["replace_receipts"]
+        dry_run = options["dry_run"]
+
+        if not file_path.exists():
+            raise CommandError(f"File not found: {file_path}")
+
+        required = {
+            "receipt_no",
+            "sale_date",
+            "cashier_username",
+            "payment_method",
+            "sku",
+            "qty",
+            "unit_price",
+        }
+
+        with file_path.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            headers = set(reader.fieldnames or [])
+            missing = sorted(required - headers)
+            if missing:
+                raise CommandError(f"Missing required columns: {', '.join(missing)}")
+
+            rows = list(reader)
+
+        if not rows:
+            self.stdout.write(self.style.WARNING("CSV is empty. Nothing to import."))
+            return
+
+        usernames = {str(r.get("cashier_username", "")).strip() for r in rows if str(r.get("cashier_username", "")).strip()}
+        skus = {str(r.get("sku", "")).strip() for r in rows if str(r.get("sku", "")).strip()}
+
+        user_model = get_user_model()
+        user_map = {u.username: u for u in user_model.objects.filter(username__in=usernames)}
+        product_map = {p.sku: p for p in Product.objects.filter(sku__in=skus)}
+
+        missing_users = sorted(usernames - set(user_map.keys()))
+        created_users = 0
+        if missing_users and create_missing_users and not dry_run:
+            for username in missing_users:
+                u, created = user_model.objects.get_or_create(username=username)
+                if created:
+                    u.set_unusable_password()
+                    u.save(update_fields=["password"])
+                    created_users += 1
+                user_map[username] = u
+            missing_users = sorted(usernames - set(user_map.keys()))
+
+        missing_skus = sorted(skus - set(product_map.keys()))
+
+        grouped = defaultdict(lambda: {"meta": None, "items": []})
+        skipped_rows = 0
+        bad_rows = 0
+        warnings = 0
+
+        for idx, row in enumerate(rows, start=2):
+            receipt_no = str(row.get("receipt_no", "")).strip()
+            cashier_username = str(row.get("cashier_username", "")).strip()
+            sku = str(row.get("sku", "")).strip()
+
+            if not receipt_no or not cashier_username or not sku:
+                bad_rows += 1
+                continue
+
+            cashier = user_map.get(cashier_username)
+            product = product_map.get(sku)
+            if not cashier or not product:
+                skipped_rows += 1
+                continue
+
+            sale_date = parse_date(row.get("sale_date", ""))
+            if not sale_date:
+                bad_rows += 1
+                continue
+
+            payment_method = str(row.get("payment_method", "cash")).strip().lower()
+            valid_methods = {m[0] for m in Sale.PaymentMethod.choices}
+            if payment_method not in valid_methods:
+                payment_method = "other"
+
+            try:
+                qty = int(parse_decimal(row.get("qty", "0"), "0"))
+            except ValueError:
+                qty = 0
+            if qty <= 0:
+                bad_rows += 1
+                continue
+
+            unit_price = quant2(parse_decimal(row.get("unit_price", "0"), "0"))
+            if unit_price < 0:
+                unit_price = Decimal("0.00")
+
+            discount_pct = quant2(parse_decimal(row.get("discount_pct", "0"), "0"))
+            if discount_pct < 0:
+                discount_pct = Decimal("0.00")
+            if discount_pct > 100:
+                discount_pct = Decimal("100.00")
+
+            gross = quant2(unit_price * Decimal(qty))
+            discount_amt = quant2((gross * discount_pct) / Decimal("100"))
+            if discount_amt > gross:
+                discount_amt = gross
+            line_total = quant2(gross - discount_amt)
+
+            row_promo = parse_bool(row.get("promo_flag", "0"))
+            item_promo = bool(row_promo or discount_pct > 0 or discount_amt > 0)
+
+            meta = grouped[receipt_no]["meta"]
+            if meta is None:
+                grouped[receipt_no]["meta"] = {
+                    "receipt_no": receipt_no,
+                    "sale_date": sale_date,
+                    "cashier": cashier,
+                    "payment_method": payment_method,
+                    "customer_name": str(row.get("customer_name", "") or "").strip(),
+                    "customer_phone": str(row.get("customer_phone", "") or "").strip(),
+                }
+            else:
+                if (
+                    meta["sale_date"] != sale_date
+                    or meta["cashier"].id != cashier.id
+                    or meta["payment_method"] != payment_method
+                ):
+                    warnings += 1
+
+            grouped[receipt_no]["items"].append(
+                ItemRow(
+                    product=product,
+                    qty=qty,
+                    unit_price=unit_price,
+                    discount_pct=discount_pct,
+                    item_promo=item_promo,
+                    gross=gross,
+                    discount_amt=discount_amt,
+                    line_total=line_total,
+                )
+            )
+
+        receipt_count = len(grouped)
+        item_count = sum(len(v["items"]) for v in grouped.values())
+
+        self.stdout.write(
+            self.style.WARNING(
+                f"Parsed rows={len(rows)}, receipts={receipt_count}, importable_items={item_count}, "
+                f"skipped_missing_ref={skipped_rows}, bad_rows={bad_rows}, warnings={warnings}"
+            )
+        )
+        if created_users:
+            self.stdout.write(self.style.WARNING(f"Created missing users: {created_users}"))
+        if missing_users:
+            self.stdout.write(self.style.WARNING(f"Missing users: {len(missing_users)} (first 20) {missing_users[:20]}"))
+        if missing_skus:
+            self.stdout.write(self.style.WARNING(f"Missing SKUs: {len(missing_skus)} (first 20) {missing_skus[:20]}"))
+
+        if dry_run:
+            self.stdout.write(self.style.SUCCESS("Dry run complete. No DB changes made."))
+            transaction.set_rollback(True)
+            return
+
+        sales_created = 0
+        sales_updated = 0
+        items_created = 0
+
+        for payload in grouped.values():
+            meta = payload["meta"]
+            items = payload["items"]
+            if not items:
+                continue
+
+            defaults = {
+                "cashier": meta["cashier"],
+                "sale_date": meta["sale_date"],
+                "payment_method": meta["payment_method"],
+                "customer_name": meta["customer_name"],
+                "customer_phone": meta["customer_phone"],
+            }
+            sale, created = Sale.objects.update_or_create(receipt_no=meta["receipt_no"], defaults=defaults)
+            if created:
+                sales_created += 1
+            else:
+                sales_updated += 1
+
+            if replace_receipts:
+                sale.items.all().delete()
+            else:
+                # Default behavior still replaces items to keep deterministic backfill.
+                sale.items.all().delete()
+
+            subtotal = Decimal("0.00")
+            discount = Decimal("0.00")
+            total = Decimal("0.00")
+            has_promo = False
+
+            for it in items:
+                SaleItem.objects.create(
+                    sale=sale,
+                    product=it.product,
+                    qty=it.qty,
+                    unit_price=it.unit_price,
+                    discount_pct=it.discount_pct,
+                    discount_amt=it.discount_amt,
+                )
+                items_created += 1
+                subtotal = quant2(subtotal + it.gross)
+                discount = quant2(discount + it.discount_amt)
+                total = quant2(total + it.line_total)
+                has_promo = has_promo or it.item_promo
+
+            sale.subtotal = subtotal
+            sale.discount = discount
+            sale.total = total
+            sale.promo_flag = has_promo
+            sale.save(update_fields=["subtotal", "discount", "total", "promo_flag"])
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Import complete: sales_created={sales_created}, sales_updated={sales_updated}, "
+                f"items_created={items_created}, skipped_missing_ref={skipped_rows}, bad_rows={bad_rows}"
+            )
+        )

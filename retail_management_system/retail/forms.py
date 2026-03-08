@@ -80,14 +80,9 @@ class ProductCreateForm(forms.ModelForm):
     - "Add opening stock now" is NOT stored in Product; it creates a StockMovement(IN).
     """
 
-    add_opening_stock = forms.BooleanField(
-        required=False,
-        initial=False,
-        label="Add opening stock now",
-    )
     opening_qty = forms.IntegerField(
-        required=False,
-        min_value=0,
+        required=True,
+        min_value=1,
         label="Opening quantity",
     )
     opening_reference = forms.CharField(
@@ -141,20 +136,12 @@ class ProductCreateForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-
-        add_opening = cleaned.get("add_opening_stock")
         opening_qty = cleaned.get("opening_qty")
 
-        if add_opening:
-            if opening_qty is None:
-                self.add_error("opening_qty", "Enter an opening quantity.")
-            elif opening_qty <= 0:
-                self.add_error("opening_qty", "Opening quantity must be greater than 0.")
-        else:
-            # Normalize optional fields when not used
-            cleaned["opening_qty"] = None
-            cleaned["opening_reference"] = ""
-            cleaned["opening_comments"] = ""
+        if opening_qty is None:
+            self.add_error("opening_qty", "Please add opening stock.")
+        elif opening_qty <= 0:
+            self.add_error("opening_qty", "Opening stock must be greater than 0.")
         
         if not cleaned.get("primary_supplier"):
             self.add_error("primary_supplier", "Select a primary supplier.")
@@ -169,12 +156,9 @@ class ProductCreateForm(forms.ModelForm):
     def save_with_opening_stock(self, *, created_by):
         """
          Assumes the Product is already saved by the caller/view (sku already set).
-         If 'add_opening_stock' is checked, creates a StockMovement(IN) AND updates Product.qty_in_stock.
+         Creates an opening StockMovement(IN) and updates Product.qty_in_stock.
         """
         product = self.instance  # use the already-saved product from the view
-
-        if not self.cleaned_data.get("add_opening_stock"):
-            return product
 
         qty = int(self.cleaned_data.get("opening_qty") or 0)
         if qty <= 0:
@@ -200,6 +184,9 @@ class ProductCreateForm(forms.ModelForm):
         supplier = self.cleaned_data.get("primary_supplier")
         if supplier:
             ProductSupplier.objects.filter(product=product).update(is_primary=False)
+            if product.supplier_id != supplier.id:
+                product.supplier = supplier
+                product.save(update_fields=["supplier", "updated_at"])
 
             ProductSupplier.objects.update_or_create(
                 product=product,
@@ -278,11 +265,11 @@ class HistoryFilterForm(forms.Form):
 
 
 class SupplierForm(forms.ModelForm):
-    category = forms.ModelChoiceField(
+    categories = forms.ModelMultipleChoiceField(
         queryset=Category.objects.order_by("category_name"),
         required=False,
-        empty_label="Select category",
-        label="Category",
+        label="Categories",
+        widget=forms.CheckboxSelectMultiple(),
     )
     class Meta:
         model = Supplier
@@ -292,7 +279,7 @@ class SupplierForm(forms.ModelForm):
             "email",
             "phone",
             "address",
-            "category",
+            "categories",
             "lead_time_days",
             "is_active",
             "notes",
@@ -326,12 +313,29 @@ class SupplierForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Seed M2M categories from legacy single category for existing records.
+        if self.instance and self.instance.pk and not self.initial.get("categories"):
+            existing_ids = list(self.instance.categories.values_list("id", flat=True))
+            if existing_ids:
+                self.initial["categories"] = existing_ids
+            elif self.instance.category_id:
+                self.initial["categories"] = [self.instance.category_id]
+
         for name, f in self.fields.items():
             # keep checkbox clean
             if name == "is_active":
                 continue
             existing = f.widget.attrs.get("class", "")
             f.widget.attrs["class"] = (existing + " scm-input").strip()
+
+    def save(self, commit=True):
+        supplier = super().save(commit=commit)
+        if commit:
+            chosen = list(self.cleaned_data.get("categories").values_list("id", flat=True)) if self.cleaned_data.get("categories") is not None else []
+            # Keep legacy single category field aligned for backward compatibility.
+            supplier.category_id = chosen[0] if chosen else None
+            supplier.save(update_fields=["category", "updated_at"])
+        return supplier
 
     def clean_supplier_name(self):
         name = (self.cleaned_data.get("supplier_name") or "").strip()

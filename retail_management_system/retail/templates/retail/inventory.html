@@ -796,6 +796,10 @@
                 <div class="stat-label">Reorder Level</div>
                 <div class="stat-value">{{ p.reorder_level }}</div>
               </div>
+              <div>
+                <div class="stat-label">Supplier ID</div>
+                <div class="stat-value">{{ p.supplier_id|default:"-" }}</div>
+              </div>
             </div>
 
             {% if p.stock_status == "OK" %}
@@ -1194,17 +1198,18 @@
 
         <div class="modal-grid-2">
           <div class="field">
-            <label>{{ product_create_form.add_opening_stock.label }}</label>
-            {{ product_create_form.add_opening_stock }}
+            <label>Opening Quantity</label>
+            {{ product_create_form.opening_qty }}
+            {% if product_create_form.opening_qty.errors %}
+              <div style="color:#c62828; font-size:12px; font-weight:800; margin-top:6px;">
+                {{ product_create_form.opening_qty.errors|join:", " }}
+              </div>
+            {% endif %}
           </div>
-          <div class="field"><label>Opening Quantity</label>{{ product_create_form.opening_qty }}</div>
+          <div class="field"><label>Reference (optional)</label>{{ product_create_form.opening_reference }}</div>
         </div>
-
-        <div id="openingStockFields" style="display:none;">
-          <div class="modal-grid-2">
-            <div class="field"><label>Reference (optional)</label>{{ product_create_form.opening_reference }}</div>
-            <div class="field"><label>Comments (optional)</label>{{ product_create_form.opening_comments }}</div>
-          </div>
+        <div class="modal-grid-2">
+          <div class="field"><label>Comments (optional)</label>{{ product_create_form.opening_comments }}</div>
         </div>
       </div>
 
@@ -1217,16 +1222,51 @@
 </div>
 
 
+{{ cp_supplier_map|json_script:"cpSupplierMapData" }}
 <script>
-  function toggleOpeningStock(){
+  function filterCreateProductSuppliers() {
     const modal = document.getElementById("modalCreateProduct");
     if (!modal) return;
 
-    const cb = modal.querySelector('input[name$="-add_opening_stock"]');
-    const box = document.getElementById("openingStockFields");
-    if (!cb || !box) return;
+    const categoryEl = modal.querySelector('select[name="cp-category"]');
+    const supplierEl = modal.querySelector('select[name="cp-primary_supplier"]');
+    if (!categoryEl || !supplierEl) return;
 
-    box.style.display = cb.checked ? "block" : "none";
+    const mapNode = document.getElementById("cpSupplierMapData");
+    if (!mapNode) return;
+
+    let categoryMap = {};
+    try {
+      categoryMap = JSON.parse(mapNode.textContent || "{}");
+    } catch (err) {
+      categoryMap = {};
+    }
+
+    const selectedCategory = categoryEl.value || "";
+    const previousSupplier = supplierEl.value || "";
+    const allowed = categoryMap[selectedCategory] || [];
+
+    supplierEl.innerHTML = "";
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "-- Select primary supplier (required) --";
+    supplierEl.appendChild(placeholder);
+
+    allowed.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = String(item.id);
+      opt.textContent = item.name;
+      supplierEl.appendChild(opt);
+    });
+
+    if (previousSupplier && allowed.some(item => String(item.id) === previousSupplier)) {
+      supplierEl.value = previousSupplier;
+    } else if (allowed.length > 0) {
+      supplierEl.value = String(allowed[0].id);
+    } else {
+      supplierEl.value = "";
+    }
   }
 
   function filterStockInProducts() {
@@ -1344,7 +1384,10 @@
     if (!el) return;
     el.style.display = "flex";
 
-    if (id === "modalCreateProduct") toggleOpeningStock();
+    if (id === "modalCreateProduct") {
+      filterCreateProductSuppliers();
+    }
+
     if (id === "modalIn") {
       filterStockInProducts();
       syncStockInProductToForm();
@@ -1451,9 +1494,10 @@
       updateAdjustQtyDisplay();
     }
 
-    if (e.target && e.target.name && e.target.name.endsWith("-add_opening_stock")) {
-      toggleOpeningStock();
+    if (e.target && e.target.name === "cp-category") {
+      filterCreateProductSuppliers();
     }
+
   });
 
   document.querySelectorAll(".modal-backdrop").forEach(function(bg){
@@ -1478,5 +1522,11 @@
     openModal(open);
   })();
 </script>
+
+{% if product_create_form.errors %}
+<script>
+  openModal("modalCreateProduct");
+</script>
+{% endif %}
 
 {% endblock %}

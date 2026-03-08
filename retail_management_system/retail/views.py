@@ -366,6 +366,7 @@ def inventory(request):
 
     if supplier_id:
         products_qs = products_qs.filter(
+            Q(supplier_id=supplier_id) |
             Q(supplier_links__supplier_id=supplier_id) |
             Q(purchaseorderitem__po__supplier_id=supplier_id)
         )
@@ -377,6 +378,21 @@ def inventory(request):
 
     products_qs = products_qs.select_related("category").distinct().order_by("product_name")
     all_products = Product.objects.filter(is_active=True).select_related("category").order_by("product_name")
+    cp_suppliers = Supplier.objects.filter(is_active=True).prefetch_related("categories").order_by("supplier_name")
+
+    # Build category -> suppliers map for Create Product modal.
+    cp_supplier_map = {}
+    for s in cp_suppliers:
+        linked_category_ids = list(s.categories.values_list("id", flat=True))
+        if not linked_category_ids and s.category_id:
+            linked_category_ids = [s.category_id]
+
+        for cid in linked_category_ids:
+            key = str(cid)
+            cp_supplier_map.setdefault(key, []).append({
+                "id": s.id,
+                "name": s.supplier_name,
+            })
 
     # Compute status in python + counts
     products = []
@@ -506,11 +522,10 @@ def inventory(request):
                     # CASE 1: Duplicate product exists
                     # ----------------------------
                     if existing:
-                        add_opening = product_create_form.cleaned_data.get("add_opening_stock", False)
                         opening_qty = product_create_form.cleaned_data.get("opening_qty", 0)
 
-                        # Add opening stock to EXISTING product (optional)
-                        if add_opening and opening_qty and opening_qty > 0:
+                        # Add stock to EXISTING product
+                        if opening_qty and opening_qty > 0:
                             StockMovement.objects.create(
                                 product=existing,
                                 movement_type="IN",
@@ -526,6 +541,9 @@ def inventory(request):
                         # Set / update PRIMARY supplier for EXISTING product (optional)
                         supplier = product_create_form.cleaned_data.get("primary_supplier")
                         if supplier:
+                            if existing.supplier_id != supplier.id:
+                                existing.supplier = supplier
+                                existing.save(update_fields=["supplier", "updated_at"])
                             ProductSupplier.objects.filter(product=existing).update(is_primary=False)
                             ProductSupplier.objects.update_or_create(
                                 product=existing,
@@ -542,6 +560,10 @@ def inventory(request):
                     # ----------------------------
                     else:
                         # Generate and save new product
+                        supplier = product_create_form.cleaned_data.get("primary_supplier")
+                        if supplier:
+                            new_obj.supplier = supplier
+                        new_obj.opening_stock = int(product_create_form.cleaned_data.get("opening_qty") or 0)
                         new_obj.sku = generate_sku_for(new_obj.section, new_obj.category)
                         new_obj.save()
 
@@ -549,7 +571,6 @@ def inventory(request):
                         product_create_form.instance = new_obj
 
                         # Set / update PRIMARY supplier for NEW product (optional)
-                        supplier = product_create_form.cleaned_data.get("primary_supplier")
                         if supplier:
                             ProductSupplier.objects.filter(product=new_obj).update(is_primary=False)
                             ProductSupplier.objects.update_or_create(
@@ -562,7 +583,7 @@ def inventory(request):
                                 }
                             )
 
-                        # Add opening stock to NEW product (optional)
+                        # Add opening stock to NEW product
                         product_create_form.save_with_opening_stock(created_by=request.user)
 
                 return redirect("inventory")
@@ -621,6 +642,7 @@ def inventory(request):
 
         "tab": tab,
         "base_qs": base_qs,
+        "cp_supplier_map": cp_supplier_map,
     }
     return render(request, "retail/inventory.html", context)
 
@@ -737,7 +759,7 @@ def sales(request):
 @admin_required
 def suppliers(request):
     tab = request.GET.get("tab", "suppliers")
-    if tab not in ("suppliers", "purchase-orders", "reorders"):
+    if tab not in ("suppliers", "create-reorder-draft", "purchase-orders", "reorder-requests"):
         tab = "suppliers"
 
     q = request.GET.get("q", "").strip()
@@ -981,7 +1003,7 @@ def suppliers(request):
     # TAB: SUPPLIERS
     # ----------------------------
     if tab == "suppliers":
-        suppliers_qs = Supplier.objects.all().order_by("-created_at")
+        suppliers_qs = Supplier.objects.prefetch_related("categories").all().order_by("-created_at")
 
         if q:
             suppliers_qs = suppliers_qs.filter(
@@ -1047,41 +1069,51 @@ def suppliers(request):
 
 
     # ----------------------------
-    # TAB: REORDERS
+    # TAB: CREATE REORDER DRAFT
     # ----------------------------
-    qs, since = get_reorder_queryset()
+    if tab == "create-reorder-draft":
+        qs, since = get_reorder_queryset()
+        qs = qs.order_by("created_at", "id")[:15]
 
-    grouped = {}
-    for p in qs:
-        extra = compute_reorder_row(p)
-        sid = extra["supplier_id"]
+        grouped = {}
+        for p in qs:
+            extra = compute_reorder_row(p)
+            sid = extra["supplier_id"]
 
-        if sid not in grouped:
-            grouped[sid] = {
-                "supplier": extra["supplier"],
-                "supplier_name": extra["supplier_name"],
-                "items": []
-            }
+            if sid not in grouped:
+                grouped[sid] = {
+                    "supplier": extra["supplier"],
+                    "supplier_name": extra["supplier_name"],
+                    "items": []
+                }
 
-        grouped[sid]["items"].append({
-            "product_id": p.id,
-            "sku": p.sku,
-            "product_name": p.product_name,
-            "category": p.category,
-            "qty_in_stock": p.qty_in_stock,
-            "reorder_level": p.reorder_level,
-            **extra,
+            grouped[sid]["items"].append({
+                "product_id": p.id,
+                "sku": p.sku,
+                "product_name": p.product_name,
+                "category": p.category,
+                "opening_stock": p.opening_stock,
+                "qty_in_stock": p.qty_in_stock,
+                "reorder_level": p.reorder_level,
+                **extra,
+            })
+
+        context.update({
+            "grouped": grouped,
+            "since": since,
+            "safety_stock": 5,
         })
+        return render(request, "retail/suppliers.html", context)
 
+    # ----------------------------
+    # TAB: REORDER REQUESTS
+    # ----------------------------
     if is_admin(request.user):
-        requests_qs = ReorderRequest.objects.all().order_by("-created_at")[:50]
+        requests_qs = ReorderRequest.objects.all().order_by("created_at", "id")[:15]
     else:
-        requests_qs = ReorderRequest.objects.filter(created_by=request.user).order_by("-created_at")[:50]
+        requests_qs = ReorderRequest.objects.filter(created_by=request.user).order_by("created_at", "id")[:15]
 
     context.update({
-        "grouped": grouped,
-        "since": since,
-        "safety_stock": 5,
         "requests": requests_qs,
     })
     return render(request, "retail/suppliers.html", context)
@@ -1095,7 +1127,7 @@ def reorder_request_create_draft(request):
     product_ids = request.POST.getlist("product_ids")
     if not product_ids:
         messages.error(request, "Select at least one item to create a request.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=create-reorder-draft")
 
     # group selected items by supplier_id (1 RR per supplier)
     by_supplier = {}
@@ -1111,7 +1143,7 @@ def reorder_request_create_draft(request):
         if not supplier_id:
             # enforce 1-supplier RR; no supplier means cannot draft correctly
             messages.error(request, "Some selected items have no supplier assigned. Please set a primary supplier.")
-            return redirect("/suppliers/?tab=reorders")
+            return redirect("/suppliers/?tab=create-reorder-draft")
 
         by_supplier.setdefault(int(supplier_id), []).append({
             "pid": int(pid),
@@ -1121,7 +1153,7 @@ def reorder_request_create_draft(request):
 
     if not by_supplier:
         messages.error(request, "All selected items had quantity 0. Please enter a quantity.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=create-reorder-draft")
 
     created_ids = []
 
@@ -1143,43 +1175,43 @@ def reorder_request_create_draft(request):
             created_ids.append(rr.id)
 
     messages.success(request, f"Created {len(created_ids)} draft request(s): " + ", ".join([f"RR-{i}" for i in created_ids]))
-    return redirect("/suppliers/?tab=reorders")
+    return redirect("/suppliers/?tab=create-reorder-draft")
 
 
 # Submit request (only owner of draft)
 #@login_required
 def reorder_request_submit(request, rr_id):
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
     
     rr = get_object_or_404(ReorderRequest, id=rr_id, created_by=request.user)
 
     if rr.status != ReorderRequest.STATUS_DRAFT:
         messages.error(request, "Only draft requests can be submitted.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr.status = ReorderRequest.STATUS_SUBMITTED
     rr.submitted_at = timezone.now()
     rr.save(update_fields=["status", "submitted_at"])
 
     messages.success(request, f"RR-{rr.id} submitted to admin.")
-    return redirect("/suppliers/?tab=reorders")
+    return redirect("/suppliers/?tab=reorder-requests")
 
 #Approve request (admin only) → creates Draft PO(s)
 #@login_required
 def reorder_request_approve(request, rr_id):
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be approved.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     items = rr.items.select_related("product", "supplier")
 
@@ -1229,23 +1261,23 @@ def reorder_request_approve(request, rr_id):
             rr.save(update_fields=["status", "decided_at", "decided_by"])
 
     messages.success(request, f"RR-{rr.id} approved. Draft PO(s) created.")
-    return redirect("/suppliers/?tab=reorders")
+    return redirect("/suppliers/?tab=reorder-requests")
 
 # Reject request (admin only)
 #@login_required
 def reorder_request_reject(request, rr_id):
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be rejected.")
-        return redirect("/suppliers/?tab=reorders")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr.status = ReorderRequest.STATUS_REJECTED
     rr.decided_at = timezone.now()
@@ -1254,7 +1286,7 @@ def reorder_request_reject(request, rr_id):
     rr.save(update_fields=["status", "decided_at", "decided_by", "decision_note"])
 
     messages.success(request, f"RR-{rr.id} rejected.")
-    return redirect("/suppliers/?tab=reorders")
+    return redirect("/suppliers/?tab=reorder-requests")
 
 
 @admin_required

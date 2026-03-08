@@ -2,6 +2,11 @@
 #the above is a comment in html
 
 '''
+
+to export data from mysql database to csv file, use the following command in terminal:
+..\env\Scripts\python manage.py export_daily_product_sales_csv --out "C:\OneDrive to disk\Ruk IOT\CAPSTONE Project\daily_product_sales_ml_2026-03-04.csv"
+
+
 Create superuser: 
 ruk 
 baichoorukhsaar@gmail.com 

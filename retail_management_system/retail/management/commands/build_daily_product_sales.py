@@ -80,6 +80,9 @@ class Command(BaseCommand):
                 sales_amt=Sum("line_total"),
                 promo_flag=Max(
                     Case(
+                        When(promo_flag=True, then=1),
+                        When(discount_amt__gt=0, then=1),
+                        When(discount_pct__gt=0, then=1),
                         When(sale__promo_flag=True, then=1),
                         default=0,
                         output_field=IntegerField(),

@@ -46,6 +46,14 @@ class Product(models.Model):
     sku = models.CharField(max_length=40, unique=True)
     product_name = models.CharField(max_length=200)
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")
+    supplier = models.ForeignKey(
+        "Supplier",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+    )
+    opening_stock = models.PositiveIntegerField(default=0)
     qty_in_stock = models.PositiveIntegerField(default=0)
     section = models.CharField(max_length=10, choices=Section.choices, default=Section.UNISEX)
 
@@ -134,6 +142,7 @@ class SaleItem(models.Model):
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
     discount_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
     discount_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    promo_flag = models.BooleanField(default=False)
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
 
     def save(self, *args, **kwargs):
@@ -144,6 +153,7 @@ class SaleItem(models.Model):
             self.discount_pct = (self.discount_amt / gross * Decimal("100")) if gross > 0 else Decimal("0.00")
         else:
             self.discount_amt = (gross * self.discount_pct) / Decimal("100")
+        self.promo_flag = bool(self.discount_amt and self.discount_amt > 0)
         self.line_total = gross - self.discount_amt
         super().save(*args, **kwargs)
 
@@ -204,6 +214,11 @@ class Supplier(models.Model):
         null=True,
         blank=True,
         related_name="suppliers",
+    )
+    categories = models.ManyToManyField(
+        Category,
+        blank=True,
+        related_name="suppliers_multi",
     )
 
 
@@ -397,7 +412,7 @@ class DailyProductSales(models.Model):
     qty_sold = models.PositiveIntegerField(default=0)
     sales_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
-    promo_flag = models.BooleanField(default=False)  # derived from Sale.promo_flag
+    promo_flag = models.BooleanField(default=False)  # derived from line-level promo (SaleItem) / Sale fallback
     is_festive = models.BooleanField(default=False)
     festival_name = models.CharField(max_length=80, blank=True, default="")
 
@@ -424,6 +439,78 @@ class DailyProductSales(models.Model):
 
     def __str__(self):
         return f"{self.date} - {self.product.sku} - qty={self.qty_sold}"
+
+
+class SKUForecastGroupMap(models.Model):
+    """
+    Maps one SKU to one forecasting group label.
+    Keep this separate from raw sales so SKU history stays intact.
+    """
+    sku = models.OneToOneField(
+        "Product",
+        to_field="sku",
+        db_column="sku",
+        on_delete=models.PROTECT,
+        related_name="forecast_group_map",
+    )
+    forecast_group = models.CharField(max_length=120)
+    active_from = models.DateField(null=True, blank=True)
+    active_to = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sku_forecast_group_map"
+        indexes = [
+            models.Index(fields=["forecast_group"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["active_from", "active_to"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sku_id} -> {self.forecast_group}"
+
+
+class DailyGroupSales(models.Model):
+    """
+    Forecast-ready grouped daily features.
+    One row per forecast_group per date.
+    """
+    date = models.DateField()
+    forecast_group = models.CharField(max_length=120)
+
+    qty_sold = models.PositiveIntegerField(default=0)
+    sales_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+
+    promo_flag = models.BooleanField(default=False)
+    is_festive = models.BooleanField(default=False)
+    festival_name = models.CharField(max_length=80, blank=True, default="")
+
+    product_active = models.BooleanField(default=True)
+    in_stock_flag = models.BooleanField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "daily_group_sales"
+        constraints = [
+            models.UniqueConstraint(fields=["date", "forecast_group"], name="uniq_daily_group_sales"),
+        ]
+        indexes = [
+            models.Index(fields=["date"]),
+            models.Index(fields=["forecast_group", "date"]),
+            models.Index(fields=["promo_flag"]),
+            models.Index(fields=["is_festive"]),
+            models.Index(fields=["festival_name"]),
+            models.Index(fields=["product_active"]),
+            models.Index(fields=["in_stock_flag"]),
+        ]
+
+    def __str__(self):
+        return f"{self.date} - {self.forecast_group} - qty={self.qty_sold}"
 
 
 class ForecastRun(models.Model):
