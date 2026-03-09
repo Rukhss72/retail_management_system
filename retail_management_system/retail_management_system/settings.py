@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -135,8 +136,19 @@ LOGOUT_REDIRECT_URL = "/admin_login/"
 # When the browser is closed, the session cookie is dropped (session ends)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# Email (development: console backend)
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Email
+# Uses Gmail SMTP when env vars are present; otherwise falls back to console backend.
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "webmaster@localhost")
+
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Assistant LLM fallback (local Ollama)
 ASSISTANT_OLLAMA_ENABLED = True
