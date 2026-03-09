@@ -1,6 +1,6 @@
-def is_admin(user) -> bool:   # owner-only
+def is_admin(user) -> bool:   # admin-only
     try:
-        return user.is_authenticated and user.profile.role == "owner"
+        return user.is_authenticated and user.profile.role == "admin"
     except Exception:
         return False
 

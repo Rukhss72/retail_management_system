@@ -9,7 +9,7 @@ from decimal import Decimal
 
 class RoleAuthenticationForm(AuthenticationForm):
     ROLE_CHOICES = (
-        ("owner", "Owner"),
+        ("admin", "Admin"),
         ("staff", "Staff"),
     )
 
@@ -34,6 +34,24 @@ class RoleAuthenticationForm(AuthenticationForm):
             "class": "remember-input",
         })
 
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)
+        selected_role = self.cleaned_data.get("role")  # must be "admin" or "staff"
+
+        # Ensure user has a profile (extra safety)
+        if not hasattr(user, "profile"):
+            raise ValidationError("Profile missing. Contact admin.", code="no_profile")
+
+        if user.profile.role != selected_role:
+            raise ValidationError("Role mismatch.", code="role_mismatch")
+
+        if selected_role == "admin" and not user.is_superuser:
+            raise ValidationError("This account is not an Admin.", code="not_admin")
+
+        # Staff: must be staff-enabled account
+        if selected_role == "staff" and not user.is_staff:
+            raise ValidationError("This account is not Staff.", code="not_staff")
+
 
 class TwoFactorForm(forms.Form):
     code = forms.CharField(max_length=6, min_length=6)
@@ -46,29 +64,6 @@ class TwoFactorForm(forms.Form):
             "inputmode": "numeric",
             "autocomplete": "one-time-code",
         })
-
-    def confirm_login_allowed(self, user):
-        super().confirm_login_allowed(user)
-        selected_role = self.cleaned_data.get("role") # must be "owner" or "staff"
-
-        # Ensure user has a profile (extra safety)
-        if not hasattr(user, "profile"):
-            raise ValidationError("Profile missing. Contact admin.", code="no_profile")
-        
-        if user.profile.role != selected_role:
-            raise ValidationError("Role mismatch.", code="role_mismatch")
-        
-        # Admin: must be superuser (strict)
-        #if selected_role == "admin" and not user.is_superuser:
-         #   raise ValidationError("This account is not an Admin.", code="not_admin")
-
-        # Staff: must be staff (strict)
-        if selected_role == "staff" and not user.is_staff:
-            raise ValidationError("This account is not Staff.", code="not_staff")
-
-        # If you want Staff to exclude Admins, use this instead:
-        # if selected_role == "staff" and (not user.is_staff or user.is_superuser):
-        #     raise ValidationError("This account is not Staff.", code="not_staff")
 
 
 class ProductCreateForm(forms.ModelForm):

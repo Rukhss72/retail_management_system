@@ -83,9 +83,9 @@
 
   /* Center the whole Suppliers page content */
   .scm-shell{
-    max-width: 1400px;
+    max-width: 1520px;
     margin: 0 auto;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
   }
 
   /* Centered page title like screenshot */
@@ -205,6 +205,94 @@
     border-color: #ffd6e0;
     box-shadow: 0 0 0 3px rgba(255,214,224,.35);
     background:#fff;
+  }
+
+  /* Reorder edit form: styled to match login page input language */
+  .rr-edit-card{
+    border:1px solid #eaeaf5;
+    border-radius:12px;
+    background:#fff;
+    padding:12px;
+  }
+  .rr-edit-grid-3{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(180px,1fr));
+    gap:10px;
+  }
+  .rr-edit-grid-4{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(150px,1fr));
+    gap:10px;
+  }
+  .rr-edit-grid-5{
+    display:grid;
+    grid-template-columns:repeat(5, minmax(120px,1fr));
+    gap:10px;
+  }
+  .rr-edit-grid-2{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(220px,1fr));
+    gap:10px;
+  }
+  .rr-edit-label{
+    display:block;
+    font-size:1rem;
+    font-weight:800;
+    color:#5a4a6a;
+    margin-bottom:6px;
+    white-space:nowrap;
+  }
+  .rr-edit-input{
+    width:100%;
+    padding:.75rem;
+    border:2px solid #eaeaf5;
+    border-radius:8px;
+    background:var(--white);
+    font-size:1rem;
+    color:var(--charcoal);
+    font-family:inherit;
+    outline:none;
+  }
+  .rr-edit-input:focus{
+    border-color:#ffd6e0;
+    box-shadow:0 0 0 3px rgba(255,214,224,.35);
+    background:#fff;
+  }
+  .rr-edit-input.readonly{
+    background:#f8f9fb;
+  }
+  .rr-edit-input.compact{
+    max-width:90px;
+  }
+  .rr-edit-pair{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+  }
+  .rr-meta-row{
+    display:flex;
+    align-items:flex-end;
+    gap:10px;
+    flex-wrap:nowrap;
+  }
+  .rr-meta-request{ flex:0 0 130px; }
+  .rr-meta-items{ flex:0 0 90px; }
+  .rr-meta-total{ flex:0 0 110px; }
+  .rr-meta-created{ flex:0 0 155px; }
+  .rr-meta-updated{ flex:0 0 155px; }
+  .rr-action-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:nowrap;
+  }
+  @media (max-width: 900px){
+    .rr-edit-grid-5,
+    .rr-edit-grid-4,
+    .rr-edit-grid-3,
+    .rr-edit-grid-2{
+      grid-template-columns:1fr;
+    }
   }
 
   .grid-2{
@@ -335,6 +423,36 @@
     color: var(--charcoal);
     background: transparent;
     border: 1px solid transparent;
+  }
+  .tab-bell{
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;
+    height:22px;
+  }
+  .tab-bell i{
+    font-size:20px;
+    line-height:1;
+  }
+  .tab-bell-badge{
+    position:absolute;
+    top:-9px;
+    right:-11px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:18px;
+    height:18px;
+    padding:0 5px;
+    border-radius:999px;
+    background:#b56576;
+    color:#fff;
+    font-size:11px;
+    font-weight:900;
+    line-height:1;
+    border:2px solid #fff;
   }
   .tabbtn.active{
     background:#fff;
@@ -484,10 +602,12 @@
 
 <div class="tabs-wrap">
   <div class="tabs">
-    <a class="tabbtn {% if tab == 'suppliers' %}active{% endif %}"
-       href="{% url 'suppliers' %}?tab=suppliers">
-      <i class="fa-solid fa-truck"></i> Suppliers
-    </a>
+    {% if is_admin %}
+      <a class="tabbtn {% if tab == 'suppliers' %}active{% endif %}"
+         href="{% url 'suppliers' %}?tab=suppliers">
+        <i class="fa-solid fa-truck"></i> Suppliers
+      </a>
+    {% endif %}
 
     <a class="tabbtn {% if tab == 'create-reorder-draft' %}active{% endif %}"
        href="{% url 'suppliers' %}?tab=create-reorder-draft">
@@ -499,10 +619,18 @@
       <i class="fa-solid fa-rotate"></i> Reorder Requests
     </a>
 
-    <a class="tabbtn {% if tab == 'purchase-orders' %}active{% endif %}"
-       href="{% url 'suppliers' %}?tab=purchase-orders">
-      <i class="fa-solid fa-file-lines"></i> Purchase Orders
-    </a>
+    {% if is_admin %}
+      <a class="tabbtn {% if tab == 'purchase-orders' %}active{% endif %}"
+         href="{% url 'suppliers' %}?tab=purchase-orders">
+        <span class="tab-bell">
+          <i class="fa-regular fa-bell"></i>
+          {% if open_po_count > 0 %}
+            <span class="tab-bell-badge">{{ open_po_count }}</span>
+          {% endif %}
+        </span>
+        Purchase Orders
+      </a>
+    {% endif %}
   </div>
 </div>
 
@@ -577,7 +705,7 @@
     </div>
 
     <!-- Table -->
-    <div style="overflow:auto;">
+    <div style="min-height:800px; max-height:1000px; overflow:auto;">
       <table style="width:100%; border-collapse:collapse;">
         <thead>
           <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
@@ -964,7 +1092,7 @@
 
     </div>
 
-    <div style="overflow:auto;">
+    <div style="min-height:800px; max-height:1000px; overflow:auto;">
       <table style="width:100%; border-collapse:collapse;">
         <thead>
           <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
@@ -991,7 +1119,9 @@
               </td>
 
               <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
-                {% if po.reorder_request_id %}RR-{{ po.reorder_request_id }}{% else %}-{% endif %}
+                {% with rr_item=po.items.all|first %}
+                  {% if rr_item and rr_item.reorder_request_id %}RR-{{ rr_item.reorder_request_id }}{% else %}-{% endif %}
+                {% endwith %}
               </td>
 
               <td style="padding:12px 10px; font-weight:800; color:var(--charcoal);">
@@ -1138,6 +1268,20 @@
           <div class="field">
             <label>Supplier *</label>
             {{ po_form.supplier }}
+          </div>
+
+          <div class="field">
+            <label>Product / Category</label>
+            <select name="product_id" id="create_po_product" onchange="syncPOSupplierFromProduct(this)">
+              <option value="">-- Select product / category --</option>
+              {% for p in products_for_po %}
+                <option value="{{ p.id }}"
+                        data-supplier="{% if p.supplier_id %}{{ p.supplier_id }}{% endif %}"
+                        {% if request.POST.product_id == p.id|stringformat:"s" %}selected{% endif %}>
+                  {{ p.product_name }} ({{ p.category.category_name }})
+                </option>
+              {% endfor %}
+            </select>
           </div>
 
           <div class="grid-2">
@@ -1376,7 +1520,7 @@
           <div id="reorderActions" style="display:none;"></div>
         </div>
 
-        <div style="max-height:640px; overflow:auto; padding-right:4px;">
+        <div style="min-height:800px; max-height:1000px; overflow:auto; padding-right:4px;">
         {% for bucket in grouped.values %}
           <div class="supplier-bucket" style="border:1px solid rgba(64,78,92,0.12); border-radius:14px; padding:12px; margin-bottom:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
@@ -1550,15 +1694,18 @@
     <div style="color:var(--muted); font-weight:800; margin-bottom:10px;">Showing oldest 15 requests</div>
 
     {% if requests %}
-      <div style="max-height:560px; overflow:auto;">
+      <div style="min-height:800px; max-height:1000px; overflow:auto;">
         <table style="width:100%; border-collapse:collapse;">
           <thead>
             <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
               <th style="padding:10px;">Request</th>
+              <th style="padding:10px;">Product / Category</th>
               <th style="padding:10px;">Items</th>
+              <th style="padding:10px;">Qty to Order</th>
               <th style="padding:10px;">Supplier</th>
               <th style="padding:10px;">Status</th>
               <th style="padding:10px;">Created</th>
+              <th style="padding:10px;">Updated</th>
               <th style="padding:10px;">Actions</th>
             </tr>
           </thead>
@@ -1566,34 +1713,59 @@
             {% for r in requests %}
               <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
                 <td style="padding:10px; font-weight:900;">RR-{{ r.id }}</td>
+                <td style="padding:10px;">
+                  {% if r.items.all %}
+                    {% for it in r.items.all %}
+                      <div style="font-weight:800; color:var(--charcoal);">
+                        {{ it.product.product_name }} ({{ it.product.category.category_name }})
+                      </div>
+                    {% endfor %}
+                  {% else %}
+                    <span style="color:var(--muted); font-weight:800;">-</span>
+                  {% endif %}
+                </td>
                 <td style="padding:10px; font-weight:900;">{{ r.items.count }}</td>
+                <td style="padding:10px; font-weight:900;">{{ r.total_qty_to_order }}</td>
                 <td style="padding:10px; font-weight:900;">{{ r.supplier.supplier_name|default:"-" }}</td>
                 <td style="padding:10px; font-weight:900;">{{ r.get_status_display }}</td>
                 <td style="padding:10px;">{{ r.created_at|date:"d/m/Y H:i" }}</td>
+                <td style="padding:10px;">{{ r.updated_at|date:"d/m/Y H:i" }}</td>
                 <td style="padding:10px;">
                   {% if r.status == "DRAFT" %}
                     <form method="post" action="{% url 'reorder_request_submit' r.id %}" style="display:inline;">
                       {% csrf_token %}
                       <button class="btn btn-primary" type="submit">Submit</button>
                     </form>
-                  {% elif r.status == "SUBMITTED" %}
-                    {% if is_admin %}
-                      <form method="post" action="{% url 'reorder_request_approve' r.id %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button class="btn btn-primary" type="submit">Approve</button>
-                      </form>
-                      <form method="post" action="{% url 'reorder_request_reject' r.id %}" style="display:inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="decision_note" value="Rejected by admin">
-                        <button class="btn btn-outline" type="submit">Reject</button>
-                      </form>
-                    {% else %}
-                      <button class="btn btn-outline" type="button" disabled>Submitted</button>
+                    {% if r.created_by_id == request.user.id or is_admin %}
+                      <button class="btn btn-soft" type="button" onclick="openRRDraftEditModal('{{ r.id }}')">Edit</button>
                     {% endif %}
+                  {% elif r.status == "SUBMITTED" %}
+                    <div class="rr-action-row">
+                      {% if is_admin %}
+                        <form method="post" action="{% url 'reorder_request_approve' r.id %}" style="display:inline;">
+                          {% csrf_token %}
+                          <button class="btn btn-primary" type="submit">Approve</button>
+                        </form>
+                        <form method="post" action="{% url 'reorder_request_reject' r.id %}" style="display:inline;">
+                          {% csrf_token %}
+                          <input type="hidden" name="decision_note" value="Rejected by admin">
+                          <button class="btn btn-outline" type="submit">Reject</button>
+                        </form>
+                      {% else %}
+                        <button class="btn btn-outline" type="button" disabled>Submitted</button>
+                      {% endif %}
+                      {% if r.created_by_id == request.user.id or is_admin %}
+                        <button class="btn btn-soft" type="button" onclick="openRRDraftEditModal('{{ r.id }}')">Edit</button>
+                      {% endif %}
+                    </div>
                   {% elif r.status == "APPROVED" %}
-                    <a class="btn btn-soft" href="{% url 'suppliers' %}?tab=purchase-orders">
-                      View PO
-                    </a>
+                    {% if is_admin %}
+                      <a class="btn btn-soft" href="{% url 'suppliers' %}?tab=purchase-orders">
+                        View PO
+                      </a>
+                    {% else %}
+                      <span style="color:#6B7280; font-weight:800;">Approved</span>
+                    {% endif %}
                   {% else %}
                     <span style="color:#6B7280; font-weight:800;">—</span>
                   {% endif %}
@@ -1603,12 +1775,148 @@
           </tbody>
         </table>
       </div>
+      {% for r in requests %}
+        {% if r.status == "DRAFT" or r.status == "SUBMITTED" %}
+          <div id="rrEditBackdrop-{{ r.id }}" class="modal-backdrop" onclick="backdropCloseRRDraftEdit(event, '{{ r.id }}')">
+            <div class="modal" role="dialog" aria-label="Edit Reorder Request" aria-modal="true" style="max-width:760px;">
+              <div class="modal-head">
+                <h3 class="modal-title">
+                  <i class="fa-solid fa-pen-to-square"></i> Edit Reorder Request
+                </h3>
+                <button class="modal-close" type="button" onclick="closeRRDraftEditModal('{{ r.id }}')">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <form method="post" action="{% url 'reorder_request_update' r.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                  <div class="rr-meta-row">
+                    <div class="rr-meta-request">
+                      <label class="rr-edit-label">Request</label>
+                      <input type="text" value="RR-{{ r.id }}" readonly disabled class="rr-edit-input readonly">
+                    </div>
+                    <div class="rr-meta-items">
+                      <label class="rr-edit-label">Items</label>
+                      <input type="number" min="0" value="{{ r.items.count }}" readonly class="rr-edit-input readonly compact">
+                    </div>
+                    <div class="rr-meta-total">
+                      <label class="rr-edit-label">Total Qty</label>
+                      <input type="number" min="0" id="rr-total-qty-{{ r.id }}" value="{{ r.total_qty_to_order }}" readonly class="rr-edit-input readonly compact">
+                    </div>
+                    <div class="rr-meta-created">
+                      <label class="rr-edit-label">Created</label>
+                      <input type="text" value="{{ r.created_at|date:'d/m/Y H:i' }}" readonly class="rr-edit-input readonly">
+                    </div>
+                    <div class="rr-meta-updated">
+                      <label class="rr-edit-label">Updated</label>
+                      <input type="text" value="{{ r.updated_at|date:'d/m/Y H:i' }}" readonly class="rr-edit-input readonly">
+                    </div>
+                  </div>
+
+                  <div class="rr-edit-grid-2" style="margin-top:10px;">
+                    <div>
+                      <label class="rr-edit-label">Supplier</label>
+                      <select name="supplier_id" id="rr-supplier-{{ r.id }}" class="rr-edit-input">
+                        <option value="">-- Select supplier --</option>
+                        {% for s in suppliers_all %}
+                          <option value="{{ s.id }}" {% if r.supplier_id == s.id %}selected{% endif %}>{{ s.supplier_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="rr-edit-label">Status</label>
+                      <input type="text" value="{{ r.get_status_display }}" readonly class="rr-edit-input readonly">
+                    </div>
+                  </div>
+
+                  <div style="border:2px solid #eaeaf5; border-radius:10px; padding:10px; background:#fff; margin-top:10px;">
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                      <div class="rr-edit-label" style="margin:0; flex:1;">Product / Category</div>
+                      <div class="rr-edit-label" style="margin:0; width:110px; min-width:110px; max-width:110px; flex:0 0 110px;">Qty</div>
+                    </div>
+                    {% for it in r.items.all %}
+                      <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                        <select name="product_{{ it.id }}" class="rr-edit-input" onchange="fillRRSupplierFromProduct(this, '{{ r.id }}')">
+                          {% for p in products_for_rr_edit %}
+                            <option value="{{ p.id }}"
+                                    data-supplier="{% if p.supplier_id %}{{ p.supplier_id }}{% endif %}"
+                                    {% if it.product_id == p.id %}selected{% endif %}>
+                              {{ p.product_name }} ({{ p.category.category_name }})
+                            </option>
+                          {% endfor %}
+                        </select>
+                        <input type="number" min="1" name="qty_{{ it.id }}" value="{{ it.qty_requested }}" class="rr-edit-input rr-line-qty-{{ r.id }}" oninput="recalcRRTotalQty('{{ r.id }}')" style="font-weight:900; width:110px; min-width:110px; max-width:110px; flex:0 0 110px;">
+                      </div>
+                    {% empty %}
+                      <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                        <select name="new_product_id" class="rr-edit-input" onchange="fillRRSupplierFromProduct(this, '{{ r.id }}')">
+                          <option value="">-- Select product / category --</option>
+                          {% for p in products_for_rr_edit %}
+                            <option value="{{ p.id }}" data-supplier="{% if p.supplier_id %}{{ p.supplier_id }}{% endif %}">
+                              {{ p.product_name }} ({{ p.category.category_name }})
+                            </option>
+                          {% endfor %}
+                        </select>
+                        <input type="number" min="1" name="new_qty" value="1" class="rr-edit-input rr-line-qty-{{ r.id }}" oninput="recalcRRTotalQty('{{ r.id }}')" style="font-weight:900; width:110px; min-width:110px; max-width:110px; flex:0 0 110px;">
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                <div class="modal-foot" style="justify-content:center;">
+                  <button class="btn btn-soft" type="submit" name="save_action" value="draft">Save as Draft</button>
+                  <button class="btn btn-primary" type="submit" name="save_action" value="submit">Submit</button>
+                  <button class="btn btn-outline" type="button" onclick="closeRRDraftEditModal('{{ r.id }}')">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
     {% else %}
       <div style="color:var(--muted); font-weight:900;">No requests yet.</div>
     {% endif %}
   </div>
 {% endif %}
 <script>
+  function openRRDraftEditModal(id){
+    const el = document.getElementById("rrEditBackdrop-" + id);
+    if (!el) return;
+    el.style.display = "flex";
+    recalcRRTotalQty(id);
+  }
+  function closeRRDraftEditModal(id){
+    const el = document.getElementById("rrEditBackdrop-" + id);
+    if (!el) return;
+    el.style.display = "none";
+  }
+  function backdropCloseRRDraftEdit(e, id){
+    if (e.target && e.target.id === ("rrEditBackdrop-" + id)) closeRRDraftEditModal(id);
+  }
+  function fillRRSupplierFromProduct(selectEl, rrId){
+    if (!selectEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    if (!opt) return;
+    const supplierId = opt.getAttribute("data-supplier") || "";
+    if (!supplierId) return;
+
+    const supplierSelect = document.getElementById("rr-supplier-" + rrId);
+    if (!supplierSelect) return;
+    supplierSelect.value = supplierId;
+  }
+  function recalcRRTotalQty(rrId){
+    const totalEl = document.getElementById("rr-total-qty-" + rrId);
+    if (!totalEl) return;
+    const qtyEls = document.querySelectorAll(".rr-line-qty-" + rrId);
+    let total = 0;
+    qtyEls.forEach(function(el){
+      const n = parseInt(el.value || "0", 10);
+      if (!Number.isNaN(n) && n > 0) total += n;
+    });
+    totalEl.value = String(total);
+  }
+
   function openSupplierModal(){
     const el = document.getElementById("supplierBackdrop");
     if (!el) return;
@@ -1648,11 +1956,26 @@
   function backdropClosePO(e){
     if (e.target && e.target.id === "poBackdrop") closePOModal();
   }
+  function syncPOSupplierFromProduct(selectEl){
+    if (!selectEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    if (!opt) return;
+    const supplierId = opt.getAttribute("data-supplier") || "";
+    if (!supplierId) return;
+
+    const supplierSelect = document.getElementById("id_supplier");
+    if (!supplierSelect) return;
+    supplierSelect.value = supplierId;
+  }
 
   const state2 = document.getElementById("pageState");
   const tab2 = state2?.dataset.tab;
   const hasPOErrors2 = state2?.dataset.hasPoErrors === "1";
-  if (tab2 === "purchase-orders" && hasPOErrors2) openPOModal();
+  if (tab2 === "purchase-orders" && hasPOErrors2) {
+    openPOModal();
+    const poProduct = document.getElementById("create_po_product");
+    if (poProduct && poProduct.value) syncPOSupplierFromProduct(poProduct);
+  }
 
 </script>
 

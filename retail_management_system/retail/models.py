@@ -162,7 +162,7 @@ class SaleItem(models.Model):
 
 class UserProfile(models.Model):
     ROLE_CHOICES = (
-        ("owner", "Owner"),
+        ("admin", "Admin"),
         ("staff", "Staff"),
     )
 
@@ -349,6 +349,7 @@ class ReorderRequest(models.Model):
     decision_note = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"RR-{self.id} ({self.status})"

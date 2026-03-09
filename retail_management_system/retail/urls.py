@@ -26,6 +26,7 @@ urlpatterns = [
     path("logout/", auth_views.LogoutView.as_view(next_page="admin_login"), name="logout"),
 
     path("reorder-request/draft/", views.reorder_request_create_draft, name="reorder_request_create_draft"),
+    path("reorder-request/<int:rr_id>/update/", views.reorder_request_update, name="reorder_request_update"),
     path("reorder-request/<int:rr_id>/submit/", views.reorder_request_submit, name="reorder_request_submit"),
     path("reorder-request/<int:rr_id>/approve/", views.reorder_request_approve, name="reorder_request_approve"),
     path("reorder-request/<int:rr_id>/reject/", views.reorder_request_reject, name="reorder_request_reject"),

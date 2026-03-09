@@ -756,11 +756,18 @@ def sales(request):
 
 
 #@login_required
-@admin_required
+@staff_required
 def suppliers(request):
     tab = request.GET.get("tab", "suppliers")
     if tab not in ("suppliers", "create-reorder-draft", "purchase-orders", "reorder-requests"):
         tab = "suppliers"
+
+    # Staff cannot access supplier master tab.
+    if not is_admin(request.user) and tab == "suppliers":
+        return redirect(f"{request.path}?tab=create-reorder-draft")
+    # Staff cannot access purchase orders tab.
+    if not is_admin(request.user) and tab == "purchase-orders":
+        return redirect(f"{request.path}?tab=create-reorder-draft")
 
     q = request.GET.get("q", "").strip()
     status = request.GET.get("status", "all")
@@ -774,6 +781,13 @@ def suppliers(request):
     # ----------------------------
     if request.method == "POST":
         form_type = request.POST.get("form_type", "")
+
+        if (not is_admin(request.user)) and form_type in {"create_supplier", "update_supplier", "delete_supplier"}:
+            messages.error(request, "Only admin can manage suppliers.")
+            return redirect(f"{request.path}?tab=create-reorder-draft")
+        if (not is_admin(request.user)) and form_type in {"create_po", "update_po", "delete_po", "create_po_from_rr"}:
+            messages.error(request, "Only admin can manage purchase orders.")
+            return redirect(f"{request.path}?tab=create-reorder-draft")
 
         # CREATE SUPPLIER
         if form_type == "create_supplier":
@@ -807,7 +821,15 @@ def suppliers(request):
 
                 # CREATE PO
         elif form_type == "create_po":
-            po_form = PurchaseOrderCreateForm(request.POST)
+            create_po_data = request.POST.copy()
+            product_id_raw = (create_po_data.get("product_id") or "").strip()
+            supplier_raw = (create_po_data.get("supplier") or "").strip()
+            if product_id_raw and not supplier_raw:
+                selected_product = Product.objects.filter(id=product_id_raw, is_active=True).only("supplier_id").first()
+                if selected_product and selected_product.supplier_id:
+                    create_po_data["supplier"] = str(selected_product.supplier_id)
+
+            po_form = PurchaseOrderCreateForm(create_po_data)
             if po_form.is_valid():
                 po = po_form.save(commit=False)
                 po.created_by = request.user
@@ -816,6 +838,9 @@ def suppliers(request):
                     po.status = PurchaseOrder.STATUS_PENDING
                 if not po.order_date:
                     po.order_date = timezone.localdate()
+                if not po.delivery_date and po.supplier_id and po.order_date:
+                    lead_days = int(getattr(po.supplier, "lead_time_days", 0) or 0)
+                    po.delivery_date = po.order_date + timedelta(days=max(lead_days, 0))
                 # Always auto-generate to avoid invalid manual input
                 po.po_number = _next_po_number()
                 po.save()
@@ -943,13 +968,16 @@ def suppliers(request):
                 return redirect(f"{request.path}?tab=purchase-orders")
 
             with transaction.atomic():
+                rr_supplier = Supplier.objects.filter(id=rr.supplier_id).only("lead_time_days").first()
+                lead_days = int(getattr(rr_supplier, "lead_time_days", 0) or 0)
+                order_date = timezone.localdate()
                 po = PurchaseOrder.objects.create(
                     supplier_id=rr.supplier_id,
                     status=PurchaseOrder.STATUS_PENDING,
                     created_by=request.user,
-                    order_date=timezone.localdate(),
+                    order_date=order_date,
+                    delivery_date=order_date + timedelta(days=max(lead_days, 0)),
                     po_number=_next_po_number(),
-                    reorder_request=rr,
                 )
 
                 items = rr.items.select_related("product")
@@ -966,6 +994,7 @@ def suppliers(request):
                         po=po,
                         product=it.product,
                         qty_ordered=it.qty_requested,
+                        reorder_request=rr,
                         unit_cost=unit_cost,
                     )
                     if unit_cost is not None:
@@ -995,6 +1024,11 @@ def suppliers(request):
         "form": supplier_form,
         "po_form": po_form,
     }
+    context["open_po_count"] = 0
+    if is_admin(request.user):
+        context["open_po_count"] = PurchaseOrder.objects.filter(
+            status__in=[PurchaseOrder.STATUS_DRAFT, PurchaseOrder.STATUS_PENDING]
+        ).count()
 
     context["suppliers_all"] = Supplier.objects.filter(is_active=True).order_by("supplier_name")
     context["categories"] = Category.objects.order_by("category_name")
@@ -1025,6 +1059,7 @@ def suppliers(request):
     # TAB: PURCHASE ORDERS
     # ----------------------------
     if tab == "purchase-orders":
+        context["products_for_po"] = Product.objects.filter(is_active=True).select_related("category", "supplier").order_by("product_name")
         context["rr_drafts"] = ReorderRequest.objects.select_related("supplier").filter(
             status=ReorderRequest.STATUS_DRAFT
         ).order_by("-created_at")[:50]
@@ -1108,13 +1143,17 @@ def suppliers(request):
     # ----------------------------
     # TAB: REORDER REQUESTS
     # ----------------------------
+    requests_base_qs = ReorderRequest.objects.select_related("supplier").prefetch_related("items__product__category").annotate(
+        total_qty_to_order=Coalesce(Sum("items__qty_requested"), 0, output_field=IntegerField())
+    )
     if is_admin(request.user):
-        requests_qs = ReorderRequest.objects.all().order_by("created_at", "id")[:15]
+        requests_qs = requests_base_qs.order_by("created_at", "id")[:15]
     else:
-        requests_qs = ReorderRequest.objects.filter(created_by=request.user).order_by("created_at", "id")[:15]
+        requests_qs = requests_base_qs.filter(created_by=request.user).order_by("created_at", "id")[:15]
 
     context.update({
         "requests": requests_qs,
+        "products_for_rr_edit": Product.objects.filter(is_active=True).select_related("category").order_by("product_name"),
     })
     return render(request, "retail/suppliers.html", context)
 
@@ -1183,8 +1222,11 @@ def reorder_request_create_draft(request):
 def reorder_request_submit(request, rr_id):
     if request.method != "POST":
         return redirect("/suppliers/?tab=reorder-requests")
-    
-    rr = get_object_or_404(ReorderRequest, id=rr_id, created_by=request.user)
+
+    rr = get_object_or_404(ReorderRequest, id=rr_id)
+    if not is_admin(request.user) and rr.created_by_id != request.user.id:
+        messages.error(request, "Not authorized to submit this request.")
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if rr.status != ReorderRequest.STATUS_DRAFT:
         messages.error(request, "Only draft requests can be submitted.")
@@ -1195,6 +1237,126 @@ def reorder_request_submit(request, rr_id):
     rr.save(update_fields=["status", "submitted_at"])
 
     messages.success(request, f"RR-{rr.id} submitted to admin.")
+    return redirect("/suppliers/?tab=reorder-requests")
+
+
+def reorder_request_update(request, rr_id):
+    if request.method != "POST":
+        return redirect("/suppliers/?tab=reorder-requests")
+
+    rr = get_object_or_404(ReorderRequest, id=rr_id)
+    if not is_admin(request.user) and rr.created_by_id != request.user.id:
+        messages.error(request, "Not authorized to edit this request.")
+        return redirect("/suppliers/?tab=reorder-requests")
+    if rr.status not in (ReorderRequest.STATUS_DRAFT, ReorderRequest.STATUS_SUBMITTED):
+        messages.error(request, "Only draft or submitted requests can be edited.")
+        return redirect("/suppliers/?tab=reorder-requests")
+
+    save_action = (request.POST.get("save_action") or "draft").strip().lower()
+    supplier_id = (request.POST.get("supplier_id") or "").strip()
+
+    items = list(rr.items.select_related("product", "product__category"))
+    allowed_products = {p.id: p for p in Product.objects.filter(is_active=True).select_related("category", "supplier")}
+    qty_updates = []
+    product_updates = []
+    chosen_product_ids = set()
+    for it in items:
+        pid_raw = (request.POST.get(f"product_{it.id}") or "").strip()
+        try:
+            product_id = int(pid_raw) if pid_raw else int(it.product_id)
+        except (TypeError, ValueError):
+            messages.error(request, f"Invalid product selection for item #{it.id}.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        if product_id not in allowed_products:
+            messages.error(request, "Selected product is invalid or inactive.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        if product_id in chosen_product_ids:
+            messages.error(request, "Duplicate products are not allowed in one request.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        chosen_product_ids.add(product_id)
+
+        raw = (request.POST.get(f"qty_{it.id}") or "").strip()
+        try:
+            qty = int(raw)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            messages.error(request, f"Quantity for {it.product.product_name} must be at least 1.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        qty_updates.append((it, qty))
+        product_updates.append((it, product_id))
+
+    new_product_raw = (request.POST.get("new_product_id") or "").strip()
+    new_qty_raw = (request.POST.get("new_qty") or "").strip()
+    create_new_item = False
+    new_product = None
+    new_qty = 0
+    if new_product_raw:
+        try:
+            new_product_id = int(new_product_raw)
+            new_product = allowed_products.get(new_product_id)
+        except (TypeError, ValueError):
+            new_product = None
+        if not new_product:
+            messages.error(request, "Invalid new product selection.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        if new_product.id in chosen_product_ids:
+            messages.error(request, "That product is already in this request.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        try:
+            new_qty = int(new_qty_raw or "0")
+        except (TypeError, ValueError):
+            new_qty = 0
+        if new_qty <= 0:
+            messages.error(request, "Items must be at least 1 for a new product.")
+            return redirect("/suppliers/?tab=reorder-requests")
+        create_new_item = True
+
+    with transaction.atomic():
+        rr = ReorderRequest.objects.select_for_update().get(id=rr.id)
+        fields_to_update = []
+
+        if supplier_id:
+            supplier = Supplier.objects.filter(id=int(supplier_id), is_active=True).first()
+            if supplier and rr.supplier_id != supplier.id:
+                rr.supplier = supplier
+                fields_to_update.append("supplier")
+
+        if save_action == "submit":
+            rr.status = ReorderRequest.STATUS_SUBMITTED
+            rr.submitted_at = timezone.now()
+            fields_to_update.extend(["status", "submitted_at", "updated_at"])
+            success_msg = f"RR-{rr.id} updated and submitted to admin."
+        else:
+            rr.status = ReorderRequest.STATUS_DRAFT
+            rr.submitted_at = None
+            fields_to_update.extend(["status", "submitted_at", "updated_at"])
+            success_msg = f"RR-{rr.id} updated and saved as draft."
+
+        if fields_to_update:
+            rr.save(update_fields=list(dict.fromkeys(fields_to_update)))
+
+        for it, qty in qty_updates:
+            if it.qty_requested != qty:
+                it.qty_requested = qty
+                it.save(update_fields=["qty_requested"])
+        for it, product_id in product_updates:
+            if it.product_id != product_id:
+                it.product_id = product_id
+                if rr.supplier_id:
+                    it.supplier_id = rr.supplier_id
+                it.save(update_fields=["product", "supplier"])
+
+        if create_new_item and new_product:
+            ReorderRequestItem.objects.create(
+                request=rr,
+                product_id=new_product.id,
+                supplier_id=rr.supplier_id or new_product.supplier_id,
+                qty_requested=new_qty,
+                suggested_qty_snapshot=int(new_product.opening_stock or 0),
+            )
+
+    messages.success(request, success_msg)
     return redirect("/suppliers/?tab=reorder-requests")
 
 #Approve request (admin only) → creates Draft PO(s)
@@ -1229,11 +1391,15 @@ def reorder_request_approve(request, rr_id):
                 by_supplier.setdefault(it.supplier_id, []).append(it)
 
         for supplier_id, its in by_supplier.items():
+            supplier_obj = Supplier.objects.filter(id=supplier_id).only("lead_time_days").first()
+            lead_days = int(getattr(supplier_obj, "lead_time_days", 0) or 0)
+            order_date = timezone.localdate()
             po = PurchaseOrder.objects.create(
                 supplier_id=supplier_id,
                 status=PurchaseOrder.STATUS_PENDING,
                 created_by=request.user,
-                order_date=timezone.localdate(),
+                order_date=order_date,
+                delivery_date=order_date + timedelta(days=max(lead_days, 0)),
                 po_number=_next_po_number(),
             )
             total = Decimal("0.00")
@@ -1248,6 +1414,7 @@ def reorder_request_approve(request, rr_id):
                     po=po,
                     product=it.product,
                     qty_ordered=it.qty_requested,
+                    reorder_request=rr,
                     unit_cost=unit_cost,
                 )
                 if unit_cost is not None:

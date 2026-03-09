@@ -245,7 +245,13 @@
         {% if request.user.is_authenticated %}
           <div class="user-meta">
             <span class="user-name">{{ request.user.first_name|default:request.user.username }}</span>
-            <span class="user-role">Admin</span>
+            <span class="user-role">
+              {% if request.user.profile.role == "admin" %}
+                Admin
+              {% else %}
+                Staff
+              {% endif %}
+            </span>
           </div>
           <button id="userMenuBtn" class="avatar-btn" type="button" aria-label="Open account menu">
             {{ request.user.username|slice:":1"|upper }}
