@@ -8,650 +8,846 @@
       --charcoal:#404E5C;
       --berry:#AA4465;
       --cotton:#EDBFC6;
-
+      --mist:#F7F9FC;
       --border:#E5E7EB;
       --muted:#6B7280;
+      --ok:#2E7D32;
+      --warn:#F59E0B;
+      --danger:#C62828;
       --shadow-sm:0 1px 2px rgba(0,0,0,.05);
-      --shadow:0 10px 22px rgba(0,0,0,.10);
-      --radius:14px;
+      --shadow:0 10px 22px rgba(0,0,0,.08);
+      --radius:16px;
     }
 
     .dash-page-wrap{
-      max-width: 1600px;
-      margin: 0 auto;
-      padding-left: 30px;
+      width:min(calc(100vw - 32px), 1900px);
+      max-width:none;
+      margin-left:50%;
+      transform:translateX(-50%);
+      padding-left:0;
+      padding-right:0;
     }
     @media (max-width: 1200px){
-      .dash-page-wrap{ padding-left: 16px; }
+      .dash-page-wrap{
+        width:min(calc(100vw - 20px), 100%);
+      }
     }
 
     .page-head{
       background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-sm);
-      padding: 18px 18px;
-      margin-bottom: 14px;
-      text-align: center;
-    }
-    .page-title{
-      margin:0;
-      display:flex;
-      align-items:center;
-      justify-content: center;
-      gap:10px;
-      font-size: 1.35rem;
-      font-weight: 800;
-    }
-    .page-sub{ margin-top:6px; color: var(--muted); font-size: .92rem; }
-
-    .filter-row{
-      margin-top: 12px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .chip{
-      padding: .65rem 1rem;
-      border-radius: 12px;
-      font-weight: 800;
-      font-size: .82rem;
-      display:inline-flex;
-      align-items:center;
-      gap:.4rem;
       border:1px solid var(--border);
-      background: var(--white);
-      box-shadow: var(--shadow-sm);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-sm);
+      padding:22px 22px 18px;
+      margin-bottom:18px;
     }
-    .chip-warn{ background: #fff8e1; color: #f57f17; border-color:#ffd54f; }
-    .chip-danger{ background: #ffebee; color: #c62828; border-color:#ef9a9a; }
+    .page-title{ margin:0; display:flex; align-items:center; gap:10px; font-size:1.55rem; font-weight:900; color:var(--charcoal); }
+    .page-sub{ margin-top:6px; color:var(--muted); font-size:.94rem; max-width:900px; }
+    .filter-row{ margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .filter-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .head-summary{ margin-top:16px; }
+    .top-summary-row{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:16px;
+      align-items:start;
+      margin-bottom:16px;
+    }
+    .head-inventory{
+      background:linear-gradient(180deg, rgba(247,249,252,.98), rgba(255,255,255,1));
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:13px 14px;
+      width:380px;
+      min-height:145px;
+      box-shadow:var(--shadow-sm);
+    }
+    .head-inventory-alerts{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+    .head-inventory-summary{ margin-top:10px; color:var(--muted); font-size:.86rem; }
+    @media (max-width: 1180px){
+      .top-summary-row{ grid-template-columns:1fr; }
+      .head-inventory{ width:100%; min-height:auto; }
+    }
+    .chip{
+      padding:.5rem .82rem; border-radius:999px; font-weight:800; font-size:.76rem; display:inline-flex; align-items:center; gap:.4rem;
+      border:1px solid var(--border); background:var(--white); box-shadow:var(--shadow-sm); color:var(--charcoal);
+    }
+    .chip-forecast{ background:rgba(132,172,206,.18); color:var(--charcoal); }
+    .chip-ok{ background:rgba(46,125,50,.10); color:var(--ok); border-color:rgba(46,125,50,.28); }
+    .chip-warn{ background:#fff8e1; color:#ad6800; border-color:#ffd166; }
+    .chip-danger{ background:#ffebee; color:var(--danger); border-color:#ef9a9a; }
 
     input[type="date"]{
-      height: 40px;
-      line-height: 40px;
-      padding: 0 12px;
-      border: 1px solid #D1D5DB;
-      border-radius: 12px;
-      background: #FAFAFA;
-      font-size: .95rem;
-      outline: none;
+      height:40px; padding:0 12px; border:1px solid #D1D5DB; border-radius:12px; background:#FAFAFA; font-size:.95rem; outline:none;
     }
-
     .btn{
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-weight: 900;
-      cursor:pointer;
-      border: 1px solid transparent;
-      transition: opacity .15s ease, transform .15s ease;
-      user-select:none;
-      text-decoration:none;
+      display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; font-weight:900; cursor:pointer;
+      border:1px solid transparent; text-decoration:none; transition:opacity .15s ease, transform .15s ease;
     }
-    .btn:hover{ opacity:.93; transform: translateY(-1px); }
-    .btn-primary{ background: var(--berry); color: var(--white); }
-    .btn-soft{
-      background: rgba(132,172,206,.18);
-      border-color: rgba(132,172,206,.35);
-      color: var(--charcoal);
+    .btn:hover{ opacity:.94; transform:translateY(-1px); }
+    .btn-primary{ background:var(--berry); color:var(--white); }
+    .btn-soft{ background:rgba(132,172,206,.18); border-color:rgba(132,172,206,.35); color:var(--charcoal); }
+    .btn-inline{
+      padding:8px 11px;
+      border-radius:11px;
+      font-size:.88rem;
+      gap:6px;
+      line-height:1;
     }
 
-    .dash-section {
-      margin: 18px 0 8px 0;
+    .section-title{ margin:22px 0 10px; font-size:1.02rem; font-weight:900; color:var(--charcoal); display:flex; align-items:center; gap:8px; }
+    html{ scroll-behavior:smooth; }
+    .grid-2, .grid-3, .grid-4, .kpi-strip, .stack-grid, .metric-grid, .control-layout, .rail-stack, .kpi-groups{ display:grid; gap:16px; }
+    .grid-2{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .grid-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .grid-4{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
+    .kpi-groups{ grid-template-columns:repeat(3, max-content); justify-content:start; align-items:start; margin-bottom:0; }
+    .kpi-strip{
+      grid-template-columns:repeat(3, minmax(172px, 190px));
+      justify-content:start;
     }
-    .dash-section h2 {
-      font-size: 18px;
-      margin: 0 0 10px 0;
-      color: var(--charcoal);
-      font-weight: 900;
-    }
+    .control-layout{ grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .stack-grid{ grid-template-columns:1fr; }
+    .metric-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .rail-stack{ grid-template-columns:1fr; }
+    @media (max-width: 1500px){ .kpi-groups{ grid-template-columns:repeat(2, max-content); } .kpi-strip{ grid-template-columns:repeat(3, minmax(180px, 205px)); } }
+    @media (max-width: 1180px){ .grid-2, .grid-3, .grid-4, .stack-grid, .control-layout{ grid-template-columns:1fr; } }
+    @media (max-width: 760px){ .kpi-groups, .kpi-strip, .metric-grid{ grid-template-columns:1fr; } }
 
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
-      margin-bottom: 18px;
+    .panel, .card{
+      background:var(--white); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm);
     }
-    .kpi-card {
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      box-shadow: var(--shadow-sm);
+    .panel{ padding:18px; }
+    .card{ padding:16px; }
+    .best-seller-panel{
+      position:relative;
+      border:1px solid transparent;
+      background:
+        linear-gradient(var(--white), var(--white)) padding-box,
+        linear-gradient(135deg, rgba(237,191,198,.95), rgba(245,158,11,.72), rgba(46,125,50,.55), rgba(255,255,255,.98)) border-box;
     }
-    .kpi-label {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .kpi-value {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--charcoal);
-    }
-    .kpi-help {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
+    .panel-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px; }
+    .panel-title{ margin:0; font-size:1rem; font-weight:900; color:var(--charcoal); }
+    .panel-note{ color:var(--muted); font-size:.82rem; }
 
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 16px;
-      margin-top: 6px;
+    .metric-card{
+      padding:11px; min-height:96px; display:flex; flex-direction:column; justify-content:space-between;
+      background:linear-gradient(180deg, rgba(247,249,252,.96), rgba(255,255,255,1));
+      border:1px solid #DDE4EC; border-radius:var(--radius); box-shadow:var(--shadow-sm);
     }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      margin-top: 10px;
+    .metric-card.actual-surface{ background:linear-gradient(180deg, rgba(64,78,92,.05), rgba(255,255,255,1)); }
+    .metric-card.forecast-surface{ background:linear-gradient(180deg, rgba(132,172,206,.12), rgba(255,255,255,1)); }
+    .metric-card.berry-surface{ background:linear-gradient(180deg, rgba(170,68,101,.08), rgba(255,255,255,1)); }
+    .metric-card.warn-surface{ background:linear-gradient(180deg, rgba(245,158,11,.08), rgba(255,255,255,1)); }
+    .kpi-group-panel{ padding:14px; }
+    .kpi-group-title{
+      margin:0 0 12px;
+      font-size:.88rem;
+      font-weight:900;
+      color:var(--charcoal);
+      text-transform:uppercase;
+      letter-spacing:.04em;
     }
-    .panel {
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      box-shadow: var(--shadow-sm);
+    .metric-card.danger-surface{ background:linear-gradient(180deg, rgba(198,40,40,.06), rgba(255,255,255,1)); }
+    .metric-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+    .metric-heading{ display:flex; align-items:center; gap:12px; min-width:0; }
+    .metric-icon{
+      width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:.88rem; flex:0 0 34px;
     }
-    .panel-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--charcoal);
-      margin-bottom: 10px;
+    .metric-icon.actual{ background:rgba(64,78,92,.10); color:var(--charcoal); }
+    .metric-icon.forecast{ background:rgba(132,172,206,.18); color:var(--sky); }
+    .metric-icon.berry{ background:rgba(170,68,101,.14); color:var(--berry); }
+    .metric-icon.warn{ background:rgba(245,158,11,.14); color:var(--warn); }
+    .metric-icon.danger{ background:rgba(198,40,40,.12); color:var(--danger); }
+    .metric-label{ color:var(--muted); font-size:.69rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; line-height:1.25; }
+    .metric-body{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    .metric-value{ color:var(--charcoal); font-size:1.55rem; font-weight:900; line-height:1.02; }
+    .metric-subvalue{ color:var(--berry); font-size:.82rem; font-weight:900; line-height:1.15; }
+    .metric-subvalue.forecast-accent{ color:#5E8DB6; }
+    .metric-help{ color:var(--muted); font-size:.72rem; margin-top:5px; }
+    .metric-body.centered,
+    .metric-subvalue.centered{ justify-content:center; text-align:center; }
+    .metric-subvalue.centered{ width:100%; }
+    .metric-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:9px;
+      background:rgba(132,172,206,.14); color:var(--charcoal); font-size:.68rem; font-weight:900;
     }
+    .metric-badge.actual{ background:rgba(64,78,92,.08); color:var(--charcoal); }
+    .metric-badge.forecast{ background:rgba(132,172,206,.18); color:#4C7BA4; }
+    .metric-badge.warn{ background:rgba(245,158,11,.14); color:#ad6800; }
+    .metric-badge.berry{ background:rgba(170,68,101,.12); color:var(--berry); }
 
-    .status-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 10px;
+    .spotlight-card{
+      position:relative;
+      overflow:hidden;
+      padding:20px;
+      background:
+        radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 30%),
+        linear-gradient(135deg, #AA4465, #8E3A57 58%, #7E314A);
+      color:var(--white);
+      border:1px solid rgba(126,49,74,.28);
+      box-shadow:var(--shadow);
+      transition:transform .22s ease, box-shadow .22s ease;
     }
-    .status-pill {
-      padding: 10px 12px;
-      border-radius: 12px;
-      text-align: center;
-      font-weight: 900;
-      font-size: 13px;
+    .spotlight-card::after{
+      content:"";
+      position:absolute;
+      inset:-35%;
+      background:linear-gradient(115deg, transparent 35%, rgba(255,255,255,.14) 48%, rgba(255,255,255,.34) 50%, rgba(255,255,255,.14) 52%, transparent 65%);
+      transform:translateX(-145%) rotate(8deg);
+      pointer-events:none;
     }
-    .status-ok { background: #e8f5e9; color: #2e7d32; }
-    .status-low { background: #fff8e1; color: #f57f17; }
-    .status-out { background: #ffebee; color: #c62828; }
+    .spotlight-card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 14px 28px rgba(126,49,74,.22);
+    }
+    .spotlight-card:hover::after{
+      transition:transform .9s ease;
+      transform:translateX(145%) rotate(8deg);
+    }
+    .spotlight-card .panel-title,
+    .spotlight-card .panel-note{ color:var(--white); }
+    .spotlight-card .panel-note{ opacity:.84; }
+    .spotlight-badge{
+      display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px;
+      background:rgba(255,255,255,.18); color:var(--white); font-size:.76rem; font-weight:900;
+    }
+    .spotlight-value{ font-size:1.7rem; font-weight:900; margin-top:16px; }
+    .spotlight-sub{ margin-top:4px; font-size:.9rem; opacity:.9; }
+    .spotlight-date{ font-size:.86rem; opacity:.85; margin-top:4px; }
+    .spotlight-grid{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-top:18px; }
+    .spotlight-stat{
+      background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:12px;
+    }
+    .spotlight-stat .label{ font-size:.74rem; font-weight:800; opacity:.8; text-transform:uppercase; color:rgba(255,255,255,.82); }
+    .spotlight-stat .value{ font-size:1.1rem; font-weight:900; margin-top:6px; }
+    .spotlight-list{ margin-top:18px; }
+    .spotlight-list-title{ font-size:.86rem; font-weight:900; margin-bottom:10px; }
+    .spotlight-row{ display:flex; justify-content:space-between; gap:10px; font-size:.9rem; padding:2px 0; }
 
-    .status-bar {
-      height: 10px;
-      border-radius: 999px;
-      overflow: hidden;
-      display: flex;
-      background: #e2e8f0;
+    .inventory-card{
+      background:
+        radial-gradient(circle at top right, rgba(132,172,206,.14), transparent 28%),
+        linear-gradient(180deg, rgba(247,249,252,.98), rgba(255,255,255,1));
     }
-    .bar-ok { background: #22c55e; }
-    .bar-low { background: #f59e0b; }
-    .bar-out { background: #ef4444; }
+    .soft-card-sky{ background:linear-gradient(180deg, rgba(132,172,206,.10), rgba(255,255,255,1)); }
+    .soft-card-ok{ background:linear-gradient(180deg, rgba(46,125,50,.08), rgba(255,255,255,1)); }
+    .soft-card-berry{ background:linear-gradient(180deg, rgba(170,68,101,.08), rgba(255,255,255,1)); }
+    .soft-card-warn{ background:linear-gradient(180deg, rgba(245,158,11,.08), rgba(255,255,255,1)); }
+    .status-bar{ display:flex; height:10px; border-radius:999px; overflow:hidden; background:#E5E7EB; margin-top:14px; }
+    .bar-ok{ background:#22c55e; }
+    .bar-low{ background:#f59e0b; }
+    .bar-out{ background:#ef4444; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .95rem;
-    }
-    .table-wrap{
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-    }
-    .table-scroll-5{
-      max-height: 260px;
-      overflow-y: auto;
-    }
-    th, td {
-      text-align: left;
-      padding: 12px;
-      border-bottom: 1px solid #F0F0F0;
-    }
-    th {
-      color: var(--charcoal);
-      font-weight: 900;
-      background: #FAFAFA;
-    }
-    .badge {
-      display: inline-block;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: .78rem;
-      font-weight: 900;
-    }
-    .badge-ok { background: #e8f5e9; color: #2e7d32; }
-    .badge-low { background: #fff8e1; color: #f57f17; }
-    .badge-out { background: #ffebee; color: #c62828; }
+    .chart-wrap{ height:360px; }
+    .chart-wrap.sm{ height:280px; }
 
-    @media (max-width: 1100px) {
-      .grid-2 { grid-template-columns: 1fr; }
+    .table-wrap{ border:1px solid var(--border); border-radius:14px; overflow:auto; }
+    table{ width:100%; border-collapse:collapse; font-size:.94rem; }
+    th, td{ text-align:left; padding:12px; border-bottom:1px solid #EEF2F7; }
+    th{ background:#FAFAFA; color:var(--charcoal); font-weight:900; }
+    td{ color:#334155; }
+    tr:last-child td{ border-bottom:none; }
+    .muted{ color:var(--muted); }
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-size:.76rem; font-weight:900; white-space:nowrap;
     }
-    .chart-wrap {
-      height: 260px;
+    .pill-berry{ background:rgba(170,68,101,.12); color:var(--berry); }
+    .pill-sky{ background:rgba(132,172,206,.18); color:var(--charcoal); }
+    .pill-ok{ background:rgba(46,125,50,.12); color:var(--ok); }
+    .pill-warn{ background:rgba(245,158,11,.14); color:#ad6800; }
+    .pill-danger{ background:rgba(198,40,40,.12); color:var(--danger); }
+    .empty-state{
+      padding:18px; border:1px dashed var(--border); border-radius:14px; background:var(--mist); color:var(--muted); font-weight:700;
     }
-    .chart-note {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 8px;
+    .month-category-list{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px 12px;
+      font-size:.78rem;
+      color:var(--muted);
+    }
+    .month-category-item strong{
+      color:var(--charcoal);
+      margin-right:6px;
     }
   </style>
 
   <div class="dash-page-wrap">
     <div class="page-head">
-      <h1 class="page-title"><i class="fa-solid fa-chart-line"></i> Business Snapshot</h1>
-      <div class="page-sub">
-        Last {{ range_days }} days ({{ since_date|date:"M d, Y" }} – {{ today_date|date:"M d, Y" }})
-      </div>
-
-      <div class="filter-row">
-        <form method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;">
-          <label for="start" class="chip">From</label>
-          <input id="start" name="start" type="date" value="{{ start_date|date:'Y-m-d' }}">
-          <label for="end" class="chip">To</label>
-          <input id="end" name="end" type="date" value="{{ end_date|date:'Y-m-d' }}">
-          <button type="submit" class="btn btn-primary">Apply</button>
-        </form>
-        <span class="chip chip-warn">Low stock: &le; 4</span>
-        <span class="chip chip-danger">Out of stock: 0</span>
-      </div>
-    </div>
-
-    <div class="dash-section">
-      <h2>Sales (last 30 days)</h2>
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Total Revenue (Net)</div>
-          <div class="kpi-value">MUR {{ total_revenue|floatformat:2 }}</div>
-          <div class="kpi-help">Across {{ orders_count }} orders</div>
+      <div class="head-summary">
+        <h1 class="page-title"><i class="fa-solid fa-store"></i> Retail Forecast Dashboard</h1>
+        <div class="page-sub">
+          Control-center view of actual sales, festive demand, category movement, and stock risk from {{ since_date|date:"M d, Y" }} to {{ today_date|date:"M d, Y" }}.
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Units Sold</div>
-          <div class="kpi-value">{{ total_units }}</div>
-          <div class="kpi-help">Avg basket {{ avg_basket_size|floatformat:2 }}</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Average Order Value</div>
-          <div class="kpi-value">MUR {{ avg_order_value|floatformat:2 }}</div>
-          <div class="kpi-help">Based on net totals</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Promo Share</div>
-          <div class="kpi-value">{{ promo_share|floatformat:1 }}%</div>
-          <div class="kpi-help">Discount rate {{ discount_rate|floatformat:1 }}%</div>
+        <div class="filter-row">
+          <form method="get" class="filter-form">
+            <label for="start" class="chip">From</label>
+            <input id="start" name="start" type="date" value="{{ start_date|date:'Y-m-d' }}">
+            <label for="end" class="chip">To</label>
+            <input id="end" name="end" type="date" value="{{ end_date|date:'Y-m-d' }}">
+            <button type="submit" class="btn btn-primary">Apply</button>
+          </form>
         </div>
       </div>
     </div>
 
-    <div class="dash-section">
-      <h2>Monthly Performance</h2>
-      {% if has_daily_sales %}
-        <div class="grid-3">
-          <div class="panel">
-            <div class="panel-title">Revenue by Month</div>
-            <div class="chart-wrap"><canvas id="revByMonth"></canvas></div>
+    <div class="top-summary-row">
+      <div class="kpi-groups">
+        <div class="panel kpi-group-panel">
+          <h2 class="kpi-group-title">Sales</h2>
+          <div class="kpi-strip">
+          <div class="metric-card actual-surface">
+            <div class="metric-top">
+              <div class="metric-heading">
+                <div class="metric-icon actual"><i class="fa-solid fa-cash-register"></i></div>
+              </div>
+              <span class="metric-badge actual">Sales Today</span>
+            </div>
+            <div class="metric-body centered">
+              <div class="metric-value">{{ sales_today_count }}</div>
+            </div>
+            <div class="metric-subvalue centered">MUR {{ sales_today_revenue|floatformat:2 }}</div>
           </div>
-          <div class="panel">
-            <div class="panel-title">Orders by Month</div>
-            <div class="chart-wrap"><canvas id="ordersByMonth"></canvas></div>
+          <div class="metric-card actual-surface">
+            <div class="metric-top">
+              <div class="metric-heading">
+                <div class="metric-icon actual"><i class="fa-solid fa-calendar-week"></i></div>
+              </div>
+              <span class="metric-badge actual">Sales This Week</span>
+            </div>
+            <div class="metric-body centered">
+              <div class="metric-value">{{ sales_week_count }}</div>
+            </div>
+            <div class="metric-subvalue centered">MUR {{ sales_week_revenue|floatformat:2 }}</div>
           </div>
-          <div class="panel">
-            <div class="panel-title">Units by Month</div>
-            <div class="chart-wrap"><canvas id="unitsByMonth"></canvas></div>
+          <div class="metric-card berry-surface">
+            <div class="metric-top">
+              <div class="metric-heading">
+                <div class="metric-icon berry"><i class="fa-solid fa-chart-line"></i></div>
+              </div>
+              <span class="metric-badge berry">Sales This Month</span>
+            </div>
+            <div class="metric-body centered">
+              <div class="metric-value">{{ sales_month_count }}</div>
+            </div>
+            <div class="metric-subvalue centered">MUR {{ sales_month_revenue|floatformat:2 }}</div>
+          </div>
           </div>
         </div>
-      {% else %}
-        <div class="panel">
-          <div class="panel-title">No daily sales data</div>
-          <div class="chart-note">Run the daily sales build command to populate charts.</div>
+
+        <div class="panel kpi-group-panel">
+          <h2 class="kpi-group-title">Forecast</h2>
+          <div class="kpi-strip" style="grid-template-columns:repeat(2, minmax(172px, 190px));">
+          <div class="metric-card forecast-surface">
+            <div class="metric-top">
+              <div class="metric-heading">
+                <div class="metric-icon forecast"><i class="fa-solid fa-signal"></i></div>
+              </div>
+              <span class="metric-badge forecast">Next 7 Days</span>
+            </div>
+            <div class="metric-body centered">
+              <div class="metric-value">{{ forecast_next_week_units|floatformat:0 }}</div>
+            </div>
+            <div class="metric-subvalue forecast-accent centered">units</div>
+          </div>
+          <div class="metric-card forecast-surface">
+            <div class="metric-top">
+              <div class="metric-heading">
+                <div class="metric-icon forecast"><i class="fa-regular fa-clock"></i></div>
+              </div>
+              <span class="metric-badge forecast">Next 30 Days</span>
+            </div>
+            <div class="metric-body centered">
+              <div class="metric-value">{{ forecast_next_30_units|floatformat:0 }}</div>
+            </div>
+            <div class="metric-subvalue forecast-accent centered">units</div>
+          </div>
         </div>
-      {% endif %}
+        </div>
+
+        <div class="head-inventory">
+          <div class="panel-head" style="margin-bottom:0;">
+            <div>
+              <h2 class="panel-title">Inventory Health</h2>
+              <div class="panel-note">Current stock position across active products.</div>
+            </div>
+            <a href="#inventory-watch-list" class="btn btn-soft btn-inline"><i class="fa-solid fa-table-list"></i> View</a>
+          </div>
+          <div class="head-inventory-alerts">
+            <span class="chip chip-ok">In stock: {{ ok_stock_count }}</span>
+            <span class="chip chip-warn">Low stock: {{ low_stock_count }}</span>
+            <span class="chip chip-danger">Out of stock: {{ out_of_stock_count }}</span>
+          </div>
+          <div class="head-inventory-summary">{{ total_skus }} active SKUs monitored across current inventory.</div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="dash-section">
-      <h2>Efficiency & Promo</h2>
-      {% if has_daily_sales %}
+    <div class="control-layout">
+      <div style="display:grid; gap:16px;">
         <div class="grid-2">
           <div class="panel">
-            <div class="panel-title">Average Daily Sales by Month</div>
-            <div class="chart-wrap"><canvas id="avgDailyByMonth"></canvas></div>
+            <div class="panel-head">
+              <div>
+                <h2 class="panel-title">Sales Trend</h2>
+                <div class="panel-note">Actual sales trend for the selected date range.</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                <span class="pill pill-berry">Selected Range</span>
+                <span class="pill pill-sky">MUR {{ total_revenue|floatformat:2 }}</span>
+              </div>
+            </div>
+            {% if has_daily_sales %}
+              <div class="chart-wrap"><canvas id="actualSalesChart"></canvas></div>
+            {% else %}
+              <div class="empty-state">No daily sales data is available for the selected date range.</div>
+            {% endif %}
           </div>
-          <div class="panel">
-            <div class="panel-title">Promo vs Non‑Promo Revenue</div>
-            <div class="chart-wrap"><canvas id="promoVsNon"></canvas></div>
-          </div>
-        </div>
-      {% else %}
-        <div class="panel">
-          <div class="panel-title">No daily sales data</div>
-          <div class="chart-note">Run the daily sales build command to populate charts.</div>
-        </div>
-      {% endif %}
-    </div>
 
-    <div class="dash-section">
-      <h2>Category Trends</h2>
-      {% if has_daily_sales %}
-        <div class="grid-2">
           <div class="panel">
-            <div class="panel-title">Top Categories Trend (Stacked)</div>
-            <div class="chart-wrap"><canvas id="catTrend"></canvas></div>
+            <div class="panel-head">
+              <div>
+                <h2 class="panel-title">Forecast Sales</h2>
+                <div class="panel-note">Upcoming forecast sales for the latest forecast horizon.</div>
+              </div>
+              <span class="pill pill-sky">Forecast</span>
+            </div>
+            {% if forecast_available %}
+              <div class="chart-wrap"><canvas id="forecastTrendChart"></canvas></div>
+            {% else %}
+              <div class="empty-state">No forecast run is loaded for the forecast sales chart.</div>
+            {% endif %}
           </div>
-          <div class="panel">
-            <div class="panel-title">Best‑Selling Category by Month</div>
-            <div class="table-wrap table-scroll-5">
+        </div>
+
+        <div class="grid-4">
+          <div class="panel best-seller-panel">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Best Sellers</h3>
+                <div class="panel-note">Top products across the selected date range.</div>
+              </div>
+              <span class="pill pill-berry">Selected Range</span>
+            </div>
+            <div class="table-wrap">
               <table>
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Category</th>
-                    <th>Revenue</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>SKU</th><th>Product</th><th>Units</th></tr></thead>
                 <tbody>
-                  {% for row in best_cat_rows %}
-                    <tr>
-                      <td>{{ row.month }}</td>
-                      <td>{{ row.category }}</td>
-                      <td>MUR {{ row.revenue|floatformat:2 }}</td>
-                    </tr>
+                  {% for row in best_selected_range %}
+                    <tr><td>{{ row.product__sku }}</td><td>{{ row.product__product_name }}</td><td>{{ row.qty }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="muted">No sales recorded in the selected range.</td></tr>
                   {% endfor %}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      {% else %}
-        <div class="panel">
-          <div class="panel-title">No daily sales data</div>
-          <div class="chart-note">Run the daily sales build command to populate charts.</div>
-        </div>
-      {% endif %}
-    </div>
 
-    <div class="dash-section">
-      <h2>Category Mix (Revenue Share)</h2>
-      {% if has_daily_sales %}
-        <div class="panel">
-          <div class="chart-wrap"><canvas id="categoryMix"></canvas></div>
-          <div class="chart-note">Top categories shown. Remaining grouped as “Other”.</div>
-        </div>
-      {% else %}
-        <div class="panel">
-          <div class="panel-title">No daily sales data</div>
-          <div class="chart-note">Run the daily sales build command to populate charts.</div>
-        </div>
-      {% endif %}
-    </div>
-
-    <div class="dash-section">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <h2>Inventory (current)</h2>
-        <a href="{% url 'inventory' %}?status=LowOut" class="btn btn-soft">
-          <i class="fa-solid fa-filter"></i> View low &amp; out stock
-        </a>
-      </div>
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Active SKUs</div>
-          <div class="kpi-value">{{ total_skus }}</div>
-          <div class="kpi-help">All active products</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Units on Hand</div>
-          <div class="kpi-value">{{ total_units_on_hand }}</div>
-          <div class="kpi-help">Total quantity in stock</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Stock Value</div>
-          <div class="kpi-value">MUR {{ stock_value|floatformat:2 }}</div>
-          <div class="kpi-help">Qty × selling price</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Needs Restock</div>
-          <div class="kpi-value">{{ low_stock_count|add:out_of_stock_count }}</div>
-          <div class="kpi-help">{{ low_stock_count }} low / {{ out_of_stock_count }} out</div>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-title">Stock Level Status</div>
-          <div class="status-row">
-            <div class="status-pill status-ok">OK: {{ ok_stock_count }}</div>
-            <div class="status-pill status-low">Low: {{ low_stock_count }}</div>
-            <div class="status-pill status-out">Out: {{ out_of_stock_count }}</div>
+          <div class="panel best-seller-panel">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Best Sellers</h3>
+                <div class="panel-note">Current products leading unit sales this week.</div>
+              </div>
+              <span class="pill pill-berry">This Week</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>SKU</th><th>Product</th><th>Units</th></tr></thead>
+                <tbody>
+                  {% for row in best_this_week %}
+                    <tr><td>{{ row.product__sku }}</td><td>{{ row.product__product_name }}</td><td>{{ row.qty }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="muted">No sales recorded this week.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="status-bar" aria-label="Stock status distribution">
-            <div class="bar-ok" style="width: {{ ok_pct }}%"></div>
-            <div class="bar-low" style="width: {{ low_pct }}%"></div>
-            <div class="bar-out" style="width: {{ out_pct }}%"></div>
+
+          <div class="panel best-seller-panel">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Best Sellers</h3>
+                <div class="panel-note">Highest predicted demand from the latest forecast.</div>
+              </div>
+              <span class="pill pill-sky">Next Week</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>SKU</th><th>Product</th><th>Forecast</th></tr></thead>
+                <tbody>
+                  {% for row in predicted_next_week %}
+                    <tr><td>{{ row.product__sku }}</td><td>{{ row.product__product_name }}</td><td>{{ row.qty|floatformat:1 }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="muted">No forecast best sellers available.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="kpi-help" style="margin-top: 8px;">
-            OK {{ ok_pct }}% • Low {{ low_pct }}% • Out {{ out_pct }}%
+
+          <div class="panel spotlight-card">
+            <div class="panel-head">
+              <div>
+                <h2 class="panel-title">Festival Demand Forecast</h2>
+              </div>
+              {% if forecast_available %}
+                <span class="spotlight-badge">Latest Forecast</span>
+              {% endif %}
+            </div>
+            {% if forecast_available %}
+              <div class="spotlight-value">
+                {% if next_festival %}
+                  {{ next_festival.festival_name }}
+                {% else %}
+                  Forecast Window
+                {% endif %}
+              </div>
+              <div class="spotlight-date">
+                {% if next_festival %}
+                  {{ next_festival.start_date|date:"M d, Y" }} - {{ next_festival.end_date|date:"M d, Y" }}
+                {% else %}
+                  {{ forecast_anchor|date:"M d, Y" }}{% if upcoming_closed_days %}{% with last_closed=upcoming_closed_days|last %} - {{ last_closed }}{% endwith %}{% endif %}
+                {% endif %}
+              </div>
+              <div class="spotlight-sub">Prepare for the upcoming festive demand window.</div>
+              <div class="spotlight-grid">
+                <div class="spotlight-stat">
+                  <div class="label">Predicted Demand</div>
+                  <div class="value">
+                    {{ forecast_next_week_units|floatformat:0 }} units
+                  </div>
+                </div>
+                <div class="spotlight-stat">
+                  <div class="label">Top Forecast Category</div>
+                  <div class="value">
+                    {% if forecast_category_labels %}
+                      {{ forecast_category_labels.0 }}
+                    {% else %}
+                      Not available
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              <div class="spotlight-list">
+                <div class="spotlight-list-title">Predicted Best Sellers:</div>
+                <div class="spotlight-row">
+                  <span>
+                    {% if predicted_next_week|length > 0 %}
+                      {{ predicted_next_week.0.product__product_name }}
+                    {% else %}
+                      No forecast yet
+                    {% endif %}
+                  </span>
+                  <strong>
+                    {% if predicted_next_week|length > 0 %}
+                      Est. {{ predicted_next_week.0.qty|floatformat:1 }} units
+                    {% endif %}
+                  </strong>
+                </div>
+                <div class="spotlight-row">
+                  <span>
+                    {% if predicted_next_week|length > 1 %}
+                      {{ predicted_next_week.1.product__product_name }}
+                    {% endif %}
+                  </span>
+                  <strong>
+                    {% if predicted_next_week|length > 1 %}
+                      Est. {{ predicted_next_week.1.qty|floatformat:1 }} units
+                    {% endif %}
+                  </strong>
+                </div>
+                <div class="spotlight-row">
+                  <span>
+                    {% if predicted_next_week|length > 2 %}
+                      {{ predicted_next_week.2.product__product_name }}
+                    {% endif %}
+                  </span>
+                  <strong>
+                    {% if predicted_next_week|length > 2 %}
+                      Est. {{ predicted_next_week.2.qty|floatformat:1 }} units
+                    {% endif %}
+                  </strong>
+                </div>
+              </div>
+            {% else %}
+              <div class="empty-state">
+                Import a forecast run to activate the forecast spotlight.
+              </div>
+            {% endif %}
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-title">Top Sellers (last 30 days)</div>
-          <table>
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Product</th>
-                <th>Units</th>
-                <th>Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in top_sellers %}
-                <tr>
-                  <td>{{ row.product__sku }}</td>
-                  <td>{{ row.product__product_name }}</td>
-                  <td>{{ row.units }}</td>
-                  <td>MUR {{ row.revenue|floatformat:2 }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="4">No sales yet.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Top 3 Categories By Month</h3>
+                <div class="panel-note">Each month shows its own top 3 selling categories.</div>
+              </div>
+              <span class="pill pill-sky">Monthly</span>
+            </div>
+            {% if monthly_category_labels %}
+              <div class="chart-wrap sm"><canvas id="categoryMonthlyChart"></canvas></div>
+              <div class="month-category-list">
+                {% for item in monthly_top_category_summary %}
+                  <div class="month-category-item">
+                    <strong>{{ item.month }}</strong>
+                    {{ item.categories|join:", "|default:"No category data" }}
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="empty-state">No category sales data available.</div>
+            {% endif %}
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Category Weekly Performance</h3>
+                <div class="panel-note">This week category performance by units sold.</div>
+              </div>
+              <span class="pill pill-berry">This Week</span>
+            </div>
+            {% if weekly_category_labels %}
+              <div class="chart-wrap sm"><canvas id="categoryWeeklyChart"></canvas></div>
+            {% else %}
+              <div class="empty-state">No weekly category sales data available.</div>
+            {% endif %}
+          </div>
         </div>
-      </div>
+
+        <div id="inventory-watch-list" style="display:grid; gap:16px;">
+            <div class="section-title"><i class="fa-solid fa-box-open"></i> Stock Attention</div>
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3 class="panel-title">Current And Upcoming Stock Issues</h3>
+                  <div class="panel-note">Low stock, out-of-stock, and forecast risk items in one view.</div>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <span class="pill pill-ok">{{ ok_stock_count }} in stock</span>
+                  <span class="pill pill-warn">{{ low_stock_count }} low</span>
+                  <span class="pill pill-danger">{{ out_of_stock_count }} out</span>
+                  <span class="pill pill-warn">{{ at_risk_products|length }} at risk</span>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Stock</th><th>Forecast</th><th>Gap</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {% for row in stock_attention_rows %}
+                      <tr>
+                        <td>{{ row.sku }}</td>
+                        <td>{{ row.product }}</td>
+                        <td>{{ row.category|default:"-" }}</td>
+                        <td>
+                          {% if row.stock == 0 %}
+                            <span class="pill pill-danger">0</span>
+                          {% else %}
+                            <span class="pill {% if row.stock <= 4 %}pill-warn{% else %}pill-ok{% endif %}">{{ row.stock }}</span>
+                          {% endif %}
+                        </td>
+                        <td>{% if row.forecast_qty != None %}{{ row.forecast_qty|floatformat:1 }}{% else %}-{% endif %}</td>
+                        <td>{% if row.gap != None %}<span class="pill pill-warn">{{ row.gap|floatformat:1 }}</span>{% else %}-{% endif %}</td>
+                        <td>
+                          <span class="pill {% if row.status_tone == 'danger' %}pill-danger{% elif row.status_tone == 'warn' %}pill-warn{% else %}pill-ok{% endif %}">
+                            {{ row.status }}
+                          </span>
+                        </td>
+                      </tr>
+                    {% empty %}
+                      <tr><td colspan="7" class="muted">No current or upcoming stock issues detected.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
     </div>
-
-    <div class="dash-section">
-      <div class="panel">
-        <div class="panel-title">Low / Out of Stock Items</div>
-        <table>
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>Product</th>
-              <th>Category</th>
-              <th>Qty</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in low_stock_items %}
-              <tr>
-                <td><a href="{% url 'inventory' %}?q={{ p.sku }}" style="color:#0f172a; font-weight:700; text-decoration:underline;">{{ p.sku }}</a></td>
-                <td><a href="{% url 'inventory' %}?q={{ p.sku }}" style="color:#0f172a; text-decoration:none;">{{ p.product_name }}</a></td>
-                <td>{{ p.category.category_name }}</td>
-                <td>{{ p.qty_in_stock }}</td>
-                <td>
-                  {% if p.qty_in_stock == 0 %}
-                    <a class="badge badge-out" href="{% url 'inventory' %}?q={{ p.sku }}&status=Out">Out</a>
-                  {% elif p.qty_in_stock <= 4 %}
-                    <a class="badge badge-low" href="{% url 'inventory' %}?q={{ p.sku }}&status=Low">Low</a>
-                  {% else %}
-                    <span class="badge badge-ok">OK</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5">No low or out-of-stock items.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
 
-  {{ month_labels|json_script:"month-labels" }}
-  {{ revenue_series|json_script:"revenue-series" }}
-  {{ orders_series|json_script:"orders-series" }}
-  {{ units_series|json_script:"units-series" }}
-  {{ avg_daily_series|json_script:"avg-daily-series" }}
-  {{ promo_series|json_script:"promo-series" }}
-  {{ nonpromo_series|json_script:"nonpromo-series" }}
-  {{ top_cat_names|json_script:"top-cat-names" }}
-  {{ top_cat_series|json_script:"top-cat-series" }}
-  {{ cat_labels|json_script:"cat-labels" }}
-  {{ cat_values|json_script:"cat-values" }}
+  {{ actual_daily_labels|json_script:"actual-daily-labels" }}
+  {{ actual_daily_revenue|json_script:"actual-daily-revenue" }}
+  {{ actual_daily_units|json_script:"actual-daily-units" }}
+  {{ forecast_daily_labels|json_script:"forecast-daily-labels" }}
+  {{ forecast_daily_units|json_script:"forecast-daily-units" }}
+  {{ monthly_category_labels|json_script:"monthly-category-labels" }}
+  {{ monthly_top_category_datasets|json_script:"monthly-top-category-datasets" }}
+  {{ weekly_category_labels|json_script:"weekly-category-labels" }}
+  {{ weekly_category_values|json_script:"weekly-category-values" }}
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     (function () {
-      const getData = (id) => JSON.parse(document.getElementById(id).textContent || "[]");
-      const labels = getData("month-labels");
-      const revenue = getData("revenue-series");
-      const orders = getData("orders-series");
-      const units = getData("units-series");
-      const avgDaily = getData("avg-daily-series");
-      const promoSeries = getData("promo-series");
-      const nonpromoSeries = getData("nonpromo-series");
-      const topCatNames = getData("top-cat-names");
-      const topCatSeries = getData("top-cat-series");
-      const catLabels = getData("cat-labels");
-      const catValues = getData("cat-values");
-
+      const getData = (id) => JSON.parse(document.getElementById(id)?.textContent || "[]");
       const axisCommon = {
-        grid: { color: "rgba(148, 163, 184, 0.25)" },
+        grid: { color: "rgba(148, 163, 184, 0.20)" },
         ticks: { color: "#475569", font: { size: 11 } }
       };
+      const palette = {
+        charcoal: "#404E5C",
+        sky: "#84ACCE",
+        berry: "#AA4465",
+        cotton: "#EDBFC6",
+        amber: "#F59E0B",
+        green: "#2E7D32",
+      };
 
-      const makeLine = (ctx, label, data, color) => new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [{
-            label,
-            data,
-            borderColor: color,
-            backgroundColor: color + "55",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 2,
-            pointHoverRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { x: axisCommon, y: axisCommon }
-        }
-      });
+      const actualLabels = getData("actual-daily-labels");
+      const actualRevenue = getData("actual-daily-revenue");
+      const actualUnits = getData("actual-daily-units");
+      const forecastLabels = getData("forecast-daily-labels");
+      const forecastUnits = getData("forecast-daily-units");
+      const monthlyCategoryLabels = getData("monthly-category-labels");
+      const monthlyTopCategoryDatasets = getData("monthly-top-category-datasets");
+      const weeklyCategoryLabels = getData("weekly-category-labels");
+      const weeklyCategoryValues = getData("weekly-category-values");
 
-      const makeBar = (ctx, label, data, color) => new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels,
-          datasets: [{
-            label,
-            data,
-            backgroundColor: color,
-            borderRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { x: axisCommon, y: axisCommon }
-        }
-      });
-
-      const revEl = document.getElementById("revByMonth");
-      const ordersEl = document.getElementById("ordersByMonth");
-      const unitsEl = document.getElementById("unitsByMonth");
-      const avgDailyEl = document.getElementById("avgDailyByMonth");
-      const promoEl = document.getElementById("promoVsNon");
-      const catTrendEl = document.getElementById("catTrend");
-      const catEl = document.getElementById("categoryMix");
-
-      // pastel palette aligned with the rest of the UI
-      if (revEl) makeLine(revEl, "Revenue", revenue, "#b48ead");
-      if (ordersEl) makeBar(ordersEl, "Orders", orders, "#8bbbd9");
-      if (unitsEl) makeBar(unitsEl, "Units", units, "#9fd1b2");
-      if (avgDailyEl) makeLine(avgDailyEl, "Avg Daily Sales", avgDaily, "#c6d6f5");
-
-      if (promoEl) {
-        new Chart(promoEl, {
-          type: "bar",
-          data: {
-            labels,
-            datasets: [
-              { label: "Promo", data: promoSeries, backgroundColor: "#f2c3a7", borderRadius: 6 },
-              { label: "Non‑Promo", data: nonpromoSeries, backgroundColor: "#9fd1b2", borderRadius: 6 }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: "bottom" } },
-            scales: { x: { stacked: true, ...axisCommon }, y: { stacked: true, ...axisCommon } }
-          }
-        });
-      }
-
-      if (catTrendEl && topCatNames.length) {
-        const colors = ["#b48ead", "#8bbbd9", "#9fd1b2", "#f2c3a7", "#c6d6f5"];
-        const datasets = topCatNames.map((name, idx) => ({
-          label: name,
-          data: topCatSeries[idx] || [],
-          borderColor: colors[idx % colors.length],
-          backgroundColor: colors[idx % colors.length] + "55",
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0
-        }));
-        new Chart(catTrendEl, {
+      const actualEl = document.getElementById("actualSalesChart");
+      if (actualEl && actualLabels.length) {
+        new Chart(actualEl, {
           type: "line",
-          data: { labels, datasets },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: "bottom" } },
-            scales: { x: axisCommon, y: { stacked: true, ...axisCommon } }
-          }
-        });
-      }
-
-      if (catEl) {
-        const colors = ["#b48ead", "#8bbbd9", "#9fd1b2", "#f2c3a7", "#f1d1e8", "#c6d6f5", "#f8e0a6"];
-        new Chart(catEl, {
-          type: "doughnut",
           data: {
-            labels: catLabels,
+            labels: actualLabels,
             datasets: [{
-              data: catValues,
-              backgroundColor: colors.slice(0, catLabels.length),
-              borderWidth: 0
+              label: "Sales count",
+              data: actualUnits,
+              borderColor: palette.berry,
+              backgroundColor: "rgba(170,68,101,.08)",
+              fill: true,
+              tension: .32,
+              pointRadius: 2,
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: "bottom" } },
-            cutout: "62%"
+            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true } }
+          }
+        });
+      }
+
+      const forecastEl = document.getElementById("forecastTrendChart");
+      if (forecastEl && forecastLabels.length) {
+        new Chart(forecastEl, {
+          type: "line",
+          data: {
+            labels: forecastLabels,
+            datasets: [{
+              label: "Forecast units",
+              data: forecastUnits,
+              borderColor: palette.sky,
+              backgroundColor: "rgba(132,172,206,.14)",
+              borderDash: [6, 5],
+              fill: true,
+              tension: .32,
+              pointRadius: forecastUnits.map((value) => value === 0 ? 4 : 2),
+              pointBackgroundColor: forecastUnits.map((value) => value === 0 ? palette.berry : palette.sky),
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true } }
+          }
+        });
+      }
+
+      const categoryMonthlyEl = document.getElementById("categoryMonthlyChart");
+      if (categoryMonthlyEl && monthlyCategoryLabels.length && monthlyTopCategoryDatasets.length) {
+        const rankColors = [palette.berry, palette.sky, palette.cotton];
+        new Chart(categoryMonthlyEl, {
+          type: "bar",
+          data: {
+            labels: monthlyCategoryLabels,
+            datasets: monthlyTopCategoryDatasets.map((dataset, index) => ({
+              label: dataset.label,
+              data: dataset.data,
+              backgroundColor: rankColors[index % rankColors.length],
+              borderRadius: 8,
+              barPercentage: .9,
+              categoryPercentage: .6,
+              maxBarThickness: 20,
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => items[0]?.label || "",
+                  label: (context) => {
+                    const categoryName = monthlyTopCategoryDatasets[context.datasetIndex]?.categories?.[context.dataIndex] || "No category";
+                    return `${categoryName}: ${context.formattedValue} units`;
+                  },
+                },
+              },
+            },
+            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true } }
+          }
+        });
+      }
+
+      const categoryWeeklyEl = document.getElementById("categoryWeeklyChart");
+      if (categoryWeeklyEl && weeklyCategoryLabels.length) {
+        const weeklyFillColors = [
+          "#A5D6A7",
+          "#FFE082",
+          "#FFCC80",
+          "#80CBC4",
+          "#AA4465",
+          "#5C7C9C",
+          "#84ACCE",
+          "#F48FB1",
+          "#FFF59D",
+          "#F48FB1",
+        ];
+        const weeklyBorderColors = [
+          "#A5D6A7",
+          "#FFE082",
+          "#FFCC80",
+          "#80CBC4",
+          "#AA4465",
+          "#5C7C9C",
+          "#84ACCE",
+          "#F48FB1",
+          "#FFF59D",
+          "#F48FB1",
+        ];
+        new Chart(categoryWeeklyEl, {
+          type: "doughnut",
+          data: {
+            labels: weeklyCategoryLabels,
+            datasets: [{
+              data: weeklyCategoryValues,
+              backgroundColor: weeklyCategoryLabels.map((_, index) => weeklyFillColors[index % weeklyFillColors.length]),
+              borderColor: weeklyCategoryLabels.map((_, index) => weeklyBorderColors[index % weeklyBorderColors.length]),
+              borderWidth: 0,
+              hoverOffset: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            cutout: "68%"
           }
         });
       }

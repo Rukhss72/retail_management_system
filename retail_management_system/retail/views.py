@@ -16,7 +16,7 @@ from django.db import models
 
 from django.db import transaction
 #from urllib3 import request
-from .models import Product, StockMovement, Category, SKUCounter, Supplier, ReorderRequest, ReorderRequestItem, PurchaseOrder, PurchaseOrderItem, ProductSupplier, DailyProductSales, TrustedDevice
+from .models import Product, StockMovement, Category, SKUCounter, Supplier, ReorderRequest, ReorderRequestItem, PurchaseOrder, PurchaseOrderItem, ProductSupplier, DailyProductSales, TrustedDevice, ForecastRun, ForecastDaily, FestiveCalendar
 from .forms import RoleAuthenticationForm, TwoFactorForm, StockInForm, StockOutForm, AdjustmentForm, HistoryFilterForm, ProductCreateForm, SupplierForm, PurchaseOrderCreateForm
 
 from django.contrib.auth import logout
@@ -33,6 +33,7 @@ from django.core.paginator import Paginator
 from .models import Product, StockMovement
 
 from datetime import datetime, time, timedelta, date
+from calendar import monthrange
 
 from .permissions import is_admin, is_staff_or_admin, is_staff_user
 from .services import get_reorder_queryset, compute_reorder_row
@@ -1482,209 +1483,279 @@ def dashboard(request):
     else:
         since = today - timedelta(days=range_days - 1)
 
-    def month_sequence(start_date: date, end_date: date):
-        cur = start_date.replace(day=1)
-        end = end_date.replace(day=1)
-        months = []
-        while cur <= end:
-            months.append(cur)
-            if cur.month == 12:
-                cur = cur.replace(year=cur.year + 1, month=1)
-            else:
-                cur = cur.replace(month=cur.month + 1)
-        return months
+    def month_end(day_value: date) -> date:
+        return day_value.replace(day=monthrange(day_value.year, day_value.month)[1])
 
-    # ----- Sales KPIs (last 30 days) -----
+    def next_month_start(day_value: date) -> date:
+        if day_value.month == 12:
+            return date(day_value.year + 1, 1, 1)
+        return date(day_value.year, day_value.month + 1, 1)
+
     sales_qs = Sale.objects.filter(sale_date__gte=since, sale_date__lte=today)
     orders_count = sales_qs.count()
-
     sales_agg = sales_qs.aggregate(
         total_revenue=Coalesce(Sum("total"), Decimal("0.00")),
-        total_subtotal=Coalesce(Sum("subtotal"), Decimal("0.00")),
-        total_discount=Coalesce(Sum("discount"), Decimal("0.00")),
     )
-
-    units_agg = SaleItem.objects.filter(sale__sale_date__gte=since).aggregate(
+    units_agg = SaleItem.objects.filter(sale__sale_date__gte=since, sale__sale_date__lte=today).aggregate(
         total_units=Coalesce(Sum("qty"), 0)
     )
-
-    promo_orders = sales_qs.filter(promo_flag=True).count()
-
     total_revenue = sales_agg["total_revenue"]
-    total_subtotal = sales_agg["total_subtotal"]
-    total_discount = sales_agg["total_discount"]
     total_units = units_agg["total_units"]
-
     avg_order_value = (total_revenue / orders_count) if orders_count else Decimal("0.00")
     avg_basket_size = (Decimal(total_units) / orders_count) if orders_count else Decimal("0.00")
-    discount_rate = (total_discount / total_subtotal * Decimal("100")) if total_subtotal else Decimal("0.00")
-    promo_share = (Decimal(promo_orders) / orders_count * Decimal("100")) if orders_count else Decimal("0.00")
 
-    top_sellers = (
-        SaleItem.objects.filter(sale__sale_date__gte=since, sale__sale_date__lte=today)
-        .select_related("product", "product__category")
-        .values("product__sku", "product__product_name", "product__category__category_name")
-        .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
-        .order_by("-units", "-revenue")[:6]
-    )
-
-    # ----- Inventory KPIs (current) -----
     products_qs = Product.objects.filter(is_active=True)
     total_skus = products_qs.count()
     total_units_on_hand = products_qs.aggregate(total=Coalesce(Sum("qty_in_stock"), 0))["total"]
-
     stock_value_expr = ExpressionWrapper(
         F("qty_in_stock") * F("selling_price"),
         output_field=DecimalField(max_digits=14, decimal_places=2),
     )
     stock_value = products_qs.aggregate(total=Coalesce(Sum(stock_value_expr), Decimal("0.00")))["total"]
-
-    out_of_stock_count = Product.objects.filter(qty_in_stock=0).count()
+    out_of_stock_count = products_qs.filter(qty_in_stock=0).count()
     low_stock_count = products_qs.filter(qty_in_stock__gt=0, qty_in_stock__lte=4).count()
     ok_stock_count = products_qs.filter(qty_in_stock__gte=5).count()
-
-    low_stock_items = (
-        products_qs.filter(qty_in_stock__lte=4)
-        .select_related("category")
-        .order_by("qty_in_stock", "product_name")[:6]
+    stock_attention_count = low_stock_count + out_of_stock_count
+    low_stock_items = list(
+        products_qs.filter(qty_in_stock__lte=4).select_related("category").order_by("qty_in_stock", "product_name")
     )
-
     total_stock_count = total_skus or 1
     ok_pct = int(round(ok_stock_count / total_stock_count * 100))
     low_pct = int(round(low_stock_count / total_stock_count * 100))
     out_pct = int(round(out_of_stock_count / total_stock_count * 100))
 
-    # ----- Charts (DailyProductSales) -----
     dps_range = DailyProductSales.objects.filter(date__gte=since, date__lte=today)
     has_daily_sales = dps_range.exists()
-
-    months = month_sequence(since, today)
-    month_labels = [m.strftime("%b %Y") for m in months]
-
-    rev_by_month = (
-        dps_range
-        .annotate(m=TruncMonth("date"))
-        .values("m")
+    actual_daily_rows = list(
+        dps_range.values("date")
         .annotate(
             revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")),
             units=Coalesce(Sum("qty_sold"), 0),
-            days=Count("date", distinct=True),
         )
-        .order_by("m")
+        .order_by("date")
     )
-    rev_map = {}
-    units_map = {}
-    avg_daily_map = {}
-    for row in rev_by_month:
-        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
-        rev_map[m] = row["revenue"]
-        units_map[m] = row["units"]
-        days = int(row["days"] or 0)
-        avg_daily_map[m] = (row["revenue"] / days) if days else Decimal("0.00")
+    actual_daily_labels = [row["date"].strftime("%d %b") for row in actual_daily_rows]
+    actual_daily_revenue = [float(row["revenue"]) for row in actual_daily_rows]
+    actual_daily_units = [int(row["units"]) for row in actual_daily_rows]
 
-    orders_by_month = (
-        sales_qs
-        .annotate(m=TruncMonth("sale_date"))
-        .values("m")
-        .annotate(orders=Count("id"), gross=Coalesce(Sum("subtotal"), Decimal("0.00")))
-        .order_by("m")
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    sales_today_count = Sale.objects.filter(sale_date=today).count()
+    sales_week_count = Sale.objects.filter(sale_date__gte=week_start, sale_date__lte=today).count()
+    sales_month_count = Sale.objects.filter(sale_date__gte=month_start, sale_date__lte=today).count()
+    sales_today_revenue = Sale.objects.filter(sale_date=today).aggregate(total=Coalesce(Sum("total"), Decimal("0.00")))["total"]
+    sales_week_revenue = Sale.objects.filter(sale_date__gte=week_start, sale_date__lte=today).aggregate(total=Coalesce(Sum("total"), Decimal("0.00")))["total"]
+    sales_month_revenue = Sale.objects.filter(sale_date__gte=month_start, sale_date__lte=today).aggregate(total=Coalesce(Sum("total"), Decimal("0.00")))["total"]
+
+    best_this_week = list(
+        SaleItem.objects.filter(sale__sale_date__gte=week_start, sale__sale_date__lte=today)
+        .values("product__sku", "product__product_name", "product__category__category_name")
+        .annotate(qty=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+        .order_by("-qty", "-revenue")[:6]
     )
-    orders_map = {}
-    gross_map = {}
-    for row in orders_by_month:
-        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
-        orders_map[m] = row["orders"]
-        gross_map[m] = row["gross"]
-
-    revenue_series = [float(rev_map.get(m, 0)) for m in months]
-    units_series = [int(units_map.get(m, 0)) for m in months]
-    orders_series = [int(orders_map.get(m, 0)) for m in months]
-    avg_daily_series = [float(avg_daily_map.get(m, 0)) for m in months]
-
-    cat_qs = (
-        dps_range
-        .values("product__category__category_name")
-        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
-        .order_by("-revenue")
+    best_this_month = list(
+        SaleItem.objects.filter(sale__sale_date__gte=month_start, sale__sale_date__lte=today)
+        .values("product__sku", "product__product_name", "product__category__category_name")
+        .annotate(qty=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+        .order_by("-qty", "-revenue")[:6]
     )
-    cat_labels = []
-    cat_values = []
-    top_cat_names = []
-    other_total = Decimal("0.00")
-    for idx, row in enumerate(cat_qs):
-        name = row["product__category__category_name"] or "Uncategorized"
-        if idx < 5:
-            cat_labels.append(name)
-            cat_values.append(float(row["revenue"]))
-            top_cat_names.append(name)
-        else:
-            other_total += row["revenue"]
-    if other_total > 0:
-        cat_labels.append("Other")
-        cat_values.append(float(other_total))
-
-    # Top categories trend (stacked area)
-    trend_rows = (
-        dps_range
-        .filter(product__category__category_name__in=top_cat_names)
-        .annotate(m=TruncMonth("date"))
-        .values("m", "product__category__category_name")
-        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
-        .order_by("m")
+    best_selected_range = list(
+        SaleItem.objects.filter(sale__sale_date__gte=since, sale__sale_date__lte=today)
+        .values("product__sku", "product__product_name", "product__category__category_name")
+        .annotate(qty=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+        .order_by("-qty", "-revenue")[:6]
     )
-    trend_map = {name: {} for name in top_cat_names}
-    for row in trend_rows:
-        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
-        name = row["product__category__category_name"] or "Uncategorized"
-        if name in trend_map:
-            trend_map[name][m] = row["revenue"]
-    top_cat_series = [
-        [float(trend_map[name].get(m, 0)) for m in months] for name in top_cat_names
-    ]
 
-    # Promo vs non-promo revenue by month
-    promo_rows = (
-        dps_range
-        .annotate(m=TruncMonth("date"))
-        .values("m", "promo_flag")
-        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
-        .order_by("m")
+    category_current_rows = list(
+        dps_range.values("product__category__category_name")
+        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")), units=Coalesce(Sum("qty_sold"), 0))
+        .order_by("-revenue")[:6]
     )
-    promo_map = {}
-    nonpromo_map = {}
-    for row in promo_rows:
-        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
-        if row["promo_flag"]:
-            promo_map[m] = row["revenue"]
-        else:
-            nonpromo_map[m] = row["revenue"]
-    promo_series = [float(promo_map.get(m, 0)) for m in months]
-    nonpromo_series = [float(nonpromo_map.get(m, 0)) for m in months]
+    category_current_labels = [row["product__category__category_name"] or "Uncategorized" for row in category_current_rows]
+    category_current_values = [float(row["revenue"]) for row in category_current_rows]
 
-    # Best-selling category per month
-    best_rows = (
-        dps_range
-        .annotate(m=TruncMonth("date"))
-        .values("m", "product__category__category_name")
-        .annotate(revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")))
-        .order_by("m")
+    monthly_window_start = (today.replace(day=1) - timedelta(days=155)).replace(day=1)
+    monthly_category_rows = list(
+        DailyProductSales.objects.filter(date__gte=monthly_window_start, date__lte=today)
+        .annotate(month_bucket=TruncMonth("date"))
+        .values("month_bucket", "product__category__category_name")
+        .annotate(units=Coalesce(Sum("qty_sold"), 0))
+        .order_by("month_bucket", "product__category__category_name")
     )
-    best_map = {}
-    for row in best_rows:
-        m = row["m"].date() if hasattr(row["m"], "date") else row["m"]
-        name = row["product__category__category_name"] or "Uncategorized"
-        rev = row["revenue"]
-        if m not in best_map or rev > best_map[m]["revenue"]:
-            best_map[m] = {"category": name, "revenue": rev}
+    month_buckets = []
+    month_cursor = monthly_window_start
+    while month_cursor <= today.replace(day=1):
+        month_buckets.append(month_cursor)
+        month_cursor = next_month_start(month_cursor)
 
-    best_cat_rows = []
-    for m in months:
-        info = best_map.get(m)
-        best_cat_rows.append({
-            "month": m.strftime("%b %Y"),
-            "category": info["category"] if info else "—",
-            "revenue": float(info["revenue"]) if info else 0.0,
+    monthly_rows_by_bucket = {month.strftime("%Y-%m"): [] for month in month_buckets}
+    for row in monthly_category_rows:
+        month_key = row["month_bucket"].strftime("%Y-%m")
+        monthly_rows_by_bucket.setdefault(month_key, []).append({
+            "category": row["product__category__category_name"] or "Uncategorized",
+            "units": int(row["units"] or 0),
         })
+
+    monthly_category_labels = [month.strftime("%b") for month in month_buckets]
+    monthly_top_category_datasets = [
+        {"label": "Top 1", "data": [], "categories": []},
+        {"label": "Top 2", "data": [], "categories": []},
+        {"label": "Top 3", "data": [], "categories": []},
+    ]
+    monthly_top_category_summary = []
+    for month in month_buckets:
+        month_key = month.strftime("%Y-%m")
+        ranked_rows = sorted(
+            monthly_rows_by_bucket.get(month_key, []),
+            key=lambda item: item["units"],
+            reverse=True,
+        )[:3]
+        monthly_top_category_summary.append({
+            "month": month.strftime("%b"),
+            "categories": [row["category"] for row in ranked_rows],
+        })
+        for rank_index in range(3):
+            if rank_index < len(ranked_rows):
+                monthly_top_category_datasets[rank_index]["data"].append(ranked_rows[rank_index]["units"])
+                monthly_top_category_datasets[rank_index]["categories"].append(ranked_rows[rank_index]["category"])
+            else:
+                monthly_top_category_datasets[rank_index]["data"].append(0)
+                monthly_top_category_datasets[rank_index]["categories"].append("")
+
+    weekly_category_rows = list(
+        DailyProductSales.objects.filter(date__gte=week_start, date__lte=today)
+        .values("product__category__category_name")
+        .annotate(units=Coalesce(Sum("qty_sold"), 0))
+        .order_by("-units")
+    )
+    weekly_category_labels = [row["product__category__category_name"] or "Uncategorized" for row in weekly_category_rows]
+    weekly_category_values = [int(row["units"] or 0) for row in weekly_category_rows]
+
+    forecast_run = ForecastRun.objects.order_by("-created_at").first()
+    forecast_anchor = forecast_run.period_start if forecast_run else today
+    forecast_week_end = forecast_anchor + timedelta(days=6)
+    forecast_30_end = forecast_anchor + timedelta(days=29)
+    forecast_next_month_start = next_month_start(forecast_anchor)
+    forecast_next_month_end = month_end(forecast_next_month_start)
+
+    forecast_daily_labels = []
+    forecast_daily_units = []
+    forecast_next_week_units = Decimal("0.00")
+    forecast_next_30_units = Decimal("0.00")
+    predicted_next_week = []
+    upcoming_closed_days = []
+    forecast_category_labels = []
+    forecast_category_values = []
+    at_risk_products = []
+    next_festival = None
+
+    if forecast_run:
+        next_festival = (
+            FestiveCalendar.objects.filter(end_date__gte=forecast_anchor)
+            .order_by("start_date", "festival_name")
+            .first()
+        )
+        forecast_daily_rows = list(
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_30_end)
+            .values("forecast_date")
+            .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("forecast_date")
+        )
+        forecast_daily_labels = [row["forecast_date"].strftime("%d %b") for row in forecast_daily_rows]
+        forecast_daily_units = [float(row["total"]) for row in forecast_daily_rows]
+        forecast_next_week_units = sum((row["total"] for row in forecast_daily_rows[:7]), Decimal("0.00"))
+        forecast_next_30_units = sum((row["total"] for row in forecast_daily_rows), Decimal("0.00"))
+
+        predicted_next_week = list(
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_week_end)
+            .values("product__sku", "product__product_name", "product__category__category_name")
+            .annotate(qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("-qty", "product__product_name")[:6]
+        )
+        upcoming_closed_days = [
+            row["forecast_date"].strftime("%d %b %Y")
+            for row in forecast_daily_rows
+            if row["total"] == 0
+        ][:6]
+        forecast_category_rows = list(
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_next_month_end)
+            .values("product__category__category_name")
+            .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("-total")[:6]
+        )
+        forecast_category_labels = [row["product__category__category_name"] or "Uncategorized" for row in forecast_category_rows]
+        forecast_category_values = [float(row["total"]) for row in forecast_category_rows]
+
+        risk_rows = list(
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_week_end)
+            .values("product__sku", "product__product_name", "product__qty_in_stock", "product__reorder_level")
+            .annotate(forecast_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("-forecast_qty")
+        )
+        for row in risk_rows:
+            forecast_qty = float(row["forecast_qty"] or 0)
+            stock_qty = int(row["product__qty_in_stock"] or 0)
+            gap = round(forecast_qty - stock_qty, 2)
+            if gap <= 0:
+                continue
+            at_risk_products.append({
+                "sku": row["product__sku"],
+                "product": row["product__product_name"],
+                "stock": stock_qty,
+                "forecast_qty": forecast_qty,
+                "gap": gap,
+                "reorder_level": row["product__reorder_level"] or 0,
+            })
+            if len(at_risk_products) >= 6:
+                break
+
+    stock_attention_rows = []
+    stock_attention_map = {}
+
+    for product in low_stock_items:
+        status = "Out of stock" if int(product.qty_in_stock or 0) == 0 else "Low stock"
+        row = {
+            "sku": product.sku,
+            "product": product.product_name,
+            "category": product.category.category_name if product.category else "Uncategorized",
+            "stock": int(product.qty_in_stock or 0),
+            "forecast_qty": None,
+            "gap": None,
+            "status": status,
+            "status_tone": "danger" if status == "Out of stock" else "warn",
+            "sort_rank": 0 if status == "Out of stock" else 1,
+        }
+        stock_attention_map[row["sku"]] = row
+        stock_attention_rows.append(row)
+
+    for risk in at_risk_products:
+        existing = stock_attention_map.get(risk["sku"])
+        if existing:
+            existing["forecast_qty"] = risk["forecast_qty"]
+            existing["gap"] = risk["gap"]
+            if existing["status"] == "Low stock":
+                existing["status"] = "Low + at risk"
+                existing["status_tone"] = "warn"
+            elif existing["status"] == "Out of stock":
+                existing["status"] = "Out + at risk"
+                existing["status_tone"] = "danger"
+            continue
+
+        row = {
+            "sku": risk["sku"],
+            "product": risk["product"],
+            "category": "",
+            "stock": risk["stock"],
+            "forecast_qty": risk["forecast_qty"],
+            "gap": risk["gap"],
+            "status": "At risk",
+            "status_tone": "warn",
+            "sort_rank": 2,
+        }
+        stock_attention_map[row["sku"]] = row
+        stock_attention_rows.append(row)
+
+    stock_attention_rows.sort(key=lambda item: (item["sort_rank"], item["stock"], item["product"]))
 
     context = {
         "since_date": since,
@@ -1692,45 +1763,57 @@ def dashboard(request):
         "range_days": range_days,
         "start_date": since,
         "end_date": today,
-
-        # sales
+        "has_daily_sales": has_daily_sales,
+        "forecast_available": bool(forecast_run),
+        "forecast_run": forecast_run,
+        "forecast_anchor": forecast_anchor,
         "orders_count": orders_count,
         "total_revenue": total_revenue,
         "total_units": total_units,
         "avg_order_value": avg_order_value,
         "avg_basket_size": avg_basket_size,
-        "discount_rate": discount_rate,
-        "promo_share": promo_share,
-        "top_sellers": top_sellers,
-
-        # inventory
+        "sales_today_count": sales_today_count,
+        "sales_week_count": sales_week_count,
+        "sales_month_count": sales_month_count,
+        "sales_today_revenue": sales_today_revenue,
+        "sales_week_revenue": sales_week_revenue,
+        "sales_month_revenue": sales_month_revenue,
+        "forecast_next_week_units": forecast_next_week_units,
+        "forecast_next_30_units": forecast_next_30_units,
+        "next_festival": next_festival,
         "total_skus": total_skus,
         "total_units_on_hand": total_units_on_hand,
         "stock_value": stock_value,
         "out_of_stock_count": out_of_stock_count,
         "low_stock_count": low_stock_count,
         "ok_stock_count": ok_stock_count,
+        "stock_attention_count": stock_attention_count,
         "low_stock_items": low_stock_items,
+        "at_risk_products": at_risk_products,
+        "stock_attention_rows": stock_attention_rows,
         "ok_pct": ok_pct,
         "low_pct": low_pct,
         "out_pct": out_pct,
-
-        # charts
-        "has_daily_sales": has_daily_sales,
-        "month_labels": month_labels,
-        "revenue_series": revenue_series,
-        "orders_series": orders_series,
-        "units_series": units_series,
-        "avg_daily_series": avg_daily_series,
-        "promo_series": promo_series,
-        "nonpromo_series": nonpromo_series,
-        "cat_labels": cat_labels,
-        "cat_values": cat_values,
-        "top_cat_names": top_cat_names,
-        "top_cat_series": top_cat_series,
-        "best_cat_rows": best_cat_rows,
+        "best_this_week": best_this_week,
+        "best_this_month": best_this_month,
+        "best_selected_range": best_selected_range,
+        "predicted_next_week": predicted_next_week,
+        "upcoming_closed_days": upcoming_closed_days,
+        "actual_daily_labels": actual_daily_labels,
+        "actual_daily_revenue": actual_daily_revenue,
+        "actual_daily_units": actual_daily_units,
+        "forecast_daily_labels": forecast_daily_labels,
+        "forecast_daily_units": forecast_daily_units,
+        "category_current_labels": category_current_labels,
+        "category_current_values": category_current_values,
+        "monthly_category_labels": monthly_category_labels,
+        "monthly_top_category_datasets": monthly_top_category_datasets,
+        "monthly_top_category_summary": monthly_top_category_summary,
+        "weekly_category_labels": weekly_category_labels,
+        "weekly_category_values": weekly_category_values,
+        "forecast_category_labels": forecast_category_labels,
+        "forecast_category_values": forecast_category_values,
     }
-
     return render(request, "retail/dashboard.html", context)
 
 @admin_required
