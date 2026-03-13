@@ -46,6 +46,63 @@ An intelligent, AI-powered integration (via Ollama) that sits on top of the enti
 
 ---
 
+### Overall Sequence Diagram
+This sequence diagram reflects the implemented Django flow in this project, including login with email 2FA and trusted devices, core operational writes, assistant conversations, and forecast import feeding the dashboard.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as Web App
+    participant App as Django App
+    participant Svc as Business Services
+    participant AI as Assistant Engine
+    participant DB as Database
+
+    User->>UI: Log in
+    UI->>App: Authenticate + verify 2FA if needed
+    App->>DB: Read user and trusted device
+    App-->>UI: Open home/dashboard
+
+    UI->>App: Load dashboard
+    App->>DB: Read sales, stock, PO, forecast summaries
+    App-->>UI: Show KPIs, alerts, and forecast insight
+
+    opt Inventory and sales operations
+        User->>UI: Update stock or create a sale
+        UI->>App: Submit inventory or sales request
+        alt Inventory action
+            App->>DB: Save Product and StockMovement changes
+        else Sale checkout
+            App->>Svc: create_sale(...)
+            Svc->>DB: Save Sale and SaleItems
+            Svc->>DB: Deduct stock and log SALE movements
+        end
+        App-->>UI: Return updated stock and sale state
+    end
+
+    opt Reordering and purchase orders
+        UI->>App: Open reorder or suppliers flow
+        App->>Svc: Compute low-stock suggestions
+        Svc->>DB: Read products and supplier links
+        App->>DB: Save ReorderRequest or PurchaseOrder
+        App->>DB: Add stock when PO is received
+        App-->>UI: Show reorder and PO status
+    end
+
+    opt Assistant analytics
+        User->>UI: Ask assistant question
+        UI->>App: Send assistant query
+        App->>AI: process_query(...)
+        AI->>DB: Read operational and forecast data
+        AI-->>App: Return summary/insight
+        App->>DB: Save chat thread/messages
+        App-->>UI: Show answer
+    end
+```
+
+[Open Rendered Overall Sequence Diagram](https://mermaid.ink/img/eyJjb2RlIjogInNlcXVlbmNlRGlhZ3JhbVxuICAgIGF1dG9udW1iZXJcbiAgICBhY3RvciBVc2VyXG4gICAgcGFydGljaXBhbnQgVUkgYXMgV2ViIEFwcFxuICAgIHBhcnRpY2lwYW50IEFwcCBhcyBEamFuZ28gQXBwXG4gICAgcGFydGljaXBhbnQgU3ZjIGFzIEJ1c2luZXNzIFNlcnZpY2VzXG4gICAgcGFydGljaXBhbnQgQUkgYXMgQXNzaXN0YW50IEVuZ2luZVxuICAgIHBhcnRpY2lwYW50IERCIGFzIERhdGFiYXNlXG5cbiAgICBVc2VyLT4-VUk6IExvZyBpblxuICAgIFVJLT4-QXBwOiBBdXRoZW50aWNhdGUgKyB2ZXJpZnkgMkZBIGlmIG5lZWRlZFxuICAgIEFwcC0-PkRCOiBSZWFkIHVzZXIgYW5kIHRydXN0ZWQgZGV2aWNlXG4gICAgQXBwLS0-PlVJOiBPcGVuIGhvbWUvZGFzaGJvYXJkXG5cbiAgICBVSS0-PkFwcDogTG9hZCBkYXNoYm9hcmRcbiAgICBBcHAtPj5EQjogUmVhZCBzYWxlcywgc3RvY2ssIFBPLCBmb3JlY2FzdCBzdW1tYXJpZXNcbiAgICBBcHAtLT4-VUk6IFNob3cgS1BJcywgYWxlcnRzLCBhbmQgZm9yZWNhc3QgaW5zaWdodFxuXG4gICAgb3B0IEludmVudG9yeSBhbmQgc2FsZXMgb3BlcmF0aW9uc1xuICAgICAgICBVc2VyLT4-VUk6IFVwZGF0ZSBzdG9jayBvciBjcmVhdGUgYSBzYWxlXG4gICAgICAgIFVJLT4-QXBwOiBTdWJtaXQgaW52ZW50b3J5IG9yIHNhbGVzIHJlcXVlc3RcbiAgICAgICAgYWx0IEludmVudG9yeSBhY3Rpb25cbiAgICAgICAgICAgIEFwcC0-PkRCOiBTYXZlIFByb2R1Y3QgYW5kIFN0b2NrTW92ZW1lbnQgY2hhbmdlc1xuICAgICAgICBlbHNlIFNhbGUgY2hlY2tvdXRcbiAgICAgICAgICAgIEFwcC0-PlN2YzogY3JlYXRlX3NhbGUoLi4uKVxuICAgICAgICAgICAgU3ZjLT4-REI6IFNhdmUgU2FsZSBhbmQgU2FsZUl0ZW1zXG4gICAgICAgICAgICBTdmMtPj5EQjogRGVkdWN0IHN0b2NrIGFuZCBsb2cgU0FMRSBtb3ZlbWVudHNcbiAgICAgICAgZW5kXG4gICAgICAgIEFwcC0tPj5VSTogUmV0dXJuIHVwZGF0ZWQgc3RvY2sgYW5kIHNhbGUgc3RhdGVcbiAgICBlbmRcblxuICAgIG9wdCBSZW9yZGVyaW5nIGFuZCBwdXJjaGFzZSBvcmRlcnNcbiAgICAgICAgVUktPj5BcHA6IE9wZW4gcmVvcmRlciBvciBzdXBwbGllcnMgZmxvd1xuICAgICAgICBBcHAtPj5TdmM6IENvbXB1dGUgbG93LXN0b2NrIHN1Z2dlc3Rpb25zXG4gICAgICAgIFN2Yy0-PkRCOiBSZWFkIHByb2R1Y3RzIGFuZCBzdXBwbGllciBsaW5rc1xuICAgICAgICBBcHAtPj5EQjogU2F2ZSBSZW9yZGVyUmVxdWVzdCBvciBQdXJjaGFzZU9yZGVyXG4gICAgICAgIEFwcC0-PkRCOiBBZGQgc3RvY2sgd2hlbiBQTyBpcyByZWNlaXZlZFxuICAgICAgICBBcHAtLT4-VUk6IFNob3cgcmVvcmRlciBhbmQgUE8gc3RhdHVzXG4gICAgZW5kXG5cbiAgICBvcHQgQXNzaXN0YW50IGFuYWx5dGljc1xuICAgICAgICBVc2VyLT4-VUk6IEFzayBhc3Npc3RhbnQgcXVlc3Rpb25cbiAgICAgICAgVUktPj5BcHA6IFNlbmQgYXNzaXN0YW50IHF1ZXJ5XG4gICAgICAgIEFwcC0-PkFJOiBwcm9jZXNzX3F1ZXJ5KC4uLilcbiAgICAgICAgQUktPj5EQjogUmVhZCBvcGVyYXRpb25hbCBhbmQgZm9yZWNhc3QgZGF0YVxuICAgICAgICBBSS0tPj5BcHA6IFJldHVybiBzdW1tYXJ5L2luc2lnaHRcbiAgICAgICAgQXBwLT4-REI6IFNhdmUgY2hhdCB0aHJlYWQvbWVzc2FnZXNcbiAgICAgICAgQXBwLS0-PlVJOiBTaG93IGFuc3dlclxuICAgIGVuZCIsICJtZXJtYWlkIjogIntcInRoZW1lXCI6XCJkZWZhdWx0XCJ9In0)
+
 ### Detailed Shapes Diagram
 (Includes Databases, Decisions, I/O Parallelograms, and Process Rectangles)
 
@@ -646,3 +703,278 @@ flowchart TD
     
     Proc_LLM --> |Formats into Natural Language Insight| UI_Chat
 ```
+
+---
+
+## Entity Relationship Diagram (Implemented Models)
+
+This ERD is derived from [`retail_management_system/retail/models.py`](/c:/Users/baich/.vscode/retail_management_system/retail_management_system/retail/models.py). `ReorderSnooze`, `DAILYGROUPSALES`, and `SKUFORECASTGROUPMAP` are intentionally excluded from this diagram as requested. `FestiveCalendar` does not have a database FK to other tables; it enriches `DailyProductSales` through application logic.
+
+```mermaid
+erDiagram
+    USER {
+        int id PK
+        string username
+        string email
+    }
+
+    USERPROFILE {
+        int id PK
+        int user_id FK
+        string role
+    }
+
+    TRUSTEDDEVICE {
+        int id PK
+        int user_id FK
+        string device_id
+        string token_hash
+        string user_agent
+        string ip_at_creation
+        datetime created_at
+        datetime last_used_at
+        datetime expires_at
+    }
+
+    CATEGORY {
+        int id PK
+        string category_name UK
+    }
+
+    SKUCOUNTER {
+        int id PK
+        string section
+        int category_id FK
+        int last_seq
+    }
+
+    SUPPLIER {
+        int id PK
+        string supplier_name UK
+        string phone
+        string email
+        text notes
+        int lead_time_days
+        bool is_active
+        string contact_person
+        text address
+        text products_services
+        int category_id FK
+        datetime created_at
+        datetime updated_at
+    }
+
+    PRODUCT {
+        int id PK
+        string sku UK
+        string product_name
+        int category_id FK
+        int supplier_id FK
+        int opening_stock
+        int qty_in_stock
+        string section
+        decimal selling_price
+        int reorder_level
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    PRODUCTSUPPLIER {
+        int id PK
+        int product_id FK
+        int supplier_id FK
+        decimal last_unit_cost
+        int lead_time_days
+        bool is_primary
+    }
+
+    STOCKMOVEMENT {
+        int id PK
+        datetime movement_date
+        int product_id FK
+        string movement_type
+        int qty_moved
+        string adjust_direction
+        string reason
+        text comments
+        int created_by_id FK
+        string reference
+    }
+
+    SALE {
+        int id PK
+        string receipt_no UK
+        int cashier_id FK
+        string customer_name
+        string customer_phone
+        decimal subtotal
+        decimal discount
+        decimal total
+        string payment_method
+        date sale_date
+        datetime created_at
+        bool promo_flag
+    }
+
+    SALEITEM {
+        int id PK
+        int sale_id FK
+        int product_id FK
+        int qty
+        decimal unit_price
+        decimal discount_pct
+        decimal discount_amt
+        bool promo_flag
+        decimal line_total
+    }
+
+    PURCHASEORDER {
+        int id PK
+        int supplier_id FK
+        string status
+        int created_by_id FK
+        datetime ordered_at
+        datetime received_at
+        date order_date
+        date delivery_date
+        decimal total_amount
+        text notes
+        string po_number UK
+        datetime created_at
+    }
+
+    PURCHASEORDERITEM {
+        int id PK
+        int po_id FK
+        int product_id FK
+        int reorder_request_id FK
+        int qty_ordered
+        int qty_received
+        decimal unit_cost
+    }
+
+    REORDERREQUEST {
+        int id PK
+        int created_by_id FK
+        string status
+        int supplier_id FK
+        text notes
+        datetime submitted_at
+        datetime decided_at
+        int decided_by_id FK
+        text decision_note
+        datetime created_at
+        datetime updated_at
+    }
+
+    REORDERREQUESTITEM {
+        int id PK
+        int request_id FK
+        int product_id FK
+        int supplier_id FK
+        int qty_requested
+        int suggested_qty_snapshot
+    }
+
+    FESTIVECALENDAR {
+        int id PK
+        string festival_name
+        date start_date
+        date end_date
+        date festival_date
+        datetime created_at
+        datetime updated_at
+    }
+
+    DAILYPRODUCTSALES {
+        int id PK
+        date date
+        int product_id FK
+        int category_id FK
+        int qty_sold
+        decimal sales_amt
+        bool promo_flag
+        bool is_festive
+        string festival_name
+        bool product_active
+        bool in_stock_flag
+        datetime created_at
+        datetime updated_at
+    }
+
+    FORECASTRUN {
+        int id PK
+        string model_name
+        date period_start
+        date period_end
+        datetime created_at
+    }
+
+    FORECASTDAILY {
+        int id PK
+        int run_id FK
+        int product_id FK
+        date forecast_date
+        decimal predicted_qty
+        datetime created_at
+    }
+
+    CHATTHREAD {
+        int id PK
+        int user_id FK
+        string title
+        json context_json
+        bool is_archived
+        datetime created_at
+        datetime updated_at
+    }
+
+    CHATMESSAGE {
+        int id PK
+        int thread_id FK
+        string role
+        text content
+        json payload_json
+        datetime created_at
+    }
+
+    USER ||--|| USERPROFILE : has_profile
+    USER ||--o{ TRUSTEDDEVICE : has
+    USER ||--o{ STOCKMOVEMENT : created_by
+    USER ||--o{ SALE : cashier
+    USER ||--o{ PURCHASEORDER : created_by
+    USER ||--o{ REORDERREQUEST : created_by
+    USER o|--o{ REORDERREQUEST : decided_by
+    USER ||--o{ CHATTHREAD : owns
+
+    CATEGORY ||--o{ SKUCOUNTER : sequences
+    CATEGORY ||--o{ PRODUCT : classifies
+    CATEGORY o|--o{ SUPPLIER : primary_category
+    CATEGORY o|--o{ DAILYPRODUCTSALES : daily_sales_category
+    CATEGORY }o--o{ SUPPLIER : supplier_categories
+
+    SUPPLIER o|--o{ PRODUCT : preferred_supplier
+    SUPPLIER ||--o{ PRODUCTSUPPLIER : links
+    PRODUCT ||--o{ PRODUCTSUPPLIER : supplier_links
+    SUPPLIER ||--o{ PURCHASEORDER : receives
+    SUPPLIER o|--o{ REORDERREQUEST : suggested_for
+    SUPPLIER o|--o{ REORDERREQUESTITEM : item_supplier
+
+    PRODUCT ||--o{ STOCKMOVEMENT : has
+    PRODUCT ||--o{ SALEITEM : sold_as
+    SALE ||--|{ SALEITEM : has
+    PRODUCT ||--o{ PURCHASEORDERITEM : ordered_as
+    PURCHASEORDER ||--|{ PURCHASEORDERITEM : has
+    REORDERREQUEST o|--o{ PURCHASEORDERITEM : source_request
+    REORDERREQUEST ||--|{ REORDERREQUESTITEM : has
+    PRODUCT ||--o{ REORDERREQUESTITEM : requested_product
+
+    PRODUCT ||--o{ DAILYPRODUCTSALES : daily_sales
+    PRODUCT ||--o{ FORECASTDAILY : forecasted_for
+    FORECASTRUN ||--|{ FORECASTDAILY : contains
+
+    CHATTHREAD ||--|{ CHATMESSAGE : has
+```
+
+[Open Rendered ERD](https://mermaid.ink/img/eyJjb2RlIjogImVyRGlhZ3JhbVxuICAgIFVTRVIge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgc3RyaW5nIHVzZXJuYW1lXG4gICAgICAgIHN0cmluZyBlbWFpbFxuICAgIH1cblxuICAgIFVTRVJQUk9GSUxFIHtcbiAgICAgICAgaW50IGlkIFBLXG4gICAgICAgIGludCB1c2VyX2lkIEZLXG4gICAgICAgIHN0cmluZyByb2xlXG4gICAgfVxuXG4gICAgVFJVU1RFRERFVklDRSB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBpbnQgdXNlcl9pZCBGS1xuICAgICAgICBzdHJpbmcgZGV2aWNlX2lkXG4gICAgICAgIHN0cmluZyB0b2tlbl9oYXNoXG4gICAgICAgIHN0cmluZyB1c2VyX2FnZW50XG4gICAgICAgIHN0cmluZyBpcF9hdF9jcmVhdGlvblxuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgICAgIGRhdGV0aW1lIGxhc3RfdXNlZF9hdFxuICAgICAgICBkYXRldGltZSBleHBpcmVzX2F0XG4gICAgfVxuXG4gICAgQ0FURUdPUlkge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgc3RyaW5nIGNhdGVnb3J5X25hbWUgVUtcbiAgICB9XG5cbiAgICBTS1VDT1VOVEVSIHtcbiAgICAgICAgaW50IGlkIFBLXG4gICAgICAgIHN0cmluZyBzZWN0aW9uXG4gICAgICAgIGludCBjYXRlZ29yeV9pZCBGS1xuICAgICAgICBpbnQgbGFzdF9zZXFcbiAgICB9XG5cbiAgICBTVVBQTElFUiB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBzdHJpbmcgc3VwcGxpZXJfbmFtZSBVS1xuICAgICAgICBzdHJpbmcgcGhvbmVcbiAgICAgICAgc3RyaW5nIGVtYWlsXG4gICAgICAgIHRleHQgbm90ZXNcbiAgICAgICAgaW50IGxlYWRfdGltZV9kYXlzXG4gICAgICAgIGJvb2wgaXNfYWN0aXZlXG4gICAgICAgIHN0cmluZyBjb250YWN0X3BlcnNvblxuICAgICAgICB0ZXh0IGFkZHJlc3NcbiAgICAgICAgdGV4dCBwcm9kdWN0c19zZXJ2aWNlc1xuICAgICAgICBpbnQgY2F0ZWdvcnlfaWQgRktcbiAgICAgICAgZGF0ZXRpbWUgY3JlYXRlZF9hdFxuICAgICAgICBkYXRldGltZSB1cGRhdGVkX2F0XG4gICAgfVxuXG4gICAgUFJPRFVDVCB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBzdHJpbmcgc2t1IFVLXG4gICAgICAgIHN0cmluZyBwcm9kdWN0X25hbWVcbiAgICAgICAgaW50IGNhdGVnb3J5X2lkIEZLXG4gICAgICAgIGludCBzdXBwbGllcl9pZCBGS1xuICAgICAgICBpbnQgb3BlbmluZ19zdG9ja1xuICAgICAgICBpbnQgcXR5X2luX3N0b2NrXG4gICAgICAgIHN0cmluZyBzZWN0aW9uXG4gICAgICAgIGRlY2ltYWwgc2VsbGluZ19wcmljZVxuICAgICAgICBpbnQgcmVvcmRlcl9sZXZlbFxuICAgICAgICBib29sIGlzX2FjdGl2ZVxuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgICAgIGRhdGV0aW1lIHVwZGF0ZWRfYXRcbiAgICB9XG5cbiAgICBQUk9EVUNUU1VQUExJRVIge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHByb2R1Y3RfaWQgRktcbiAgICAgICAgaW50IHN1cHBsaWVyX2lkIEZLXG4gICAgICAgIGRlY2ltYWwgbGFzdF91bml0X2Nvc3RcbiAgICAgICAgaW50IGxlYWRfdGltZV9kYXlzXG4gICAgICAgIGJvb2wgaXNfcHJpbWFyeVxuICAgIH1cblxuICAgIFNUT0NLTU9WRU1FTlQge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgZGF0ZXRpbWUgbW92ZW1lbnRfZGF0ZVxuICAgICAgICBpbnQgcHJvZHVjdF9pZCBGS1xuICAgICAgICBzdHJpbmcgbW92ZW1lbnRfdHlwZVxuICAgICAgICBpbnQgcXR5X21vdmVkXG4gICAgICAgIHN0cmluZyBhZGp1c3RfZGlyZWN0aW9uXG4gICAgICAgIHN0cmluZyByZWFzb25cbiAgICAgICAgdGV4dCBjb21tZW50c1xuICAgICAgICBpbnQgY3JlYXRlZF9ieV9pZCBGS1xuICAgICAgICBzdHJpbmcgcmVmZXJlbmNlXG4gICAgfVxuXG4gICAgU0FMRSB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBzdHJpbmcgcmVjZWlwdF9ubyBVS1xuICAgICAgICBpbnQgY2FzaGllcl9pZCBGS1xuICAgICAgICBzdHJpbmcgY3VzdG9tZXJfbmFtZVxuICAgICAgICBzdHJpbmcgY3VzdG9tZXJfcGhvbmVcbiAgICAgICAgZGVjaW1hbCBzdWJ0b3RhbFxuICAgICAgICBkZWNpbWFsIGRpc2NvdW50XG4gICAgICAgIGRlY2ltYWwgdG90YWxcbiAgICAgICAgc3RyaW5nIHBheW1lbnRfbWV0aG9kXG4gICAgICAgIGRhdGUgc2FsZV9kYXRlXG4gICAgICAgIGRhdGV0aW1lIGNyZWF0ZWRfYXRcbiAgICAgICAgYm9vbCBwcm9tb19mbGFnXG4gICAgfVxuXG4gICAgU0FMRUlURU0ge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHNhbGVfaWQgRktcbiAgICAgICAgaW50IHByb2R1Y3RfaWQgRktcbiAgICAgICAgaW50IHF0eVxuICAgICAgICBkZWNpbWFsIHVuaXRfcHJpY2VcbiAgICAgICAgZGVjaW1hbCBkaXNjb3VudF9wY3RcbiAgICAgICAgZGVjaW1hbCBkaXNjb3VudF9hbXRcbiAgICAgICAgYm9vbCBwcm9tb19mbGFnXG4gICAgICAgIGRlY2ltYWwgbGluZV90b3RhbFxuICAgIH1cblxuICAgIFBVUkNIQVNFT1JERVIge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHN1cHBsaWVyX2lkIEZLXG4gICAgICAgIHN0cmluZyBzdGF0dXNcbiAgICAgICAgaW50IGNyZWF0ZWRfYnlfaWQgRktcbiAgICAgICAgZGF0ZXRpbWUgb3JkZXJlZF9hdFxuICAgICAgICBkYXRldGltZSByZWNlaXZlZF9hdFxuICAgICAgICBkYXRlIG9yZGVyX2RhdGVcbiAgICAgICAgZGF0ZSBkZWxpdmVyeV9kYXRlXG4gICAgICAgIGRlY2ltYWwgdG90YWxfYW1vdW50XG4gICAgICAgIHRleHQgbm90ZXNcbiAgICAgICAgc3RyaW5nIHBvX251bWJlciBVS1xuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgfVxuXG4gICAgUFVSQ0hBU0VPUkRFUklURU0ge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHBvX2lkIEZLXG4gICAgICAgIGludCBwcm9kdWN0X2lkIEZLXG4gICAgICAgIGludCByZW9yZGVyX3JlcXVlc3RfaWQgRktcbiAgICAgICAgaW50IHF0eV9vcmRlcmVkXG4gICAgICAgIGludCBxdHlfcmVjZWl2ZWRcbiAgICAgICAgZGVjaW1hbCB1bml0X2Nvc3RcbiAgICB9XG5cbiAgICBSRU9SREVSUkVRVUVTVCB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBpbnQgY3JlYXRlZF9ieV9pZCBGS1xuICAgICAgICBzdHJpbmcgc3RhdHVzXG4gICAgICAgIGludCBzdXBwbGllcl9pZCBGS1xuICAgICAgICB0ZXh0IG5vdGVzXG4gICAgICAgIGRhdGV0aW1lIHN1Ym1pdHRlZF9hdFxuICAgICAgICBkYXRldGltZSBkZWNpZGVkX2F0XG4gICAgICAgIGludCBkZWNpZGVkX2J5X2lkIEZLXG4gICAgICAgIHRleHQgZGVjaXNpb25fbm90ZVxuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgICAgIGRhdGV0aW1lIHVwZGF0ZWRfYXRcbiAgICB9XG5cbiAgICBSRU9SREVSUkVRVUVTVElURU0ge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHJlcXVlc3RfaWQgRktcbiAgICAgICAgaW50IHByb2R1Y3RfaWQgRktcbiAgICAgICAgaW50IHN1cHBsaWVyX2lkIEZLXG4gICAgICAgIGludCBxdHlfcmVxdWVzdGVkXG4gICAgICAgIGludCBzdWdnZXN0ZWRfcXR5X3NuYXBzaG90XG4gICAgfVxuXG4gICAgRkVTVElWRUNBTEVOREFSIHtcbiAgICAgICAgaW50IGlkIFBLXG4gICAgICAgIHN0cmluZyBmZXN0aXZhbF9uYW1lXG4gICAgICAgIGRhdGUgc3RhcnRfZGF0ZVxuICAgICAgICBkYXRlIGVuZF9kYXRlXG4gICAgICAgIGRhdGUgZmVzdGl2YWxfZGF0ZVxuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgICAgIGRhdGV0aW1lIHVwZGF0ZWRfYXRcbiAgICB9XG5cbiAgICBEQUlMWVBST0RVQ1RTQUxFUyB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBkYXRlIGRhdGVcbiAgICAgICAgaW50IHByb2R1Y3RfaWQgRktcbiAgICAgICAgaW50IGNhdGVnb3J5X2lkIEZLXG4gICAgICAgIGludCBxdHlfc29sZFxuICAgICAgICBkZWNpbWFsIHNhbGVzX2FtdFxuICAgICAgICBib29sIHByb21vX2ZsYWdcbiAgICAgICAgYm9vbCBpc19mZXN0aXZlXG4gICAgICAgIHN0cmluZyBmZXN0aXZhbF9uYW1lXG4gICAgICAgIGJvb2wgcHJvZHVjdF9hY3RpdmVcbiAgICAgICAgYm9vbCBpbl9zdG9ja19mbGFnXG4gICAgICAgIGRhdGV0aW1lIGNyZWF0ZWRfYXRcbiAgICAgICAgZGF0ZXRpbWUgdXBkYXRlZF9hdFxuICAgIH1cblxuICAgIEZPUkVDQVNUUlVOIHtcbiAgICAgICAgaW50IGlkIFBLXG4gICAgICAgIHN0cmluZyBtb2RlbF9uYW1lXG4gICAgICAgIGRhdGUgcGVyaW9kX3N0YXJ0XG4gICAgICAgIGRhdGUgcGVyaW9kX2VuZFxuICAgICAgICBkYXRldGltZSBjcmVhdGVkX2F0XG4gICAgfVxuXG4gICAgRk9SRUNBU1REQUlMWSB7XG4gICAgICAgIGludCBpZCBQS1xuICAgICAgICBpbnQgcnVuX2lkIEZLXG4gICAgICAgIGludCBwcm9kdWN0X2lkIEZLXG4gICAgICAgIGRhdGUgZm9yZWNhc3RfZGF0ZVxuICAgICAgICBkZWNpbWFsIHByZWRpY3RlZF9xdHlcbiAgICAgICAgZGF0ZXRpbWUgY3JlYXRlZF9hdFxuICAgIH1cblxuICAgIENIQVRUSFJFQUQge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHVzZXJfaWQgRktcbiAgICAgICAgc3RyaW5nIHRpdGxlXG4gICAgICAgIGpzb24gY29udGV4dF9qc29uXG4gICAgICAgIGJvb2wgaXNfYXJjaGl2ZWRcbiAgICAgICAgZGF0ZXRpbWUgY3JlYXRlZF9hdFxuICAgICAgICBkYXRldGltZSB1cGRhdGVkX2F0XG4gICAgfVxuXG4gICAgQ0hBVE1FU1NBR0Uge1xuICAgICAgICBpbnQgaWQgUEtcbiAgICAgICAgaW50IHRocmVhZF9pZCBGS1xuICAgICAgICBzdHJpbmcgcm9sZVxuICAgICAgICB0ZXh0IGNvbnRlbnRcbiAgICAgICAganNvbiBwYXlsb2FkX2pzb25cbiAgICAgICAgZGF0ZXRpbWUgY3JlYXRlZF9hdFxuICAgIH1cblxuICAgIFVTRVIgfHwtLXx8IFVTRVJQUk9GSUxFIDogaGFzX3Byb2ZpbGVcbiAgICBVU0VSIHx8LS1veyBUUlVTVEVEREVWSUNFIDogaGFzXG4gICAgVVNFUiB8fC0tb3sgU1RPQ0tNT1ZFTUVOVCA6IGNyZWF0ZWRfYnlcbiAgICBVU0VSIHx8LS1veyBTQUxFIDogY2FzaGllclxuICAgIFVTRVIgfHwtLW97IFBVUkNIQVNFT1JERVIgOiBjcmVhdGVkX2J5XG4gICAgVVNFUiB8fC0tb3sgUkVPUkRFUlJFUVVFU1QgOiBjcmVhdGVkX2J5XG4gICAgVVNFUiBvfC0tb3sgUkVPUkRFUlJFUVVFU1QgOiBkZWNpZGVkX2J5XG4gICAgVVNFUiB8fC0tb3sgQ0hBVFRIUkVBRCA6IG93bnNcblxuICAgIENBVEVHT1JZIHx8LS1veyBTS1VDT1VOVEVSIDogc2VxdWVuY2VzXG4gICAgQ0FURUdPUlkgfHwtLW97IFBST0RVQ1QgOiBjbGFzc2lmaWVzXG4gICAgQ0FURUdPUlkgb3wtLW97IFNVUFBMSUVSIDogcHJpbWFyeV9jYXRlZ29yeVxuICAgIENBVEVHT1JZIG98LS1veyBEQUlMWVBST0RVQ1RTQUxFUyA6IGRhaWx5X3NhbGVzX2NhdGVnb3J5XG4gICAgQ0FURUdPUlkgfW8tLW97IFNVUFBMSUVSIDogc3VwcGxpZXJfY2F0ZWdvcmllc1xuXG4gICAgU1VQUExJRVIgb3wtLW97IFBST0RVQ1QgOiBwcmVmZXJyZWRfc3VwcGxpZXJcbiAgICBTVVBQTElFUiB8fC0tb3sgUFJPRFVDVFNVUFBMSUVSIDogbGlua3NcbiAgICBQUk9EVUNUIHx8LS1veyBQUk9EVUNUU1VQUExJRVIgOiBzdXBwbGllcl9saW5rc1xuICAgIFNVUFBMSUVSIHx8LS1veyBQVVJDSEFTRU9SREVSIDogcmVjZWl2ZXNcbiAgICBTVVBQTElFUiBvfC0tb3sgUkVPUkRFUlJFUVVFU1QgOiBzdWdnZXN0ZWRfZm9yXG4gICAgU1VQUExJRVIgb3wtLW97IFJFT1JERVJSRVFVRVNUSVRFTSA6IGl0ZW1fc3VwcGxpZXJcblxuICAgIFBST0RVQ1QgfHwtLW97IFNUT0NLTU9WRU1FTlQgOiBoYXNcbiAgICBQUk9EVUNUIHx8LS1veyBTQUxFSVRFTSA6IHNvbGRfYXNcbiAgICBTQUxFIHx8LS18eyBTQUxFSVRFTSA6IGhhc1xuICAgIFBST0RVQ1QgfHwtLW97IFBVUkNIQVNFT1JERVJJVEVNIDogb3JkZXJlZF9hc1xuICAgIFBVUkNIQVNFT1JERVIgfHwtLXx7IFBVUkNIQVNFT1JERVJJVEVNIDogaGFzXG4gICAgUkVPUkRFUlJFUVVFU1Qgb3wtLW97IFBVUkNIQVNFT1JERVJJVEVNIDogc291cmNlX3JlcXVlc3RcbiAgICBSRU9SREVSUkVRVUVTVCB8fC0tfHsgUkVPUkRFUlJFUVVFU1RJVEVNIDogaGFzXG4gICAgUFJPRFVDVCB8fC0tb3sgUkVPUkRFUlJFUVVFU1RJVEVNIDogcmVxdWVzdGVkX3Byb2R1Y3RcblxuICAgIFBST0RVQ1QgfHwtLW97IERBSUxZUFJPRFVDVFNBTEVTIDogZGFpbHlfc2FsZXNcbiAgICBQUk9EVUNUIHx8LS1veyBGT1JFQ0FTVERBSUxZIDogZm9yZWNhc3RlZF9mb3JcbiAgICBGT1JFQ0FTVFJVTiB8fC0tfHsgRk9SRUNBU1REQUlMWSA6IGNvbnRhaW5zXG5cbiAgICBDSEFUVEhSRUFEIHx8LS18eyBDSEFUTUVTU0FHRSA6IGhhc1xuIiwgIm1lcm1haWQiOiAie1widGhlbWVcIjpcImRlZmF1bHRcIn0ifQ==)
