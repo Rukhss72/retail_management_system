@@ -233,7 +233,14 @@ class AdjustmentForm(forms.Form):
         required=True,
         empty_label="---------",
     )
-    set_stock_to = forms.IntegerField(min_value=0)
+    section = forms.ChoiceField(choices=Product.Section.choices, required=True)
+    selling_price = forms.DecimalField(
+        min_value=Decimal("0.00"),
+        decimal_places=2,
+        max_digits=12,
+        widget=forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+    )
+    set_stock_to = forms.IntegerField(min_value=0, required=False)
     reason = forms.CharField(max_length=120)
     reference = forms.CharField(required=False, max_length=60)
     comments = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
@@ -375,3 +382,7 @@ class PurchaseOrderCreateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True).order_by("supplier_name")
+        self.fields["status"].choices = [
+            choice for choice in self.fields["status"].choices
+            if choice[0] != PurchaseOrder.STATUS_DRAFT
+        ]

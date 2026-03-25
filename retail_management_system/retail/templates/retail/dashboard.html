@@ -17,6 +17,8 @@
       --shadow-sm:0 1px 2px rgba(0,0,0,.05);
       --shadow:0 10px 22px rgba(0,0,0,.08);
       --radius:16px;
+      --content-max:1800px;
+      --top-content-max:1800px;
     }
 
     .dash-page-wrap{
@@ -40,33 +42,43 @@
       box-shadow:var(--shadow-sm);
       padding:22px 22px 18px;
       margin-bottom:18px;
+      width:min(92.5%, var(--top-content-max));
+      margin-left:auto;
+      margin-right:auto;
     }
     .page-title{ margin:0; display:flex; align-items:center; gap:10px; font-size:1.55rem; font-weight:900; color:var(--charcoal); }
     .page-sub{ margin-top:6px; color:var(--muted); font-size:.94rem; max-width:900px; }
-    .filter-row{ margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    .filter-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .head-summary{ margin-top:16px; }
+    .filter-row{ margin-top:14px; display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+    .filter-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:center; }
+    .head-summary{
+      margin-top:16px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+    }
+    .page-title{ justify-content:center; }
     .top-summary-row{
       display:grid;
-      grid-template-columns:1fr;
-      gap:16px;
-      align-items:start;
-      margin-bottom:16px;
+      margin-bottom:22px;
+      width:min(100%, var(--top-content-max));
+      margin-left:auto;
+      margin-right:auto;
     }
     .head-inventory{
       background:linear-gradient(180deg, rgba(247,249,252,.98), rgba(255,255,255,1));
       border:1px solid var(--border);
       border-radius:var(--radius);
-      padding:13px 14px;
-      width:380px;
-      min-height:145px;
+      padding:16px 18px 14px;
+      width:91%;
+      min-height:170px;
       box-shadow:var(--shadow-sm);
     }
     .head-inventory-alerts{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin-top:14px;
+      margin-top:45px;
     }
     .head-inventory-summary{ margin-top:10px; color:var(--muted); font-size:.86rem; }
     @media (max-width: 1180px){
@@ -106,23 +118,38 @@
     .grid-2{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
     .grid-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
     .grid-4{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
-    .kpi-groups{ grid-template-columns:repeat(3, max-content); justify-content:start; align-items:start; margin-bottom:0; }
+    .kpi-groups{
+      grid-template-columns:minmax(0, 1.38fr) minmax(0, .8fr) minmax(0, .72fr);
+      justify-content:stretch;
+      align-items:start;
+      margin-bottom:0;
+      width:100%;
+      max-width:none;
+      margin-left:auto;
+      margin-right:auto;
+    }
     .kpi-strip{
-      grid-template-columns:repeat(3, minmax(172px, 190px));
+      grid-template-columns:repeat(3, minmax(0, 1fr));
       justify-content:start;
     }
     .control-layout{ grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .control-layout{
+      width:min(100%, var(--content-max));
+      margin-left:auto;
+      margin-right:auto;
+      margin-top:12px;
+    }
     .stack-grid{ grid-template-columns:1fr; }
     .metric-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
     .rail-stack{ grid-template-columns:1fr; }
-    @media (max-width: 1500px){ .kpi-groups{ grid-template-columns:repeat(2, max-content); } .kpi-strip{ grid-template-columns:repeat(3, minmax(180px, 205px)); } }
-    @media (max-width: 1180px){ .grid-2, .grid-3, .grid-4, .stack-grid, .control-layout{ grid-template-columns:1fr; } }
+    @media (max-width: 1500px){ .kpi-groups{ grid-template-columns:minmax(0, 1fr); } }
+    @media (max-width: 1180px){ .grid-2, .grid-3, .grid-4, .stack-grid, .control-layout, .kpi-groups{ grid-template-columns:1fr; } }
     @media (max-width: 760px){ .kpi-groups, .kpi-strip, .metric-grid{ grid-template-columns:1fr; } }
 
     .panel, .card{
       background:var(--white); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm);
     }
-    .panel{ padding:18px; }
+    .panel{ padding:16px; }
     .card{ padding:16px; }
     .best-seller-panel{
       position:relative;
@@ -136,7 +163,7 @@
     .panel-note{ color:var(--muted); font-size:.82rem; }
 
     .metric-card{
-      padding:11px; min-height:96px; display:flex; flex-direction:column; justify-content:space-between;
+      padding:14px; min-height:108px; display:flex; flex-direction:column; justify-content:space-between;
       background:linear-gradient(180deg, rgba(247,249,252,.96), rgba(255,255,255,1));
       border:1px solid #DDE4EC; border-radius:var(--radius); box-shadow:var(--shadow-sm);
     }
@@ -144,7 +171,7 @@
     .metric-card.forecast-surface{ background:linear-gradient(180deg, rgba(132,172,206,.12), rgba(255,255,255,1)); }
     .metric-card.berry-surface{ background:linear-gradient(180deg, rgba(170,68,101,.08), rgba(255,255,255,1)); }
     .metric-card.warn-surface{ background:linear-gradient(180deg, rgba(245,158,11,.08), rgba(255,255,255,1)); }
-    .kpi-group-panel{ padding:14px; }
+    .kpi-group-panel{ padding:16px; }
     .kpi-group-title{
       margin:0 0 12px;
       font-size:.88rem;
@@ -157,7 +184,7 @@
     .metric-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
     .metric-heading{ display:flex; align-items:center; gap:12px; min-width:0; }
     .metric-icon{
-      width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:.88rem; flex:0 0 34px;
+      width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1rem; flex:0 0 40px;
     }
     .metric-icon.actual{ background:rgba(64,78,92,.10); color:var(--charcoal); }
     .metric-icon.forecast{ background:rgba(132,172,206,.18); color:var(--sky); }
@@ -166,8 +193,8 @@
     .metric-icon.danger{ background:rgba(198,40,40,.12); color:var(--danger); }
     .metric-label{ color:var(--muted); font-size:.69rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; line-height:1.25; }
     .metric-body{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
-    .metric-value{ color:var(--charcoal); font-size:1.55rem; font-weight:900; line-height:1.02; }
-    .metric-subvalue{ color:var(--berry); font-size:.82rem; font-weight:900; line-height:1.15; }
+    .metric-value{ color:var(--charcoal); font-size:1.9rem; font-weight:900; line-height:1.02; }
+    .metric-subvalue{ color:var(--berry); font-size:.92rem; font-weight:900; line-height:1.15; }
     .metric-subvalue.forecast-accent{ color:#5E8DB6; }
     .metric-help{ color:var(--muted); font-size:.72rem; margin-top:5px; }
     .metric-body.centered,
@@ -246,6 +273,7 @@
 
     .chart-wrap{ height:360px; }
     .chart-wrap.sm{ height:280px; }
+    .chart-wrap.weekly-donut{ height:330px; }
 
     .table-wrap{ border:1px solid var(--border); border-radius:14px; overflow:auto; }
     table{ width:100%; border-collapse:collapse; font-size:.94rem; }
@@ -344,7 +372,7 @@
 
         <div class="panel kpi-group-panel">
           <h2 class="kpi-group-title">Forecast</h2>
-          <div class="kpi-strip" style="grid-template-columns:repeat(2, minmax(172px, 190px));">
+          <div class="kpi-strip" style="grid-template-columns:repeat(2, minmax(0, 1fr));">
           <div class="metric-card forecast-surface">
             <div class="metric-top">
               <div class="metric-heading">
@@ -370,7 +398,7 @@
             <div class="metric-subvalue forecast-accent centered">units</div>
           </div>
         </div>
-        </div>
+      </div>
 
         <div class="head-inventory">
           <div class="panel-head" style="margin-bottom:0;">
@@ -387,8 +415,6 @@
           </div>
           <div class="head-inventory-summary">{{ total_skus }} active SKUs monitored across current inventory.</div>
         </div>
-      </div>
-
     </div>
 
     <div class="control-layout">
@@ -620,7 +646,7 @@
               <span class="pill pill-berry">This Week</span>
             </div>
             {% if weekly_category_labels %}
-              <div class="chart-wrap sm"><canvas id="categoryWeeklyChart"></canvas></div>
+              <div class="chart-wrap sm weekly-donut"><canvas id="categoryWeeklyChart"></canvas></div>
             {% else %}
               <div class="empty-state">No weekly category sales data available.</div>
             {% endif %}
@@ -807,47 +833,67 @@
 
       const categoryWeeklyEl = document.getElementById("categoryWeeklyChart");
       if (categoryWeeklyEl && weeklyCategoryLabels.length) {
+        const weeklyPieGlow = {
+          id: "weeklyPieGlow",
+          beforeDatasetDraw(chart) {
+            const { ctx } = chart;
+            ctx.save();
+            ctx.shadowColor = "rgba(170,68,101,0.24)";
+            ctx.shadowBlur = 22;
+            ctx.shadowOffsetY = 10;
+          },
+          afterDatasetDraw(chart) {
+            chart.ctx.restore();
+          }
+        };
         const weeklyFillColors = [
-          "#A5D6A7",
-          "#FFE082",
-          "#FFCC80",
-          "#80CBC4",
-          "#AA4465",
-          "#5C7C9C",
-          "#84ACCE",
-          "#F48FB1",
-          "#FFF59D",
-          "#F48FB1",
+          "#9A4A67",
+          "#7E98B2",
+          "#D8CFF0",
+          "#A999C8",
+          "#8FB39A",
+          "#C9898E",
+          "#E2C27A",
+          "#B7D0BE",
+          "#8DA6A8",
+          "#B88DA3",
         ];
         const weeklyBorderColors = [
-          "#A5D6A7",
-          "#FFE082",
-          "#FFCC80",
-          "#80CBC4",
-          "#AA4465",
-          "#5C7C9C",
-          "#84ACCE",
-          "#F48FB1",
-          "#FFF59D",
-          "#F48FB1",
+          "#853B58",
+          "#6B879F",
+          "#C5BBE7",
+          "#9585B7",
+          "#7A9E85",
+          "#B5767B",
+          "#CFAE64",
+          "#9FBAA7",
+          "#789294",
+          "#A7758D",
         ];
         new Chart(categoryWeeklyEl, {
-          type: "doughnut",
+          type: "pie",
+          plugins: [weeklyPieGlow],
           data: {
             labels: weeklyCategoryLabels,
             datasets: [{
               data: weeklyCategoryValues,
               backgroundColor: weeklyCategoryLabels.map((_, index) => weeklyFillColors[index % weeklyFillColors.length]),
               borderColor: weeklyCategoryLabels.map((_, index) => weeklyBorderColors[index % weeklyBorderColors.length]),
-              borderWidth: 0,
-              hoverOffset: 4,
+              borderWidth: 3,
+              borderAlign: "inner",
+              spacing: 6,
+              offset: 10,
+              hoverOffset: 12,
+              radius: "88%",
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: "bottom" } },
-            cutout: "68%"
+            layout: {
+              padding: { top: 10, right: 10, bottom: 10, left: 10 }
+            },
+            plugins: { legend: { position: "bottom" } }
           }
         });
       }

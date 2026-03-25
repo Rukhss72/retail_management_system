@@ -67,12 +67,12 @@
   /* Tabs */
   .inv-tabs{
     display:flex; gap:.5rem;
-    margin:1rem 0;
+    margin:.2rem 0 0;
     border-bottom:1px solid var(--charcoal-border);
-    padding-bottom:.5rem;
+    padding-bottom:0;
   }
   .inv-tab{
-    padding:.75rem 1.25rem;
+    padding:.40rem 1.1rem;
     border-radius:8px 8px 0 0;
     border:1px solid transparent;
     border-bottom:none;
@@ -216,38 +216,44 @@
   .btn-stock-out:hover{ background:#ffcdd2; }
   .btn-adjust{ background:var(--adjust-bg); color:var(--adjust-text); border-color:#bbdefb; }
   .btn-adjust:hover{ background:#bbdefb; }
+  .btn:disabled{
+    opacity:.5;
+    cursor:not-allowed;
+    transform:none;
+    pointer-events:none;
+  }
 
   /* Panels */
   .inv-panel{
     background:var(--white);
-    padding:1.25rem;
+    padding:.7rem .8rem;
     border-radius:12px;
     box-shadow:var(--shadow-sm);
     border:1px solid var(--charcoal-border);
-    margin-bottom:1.5rem;
+    margin-bottom:.75rem;
   }
   .panel-head{
     display:flex; justify-content:space-between; align-items:flex-start;
-    gap:12px; flex-wrap:wrap;
-    margin-bottom:1rem;
+    gap:8px; flex-wrap:wrap;
+    margin-bottom:.35rem;
   }
-  .panel-title{ font-size:1.25rem; font-weight:900; margin:0; color:var(--charcoal); }
-  .panel-hint{ color:#6b7280; font-size:13px; }
+  .panel-title{ font-size:1.05rem; font-weight:900; margin:0; color:var(--charcoal); }
+  .panel-hint{ color:#6b7280; font-size:11px; }
 
   /* Filters */
   .filters-grid{
     display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
-    gap:1.25rem;
-    margin-bottom:1rem;
+    grid-template-columns:repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap:.55rem .8rem;
+    margin-bottom:0;
   }
-  .form-group{ display:flex; flex-direction:column; gap:.5rem; }
-  .form-group label{ font-size:.9rem; font-weight:800; color:var(--charcoal); font-family: inherit; }
+  .form-group{ display:flex; flex-direction:column; gap:.22rem; min-width:0; }
+  .form-group label{ font-size:.74rem; font-weight:800; color:var(--charcoal); font-family: inherit; }
   .form-control{
-    padding:.75rem;
+    padding:.46rem .62rem;
     border:1px solid var(--charcoal-border);
-    border-radius:8px;
-    font-size:.95rem;
+    border-radius:7px;
+    font-size:.88rem;
     background:var(--white);
     font-family: inherit;
   }
@@ -260,14 +266,20 @@
   /* Make search wider on desktop */
   .form-group.search-wide{
     grid-column: span 2;
-    min-width: 360px;     /* lets full placeholder fit better */
+    min-width: 0;
   }
   .form-group.search-wide .form-control{
     width: 100%;          /* ensures input fills the grid cell */
   }
+  .search-wrap{
+    position:relative;
+    min-width:0;
+    width:100%;
+  }
   .form-group.actions-inline{
     grid-column: span 2;
     align-self:end;
+    min-width:0;
   }
   .form-group.actions-inline label{
     visibility:hidden;
@@ -275,32 +287,63 @@
 
 
   /* Keep it responsive */
-  @media (max-width: 900px){
-    .form-group.search-wide{ grid-column: auto; min-width: 0; }
+  @media (max-width: 1200px){
+    .filters-grid{
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+    }
+    .form-group.search-wide,
+    .form-group.actions-inline{
+      grid-column: auto;
+    }
+    .form-group.actions-inline{
+      align-self:end;
+    }
+    .filter-actions{
+      justify-content:flex-end;
+      flex-wrap:nowrap;
+      white-space:nowrap;
+    }
+    .form-group.search-wide .search-wrap{
+      max-width:250px;
+    }
   }
 
+  @media (max-width: 900px){
+    .form-group.search-wide{ min-width: 0; }
+    .filter-actions{
+      justify-content:flex-start;
+      flex-wrap:wrap;
+      white-space:normal;
+    }
+  }
   /* Proper icon placement */
-  .search-wrap{ position:relative; }
   .search-wrap input{
-    padding-left: 2.2rem;   /* room for icon on left */
-    padding-right: .9rem;
+    padding-left: 1.75rem;   /* room for icon on left */
+    padding-right: .8rem;
   }
   .search-wrap .search-icon{
     position:absolute;
-    left:12px;
+    left:10px;
     top:50%;
     transform:translateY(-50%);
     color:#6c757d;
     pointer-events:none;
+    font-size:.82rem;
   }
 
   .filter-actions{
     display:flex;
-    gap:1rem;
+    gap:.55rem;
     justify-content:flex-end;
     align-items:center;
     flex-wrap:nowrap;
     white-space:nowrap;
+    width:100%;
+  }
+  .filter-actions .btn{
+    padding:.48rem .78rem;
+    border-radius:9px;
+    font-size:.9rem;
   }
 
   /* Product grid/cards */
@@ -365,6 +408,15 @@
   .action-out{ background:var(--stock-out-bg); color:var(--stock-out-text); border-color:#ffcdd2; }
   .action-adj{ background:var(--adjust-bg); color:var(--adjust-text); border-color:#bbdefb; }
   .action-his{ background:var(--history-bg); color:var(--history-text); border-color:var(--charcoal-border); }
+  .action-disabled{
+    opacity:.5;
+    cursor:not-allowed;
+    pointer-events:none;
+  }
+  .action-disabled:hover{
+    transform:none;
+    opacity:.5;
+  }
 
   .last-updated{ margin-top:.75rem; font-size:.75rem; color:#6c757d; text-align:right; }
 
@@ -415,6 +467,7 @@
   /* Hide helper fields */
   .hidden{ display:none !important; }
   .hidden-panel{ display:none !important; }
+  .tab-panel-wrap{ margin-top:-14px; }
 
   /* Modal (keep yours) */
   .modal-backdrop{
@@ -627,7 +680,7 @@
           <i class="fas fa-arrow-up"></i> Stock Out
         </button>
 
-        <button class="btn btn-adjust" type="button" onclick="openModal('modalAdj')">
+        <button class="btn btn-adjust" type="button" {% if is_admin %}onclick="openModal('modalAdj')"{% else %}disabled title="Admin only"{% endif %}>
           <i class="fas fa-sliders-h"></i> Adjust
         </button>
       </div>
@@ -649,7 +702,7 @@
     </div>   
   </div>
   <!-- PRODUCT LIST TAB -->
-  <div class="{% if tab != 'products' %}hidden-panel{% endif %}">
+  <div class="tab-panel-wrap {% if tab != 'products' %}hidden-panel{% endif %}">
 
     <div class="inv-panel">
       <div class="panel-head">
@@ -817,7 +870,9 @@
               <a href="#" class="action-btn action-out js-move" data-product-id="{{ p.id }}" data-modal="modalOut">
                 <i class="fas fa-minus"></i> Stock Out
               </a>
-              <a href="#" class="action-btn action-adj js-move" data-product-id="{{ p.id }}" data-modal="modalAdj">
+              <a href="#"
+                 class="action-btn action-adj {% if is_admin %}js-move{% else %}action-disabled{% endif %}"
+                 {% if is_admin %}data-product-id="{{ p.id }}" data-modal="modalAdj"{% else %}aria-disabled="true" title="Admin only"{% endif %}>
                 <i class="fas fa-sliders-h"></i> Adjust
               </a>
               <a href="#" class="action-btn action-his js-history" data-product-id="{{ p.id }}">
@@ -839,7 +894,7 @@
 
 
   <!-- STOCK MOVEMENT HISTORY TAB (your existing functionality kept) -->
-  <div class="{% if tab != 'history' %}hidden-panel{% endif %}">
+  <div class="tab-panel-wrap {% if tab != 'history' %}hidden-panel{% endif %}">
 
     <div class="inv-panel">
       <div class="panel-head">
@@ -1113,41 +1168,55 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="ADJUST">
       <div class="modal-body">
-        <div class="field">
-          <label>Category</label>
-          <select name="adj-category" id="adjustCategory">
-            <option value="">All categories</option>
-            {% for c in categories %}
-              <option value="{{ c.id }}">{{ c.category_name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
         <div class="hidden">{{ adjust_form.product }}</div>
 
-        <div class="field">
-          <label>Product</label>
-          <select name="adj-product-ui" id="adjustProduct">
-            <option value="">---------</option>
-            {% for p in all_products %}
-              <option value="{{ p.id }}"
-                      data-category="{{ p.category_id }}"
-                      data-qty="{{ p.qty_in_stock|default:0 }}">
-                {{ p.sku }} - {{ p.product_name }}
-              </option>
-            {% endfor %}
-          </select>
+        <div class="modal-grid-3">
+          <div class="field">
+            <label>Category</label>
+            <select name="adj-category" id="adjustCategory">
+              <option value="">All categories</option>
+              {% for c in categories %}
+                <option value="{{ c.id }}">{{ c.category_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field"><label>Section</label>{{ adjust_form.section }}</div>
+
+          <div class="field">
+            <label>Product</label>
+            <select name="adj-product-ui" id="adjustProduct">
+              <option value="">---------</option>
+              {% for p in all_products %}
+                <option value="{{ p.id }}"
+                        data-category="{{ p.category_id }}"
+                        data-qty="{{ p.qty_in_stock|default:0 }}"
+                        data-section="{{ p.section }}"
+                        data-price="{{ p.selling_price }}">
+                  {{ p.sku }} - {{ p.product_name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
 
-        <div class="field">
-          <label>Current Qty</label>
-          <div id="adjustCurrentQty" style="font-weight:800;">0</div>
+        <div class="modal-grid-2">
+          <div class="field">
+            <label>Current Qty</label>
+            <div id="adjustCurrentQty" style="font-weight:800;">0</div>
+          </div>
+          <div class="field"><label>Set stock to</label>{{ adjust_form.set_stock_to }}</div>
         </div>
 
-        <div class="field"><label>Set stock to</label>{{ adjust_form.set_stock_to }}</div>
-        <div class="field"><label>Reason</label>{{ adjust_form.reason }}</div>
-        <div class="field"><label>Reference (optional)</label>{{ adjust_form.reference }}</div>
-        <div class="field"><label>Comments (optional)</label>{{ adjust_form.comments }}</div>
+        <div class="modal-grid-2">
+          <div class="field"><label>Reason</label>{{ adjust_form.reason }}</div>
+          <div class="field"><label>Selling Price</label>{{ adjust_form.selling_price }}</div>
+        </div>
+
+        <div class="modal-grid-2">
+          <div class="field"><label>Comments (optional)</label>{{ adjust_form.comments }}</div>
+          <div class="field"><label>Reference (optional)</label>{{ adjust_form.reference }}</div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn light full" type="button" onclick="closeModal('modalAdj')">Cancel</button>
@@ -1361,6 +1430,28 @@
     outEl.textContent = qty;
   }
 
+  function syncAdjustFieldsFromProduct() {
+    const prodEl = document.getElementById("adjustProduct");
+    const sectionEl = document.querySelector('select[name="adj-section"]');
+    const priceEl = document.querySelector('input[name="adj-selling_price"]');
+    if (!prodEl) return;
+
+    const opt = prodEl.options[prodEl.selectedIndex];
+    if (!opt || !opt.dataset) return;
+
+    if (sectionEl) sectionEl.value = opt.dataset.section || "";
+    if (priceEl) priceEl.value = opt.dataset.price || "";
+  }
+
+  function setCategoryFromProduct(categorySelectId, productSelectId) {
+    const catEl = document.getElementById(categorySelectId);
+    const prodEl = document.getElementById(productSelectId);
+    if (!catEl || !prodEl) return;
+
+    const opt = prodEl.options[prodEl.selectedIndex];
+    catEl.value = opt && opt.dataset ? (opt.dataset.category || "") : "";
+  }
+
   function syncStockInProductToForm() {
     const ui = document.getElementById("stockInProduct");
     const django = document.querySelector('select[name="in-product"]');
@@ -1377,6 +1468,41 @@
     const ui = document.getElementById("adjustProduct");
     const django = document.querySelector('select[name="adj-product"]');
     if (ui && django) django.value = ui.value;
+  }
+
+  function resetProductModal(modalId, categorySelectId, productSelectId, qtyDisplayId, djangoFieldName) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    const form = modal.querySelector("form");
+    if (form) form.reset();
+
+    const catEl = document.getElementById(categorySelectId);
+    const prodEl = document.getElementById(productSelectId);
+    const qtyEl = document.getElementById(qtyDisplayId);
+    const djangoEl = document.querySelector(`select[name="${djangoFieldName}"]`);
+
+    if (catEl) catEl.value = "";
+
+    if (prodEl) {
+      prodEl.value = "";
+      prodEl.querySelectorAll("option[data-category]").forEach(opt => {
+        opt.hidden = false;
+      });
+    }
+
+    if (djangoEl) djangoEl.value = "";
+    if (qtyEl) qtyEl.textContent = "0";
+  }
+
+  function resetModalState(id) {
+    if (id === "modalIn") {
+      resetProductModal("modalIn", "stockInCategory", "stockInProduct", "stockInCurrentQty", "in-product");
+    } else if (id === "modalOut") {
+      resetProductModal("modalOut", "stockOutCategory", "stockOutProduct", "stockOutCurrentQty", "out-product");
+    } else if (id === "modalAdj") {
+      resetProductModal("modalAdj", "adjustCategory", "adjustProduct", "adjustCurrentQty", "adj-product");
+    }
   }
 
   function openModal(id){
@@ -1403,6 +1529,7 @@
     if (id === "modalAdj") {
       filterAdjustProducts();
       syncAdjustProductToForm();
+      syncAdjustFieldsFromProduct();
       updateAdjustQtyDisplay();
     }
   }
@@ -1411,6 +1538,7 @@
     const el = document.getElementById(id);
     if (!el) return;
     el.style.display = "none";
+    resetModalState(id);
   }
 
   function prefillProduct(productId, modalId){
@@ -1421,13 +1549,20 @@
     if (uiSelect) uiSelect.value = String(productId);
 
     if (modalId === "modalIn") {
+      setCategoryFromProduct("stockInCategory", "stockInProduct");
+      filterStockInProducts();
       syncStockInProductToForm();
       updateStockInQtyDisplay();
     } else if (modalId === "modalOut") {
+      setCategoryFromProduct("stockOutCategory", "stockOutProduct");
+      filterStockOutProducts();
       syncStockOutProductToForm();
       updateStockOutQtyDisplay();
     } else if (modalId === "modalAdj") {
+      setCategoryFromProduct("adjustCategory", "adjustProduct");
+      filterAdjustProducts();
       syncAdjustProductToForm();
+      syncAdjustFieldsFromProduct();
       updateAdjustQtyDisplay();
     }
   }
@@ -1491,6 +1626,7 @@
 
     if (e.target && e.target.id === "adjustProduct") {
       syncAdjustProductToForm();
+      syncAdjustFieldsFromProduct();
       updateAdjustQtyDisplay();
     }
 
@@ -1502,7 +1638,7 @@
 
   document.querySelectorAll(".modal-backdrop").forEach(function(bg){
     bg.addEventListener("click", function(e){
-      if (e.target === bg) bg.style.display = "none";
+      if (e.target === bg) closeModal(bg.id);
     });
   });
 </script>

@@ -56,11 +56,11 @@
   .sales-page-wrap{
     max-width: 1400px;
     margin: 0 auto;              /* keeps it centered in the available area */
-    padding-left: 30px;          /* extra breathing room from the sidebar */
+    padding-left: 1px;          /* nudge the sales layout slightly left */
   }
 
   @media (max-width: 1200px){
-    .sales-page-wrap{ padding-left: 16px; }
+    .sales-page-wrap{ padding-left: 8px; }
   }
 
   .sales-wrap{ padding: 10px 0; }
@@ -182,7 +182,7 @@
   .grid-4{
     display:grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px 16px;  /* REPLACE 12px with this */
+    gap: 10px 12px;
     align-items: start; /* ADD */
   }
 
@@ -191,6 +191,22 @@
     grid-template-columns: 1.3fr .7fr;
     gap: 12px;
     align-items:end;
+  }
+  .product-filters{
+    display:grid;
+    grid-template-columns: minmax(0, 1.0fr) minmax(160px, .8fr) minmax(180px, .95fr);
+    gap: 8px 12px;
+    align-items:end;
+    margin-bottom: 8px;
+  }
+  .product-filters .actions{
+    grid-column: 1 / -1;
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+  }
+  .product-filters .section-field{
+    margin-left: 18px;
   }
   .fg{
     display: flex;
@@ -204,8 +220,36 @@
     font-size: .85rem;
   }
   .hint{ margin-top: 2px; font-size: .78rem; color: var(--muted); line-height: 1.2; }
+  .sale-meta-card{
+    padding: 8px 14px;
+  }
+  .sale-meta-card .fg{
+    gap: 2px;
+  }
+  .sale-meta-card input{
+    height: 36px;
+    line-height: 36px;
+  }
+  .sale-meta-card .hint{
+    margin-top: 0;
+    line-height: 1.1;
+  }
+  .products-card{
+    padding: 12px 14px;
+  }
+  .products-card .collapse-head{
+    margin-bottom: 8px;
+  }
+  .products-card .fg{
+    gap: 3px;
+  }
+  .products-card .hint{
+    line-height: 1.1;
+  }
   input, select{
     width: 80%;
+    max-width: 100%;
+    box-sizing: border-box;
     height: 40px;          /* ADD */
     line-height: 40px;     /* ADD */
     padding: 0 12px;       /* REPLACE 10px 12px */
@@ -214,6 +258,10 @@
     background: #FAFAFA;
     font-size: .95rem;
     outline: none;
+  }
+  .product-filters input,
+  .product-filters select{
+    width: 100%;
   }
 
   input:read-only{
@@ -227,6 +275,20 @@
     grid-template-columns: 1.3fr .7fr;
     gap: 14px;
     align-items:start;
+    margin-left: -62px;
+  }
+
+  @media (max-width: 1200px){
+    .two-col{ margin-left: 0; }
+    .product-filters{
+      grid-template-columns: 1fr;
+    }
+    .product-filters .actions{
+      justify-content:flex-start;
+    }
+    .product-filters .section-field{
+      margin-left: 0;
+    }
   }
 
   /* Table */
@@ -238,6 +300,12 @@
   .table-wrap.product-list{
     max-height: 620px; /* ~10 rows */
     overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+  .table-wrap.cart-list{
+    max-height: 510px; /* about 6 cart rows before scrolling */
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
   table{
     width: 100%;
@@ -464,7 +532,7 @@
 
     {% if tab == 'new' %}
       <!-- NEW SALE -->
-      <div class="card top-full">
+      <div class="card top-full sale-meta-card">
         <div class="grid-4">
           <div class="fg">
             <label>Sale Date/Time</label>
@@ -490,7 +558,7 @@
       <div class="two-col">
 
         <!-- Product Picker (GET filters, not nested inside POST form) -->
-        <div class="card">
+        <div class="card products-card">
           <div class="collapse-head">
             <div class="card-title"><i class="fa-solid fa-table-list"></i> Products</div>
             <button type="button" class="collapse-toggle js-collapse-toggle" data-target="salesProductsBody" aria-expanded="true">
@@ -500,14 +568,14 @@
           </div>
           <div id="salesProductsBody" class="collapse-body">
 
-          <form method="get" class="grid-2" style="margin-bottom:12px;">
+          <form method="get" class="product-filters">
             <input type="hidden" name="tab" value="new">
             <div class="fg">
               <label> Search</label>
               <input type="text" name="q" value="{{ q }}" placeholder="Search product name (or SKU)">
             </div>
             
-            <div style="margin-top:10px;">   <!-- NEW: Section filter (below search bar) -->
+            <div class="fg section-field">
               <label>Section</label>
               <select name="section">
                 <option value="">All Sections</option>
@@ -531,7 +599,7 @@
               </select>
             </div>
 
-            <div style="grid-column: 1 / -1; display:flex; gap:10px; justify-content:flex-end;">
+            <div class="actions">
               <button class="btn btn-soft" type="submit"><i class="fa-solid fa-filter"></i> Apply Filters</button>
               <a class="btn btn-outline" href="{% url 'sales' %}?tab=new"><i class="fa-solid fa-rotate-left"></i> Reset</a>
             </div>
@@ -665,7 +733,7 @@
             {% csrf_token %}
             <input type="hidden" name="cart_json" id="cart_json" value="[]">
 
-            <div class="table-wrap">
+            <div class="table-wrap cart-list">
               <table id="cartTable">
                 <thead>
                   <tr>

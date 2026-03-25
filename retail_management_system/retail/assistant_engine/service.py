@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 
 from django.utils import timezone
 
-from .entities import parse_date_window, parse_threshold, resolve_category, resolve_festival_name, resolve_product
+from .entities import parse_date_window, parse_threshold, resolve_category, resolve_festival_name, resolve_product, resolve_section
 from .handlers import (
     handle_compare_sales,
     handle_festival_insights,
@@ -81,6 +81,7 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
         "horizon_days": horizon_days,
         "threshold": parse_threshold(query),
         "category": resolve_category(query),
+        "section": resolve_section(query),
         "product": product_resolution.product,
         "product_candidates": [
             {"id": p.id, "name": p.product_name, "sku": p.sku}
@@ -144,7 +145,7 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
     return entities
 
 
-def _needs_product_confirmation(intent: str, query: str) -> bool:
+def _needs_product_confirmation(intent: str, query: str, entities: dict | None = None) -> bool:
     text = query.lower()
     if intent == INTENT_STOCK_LOOKUP:
         # Stock list/filter queries should not trigger product disambiguation.
@@ -168,14 +169,18 @@ def _needs_product_confirmation(intent: str, query: str) -> bool:
             return False
         return True
     if intent == INTENT_FORECAST_BEST_SELLERS and ("for " in text or "product" in text):
+        if entities and (entities.get("category") is not None or entities.get("section") is not None):
+            return False
         return True
     if intent == INTENT_TOP_SELLERS and "trend for" in text:
+        if entities and (entities.get("category") is not None or entities.get("section") is not None):
+            return False
         return True
     return False
 
 
 def _low_confidence_product_prompt(intent: str, query: str, entities: dict) -> dict | None:
-    if not _needs_product_confirmation(intent, query):
+    if not _needs_product_confirmation(intent, query, entities):
         return None
     if entities["product"] is None:
         return None
@@ -462,6 +467,17 @@ def _is_generic_stock_count_query(query: str) -> bool:
     return any(k in text for k in ("set", "sets", "items", "products", "skus"))
 
 
+def _is_generic_stock_movements_query(query: str) -> bool:
+    text = query.lower()
+    if "movement" not in text:
+        return False
+    generic_markers = ("stock movement", "stock movements", "movements", "movement", "last 30 days", "this week", "last week")
+    if not any(marker in text for marker in generic_markers):
+        return False
+    explicit_product_markers = (" for ", " of ", " sku ", "product ")
+    return not any(marker in text for marker in explicit_product_markers)
+
+
 def _is_small_talk(query: str) -> bool:
     text = re.sub(r"[^a-z0-9\s]", "", query.lower().strip())
     return text in {
@@ -492,19 +508,37 @@ def _should_try_ollama(intent: str, entities: dict, query: str) -> bool:
 def _apply_memory_to_query(query: str, memory: dict) -> str:
     if not memory:
         return query
-    text = query.lower()
+    rewritten = (query or "").strip()
+    text = rewritten.lower()
+
+    follow_up_terms = ("what about", "and for")
+    if any(t in text for t in follow_up_terms):
+        intent_seed = {
+            INTENT_COMPARE_SALES: "compare sales",
+            INTENT_SEASONALITY: "seasonality",
+            INTENT_STOCK_LOOKUP: "stock",
+            INTENT_STOCK_MOVEMENTS: "stock movements",
+            INTENT_SALES_SUMMARY: "sales",
+            INTENT_TOP_SELLERS: "top sellers",
+            INTENT_FORECAST_BEST_SELLERS: "forecast",
+            INTENT_REORDER_SUGGESTIONS: "reorder suggestions",
+            INTENT_FESTIVAL_INSIGHTS: "festival insights",
+        }.get(memory.get("last_intent"))
+        if intent_seed and intent_seed not in text:
+            rewritten = f"{intent_seed} {rewritten}"
+            text = rewritten.lower()
+
     carry_terms = ("this product", "that product", "same product", "it", "that one")
     if any(t in text for t in carry_terms):
         last_product = memory.get("last_product_name")
         if last_product:
-            return f"{query} {last_product}"
+            rewritten = f"{rewritten} {last_product}"
+            text = rewritten.lower()
     if any(t in text for t in ("same category", "that category")):
         last_category = memory.get("last_category_name")
         if last_category:
-            return f"{query} {last_category}"
-    if any(t in text for t in ("what about", "and for")) and memory.get("last_user_query"):
-        return f"{memory['last_user_query']} ; follow-up: {query}"
-    return query
+            rewritten = f"{rewritten} {last_category}"
+    return rewritten
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -569,6 +603,7 @@ def _with_answer_text(intent: str, payload: dict) -> dict:
 
 
 def process_query(query: str, session: dict) -> dict:
+    raw_query = query
     query = _apply_memory_to_query(query, session)
     confirmation = normalize_confirmation(query)
     pending = session.get("assistant_pending")
@@ -668,7 +703,19 @@ def process_query(query: str, session: dict) -> dict:
     ):
         intent = INTENT_STOCK_LOOKUP
 
-    if intent == INTENT_STOCK_LOOKUP and _is_generic_stock_count_query(query):
+    if intent == INTENT_STOCK_LOOKUP and (_is_generic_stock_count_query(query) or (entities.get("category") is not None and "how many" in query.lower() and "stock" in query.lower())):
+        entities["product"] = None
+        entities["product_candidates"] = []
+        entities["product_confidence"] = 1.0
+    if intent == INTENT_SEASONALITY and (entities.get("category") is not None or entities.get("section") is not None):
+        entities["product"] = None
+        entities["product_candidates"] = []
+        entities["product_confidence"] = 1.0
+    if intent == INTENT_STOCK_LOOKUP and entities.get("section") is not None and "how many" in query.lower() and "stock" in query.lower():
+        entities["product"] = None
+        entities["product_candidates"] = []
+        entities["product_confidence"] = 1.0
+    elif intent == INTENT_STOCK_MOVEMENTS and _is_generic_stock_movements_query(query):
         entities["product"] = None
         entities["product_candidates"] = []
         entities["product_confidence"] = 1.0
@@ -722,13 +769,23 @@ def process_query(query: str, session: dict) -> dict:
     chat_history.append({"role": "assistant", "content": ai_insight or payload.get("summary", "")})
     session["_chat_history"] = chat_history[-12:]   # last 6 turns
 
-    session["last_user_query"] = query
+    session["last_user_query"] = raw_query
+    session["last_resolved_query"] = query
     session["last_intent"] = intent
+    session["last_entities"] = {
+        "start": str(entities["start"]) if entities.get("start") else None,
+        "end": str(entities["end"]) if entities.get("end") else None,
+        "compare_start": str(entities["compare_start"]) if entities.get("compare_start") else None,
+        "compare_end": str(entities["compare_end"]) if entities.get("compare_end") else None,
+        "date_label": entities.get("date_label"),
+    }
     if entities.get("product") is not None:
         session["last_product_name"] = entities["product"].product_name
         session["last_product_sku"] = entities["product"].sku
     if entities.get("category") is not None:
         session["last_category_name"] = entities["category"].category_name
+    if entities.get("section") is not None:
+        session["last_section_name"] = entities["section"]
 
     payload = _with_answer_text(intent, payload)
     return {"intent": intent, "parser_used": parser_used, "parser_confidence": parser_confidence, **payload}

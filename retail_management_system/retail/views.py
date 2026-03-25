@@ -475,33 +475,49 @@ def inventory(request):
                         return redirect("inventory")
 
         elif action == "ADJUST":
+            if not is_admin(request.user):
+                return redirect("inventory")
             adjust_form = AdjustmentForm(request.POST, prefix="adj")
             if adjust_form.is_valid():
                 cd = adjust_form.cleaned_data
                 with transaction.atomic():
                     product = Product.objects.select_for_update().get(pk=cd["product"].pk)
+                    fields_to_update = []
 
-                    target = int(cd["set_stock_to"])
-                    current_on_hand = int(product.qty_in_stock or 0)
-                    diff = target - current_on_hand
+                    if product.section != cd["section"]:
+                        product.section = cd["section"]
+                        fields_to_update.append("section")
 
-                    if diff != 0:
-                        adj_dir = "INC" if diff > 0 else "DEC"
-                        qty = abs(diff)
+                    if product.selling_price != cd["selling_price"]:
+                        product.selling_price = cd["selling_price"]
+                        fields_to_update.append("selling_price")
 
-                        StockMovement.objects.create(
-                            product=product,
-                            movement_type="ADJUST",
-                            qty_moved=qty,
-                            adjust_direction=adj_dir,
-                            reason=cd["reason"],
-                            reference=cd["reference"] or None,
-                            comments=cd["comments"] or None,
-                            created_by=request.user,
-                        )
+                    target = cd.get("set_stock_to")
+                    if target is not None:
+                        target = int(target)
+                        current_on_hand = int(product.qty_in_stock or 0)
+                        diff = target - current_on_hand
 
-                        product.qty_in_stock = target
-                        product.save(update_fields=["qty_in_stock", "updated_at"])
+                        if diff != 0:
+                            adj_dir = "INC" if diff > 0 else "DEC"
+                            qty = abs(diff)
+
+                            StockMovement.objects.create(
+                                product=product,
+                                movement_type="ADJUST",
+                                qty_moved=qty,
+                                adjust_direction=adj_dir,
+                                reason=cd["reason"],
+                                reference=cd["reference"] or None,
+                                comments=cd["comments"] or None,
+                                created_by=request.user,
+                            )
+
+                            product.qty_in_stock = target
+                            fields_to_update.append("qty_in_stock")
+
+                    if fields_to_update:
+                        product.save(update_fields=fields_to_update + ["updated_at"])
 
                 return redirect("inventory")
 
@@ -644,6 +660,7 @@ def inventory(request):
         "tab": tab,
         "base_qs": base_qs,
         "cp_supplier_map": cp_supplier_map,
+        "is_admin": is_admin(request.user),
     }
     return render(request, "retail/inventory.html", context)
 
@@ -772,6 +789,7 @@ def suppliers(request):
 
     q = request.GET.get("q", "").strip()
     status = request.GET.get("status", "all")
+    rr_status = request.GET.get("rr_status", "all").strip().upper() or "ALL"
     page_number = request.GET.get("page", 1)
 
     supplier_form = SupplierForm()
@@ -825,6 +843,7 @@ def suppliers(request):
             create_po_data = request.POST.copy()
             product_id_raw = (create_po_data.get("product_id") or "").strip()
             supplier_raw = (create_po_data.get("supplier") or "").strip()
+            qty_raw = (create_po_data.get("qty_ordered") or "").strip()
             if product_id_raw and not supplier_raw:
                 selected_product = Product.objects.filter(id=product_id_raw, is_active=True).only("supplier_id").first()
                 if selected_product and selected_product.supplier_id:
@@ -832,22 +851,57 @@ def suppliers(request):
 
             po_form = PurchaseOrderCreateForm(create_po_data)
             if po_form.is_valid():
-                po = po_form.save(commit=False)
-                po.created_by = request.user
-                # Ensure Draft unless user picks otherwise (optional)
-                if not po.status:
-                    po.status = PurchaseOrder.STATUS_PENDING
-                if not po.order_date:
-                    po.order_date = timezone.localdate()
-                if not po.delivery_date and po.supplier_id and po.order_date:
-                    lead_days = int(getattr(po.supplier, "lead_time_days", 0) or 0)
-                    po.delivery_date = po.order_date + timedelta(days=max(lead_days, 0))
-                # Always auto-generate to avoid invalid manual input
-                po.po_number = _next_po_number()
-                po.save()
+                try:
+                    qty_ordered = int(qty_raw or "0")
+                except ValueError:
+                    qty_ordered = 0
 
-                messages.success(request, f"PO created: {po}")
-                return redirect(f"{request.path}?tab=purchase-orders")
+                if not product_id_raw:
+                    messages.error(request, "Select a product for this purchase order.")
+                    tab = "purchase-orders"
+                    po_form = PurchaseOrderCreateForm(create_po_data)
+                elif qty_ordered <= 0:
+                    messages.error(request, "Enter a quantity greater than 0.")
+                    tab = "purchase-orders"
+                    po_form = PurchaseOrderCreateForm(create_po_data)
+                else:
+                    product = Product.objects.filter(id=product_id_raw, is_active=True).first()
+                    supplier_obj = po_form.cleaned_data.get("supplier")
+                    if not product or not supplier_obj:
+                        messages.error(request, "Invalid supplier or product selection.")
+                        tab = "purchase-orders"
+                    else:
+                        supplier_link = product.supplier_links.filter(supplier_id=supplier_obj.id).first()
+                        if not supplier_link and product.supplier_id != supplier_obj.id:
+                            messages.error(request, "The selected product is not connected to the chosen supplier.")
+                            tab = "purchase-orders"
+                        else:
+                            po = po_form.save(commit=False)
+                            po.created_by = request.user
+                            if not po.status:
+                                po.status = PurchaseOrder.STATUS_PENDING
+                            if not po.order_date:
+                                po.order_date = timezone.localdate()
+                            if not po.delivery_date and po.supplier_id and po.order_date:
+                                lead_days = int(getattr(po.supplier, "lead_time_days", 0) or 0)
+                                po.delivery_date = po.order_date + timedelta(days=max(lead_days, 0))
+                            po.po_number = _next_po_number()
+
+                            unit_cost = getattr(supplier_link, "last_unit_cost", None)
+                            if unit_cost is None:
+                                unit_cost = Decimal("0.00")
+                            po.total_amount = unit_cost * Decimal(qty_ordered)
+                            po.save()
+
+                            PurchaseOrderItem.objects.create(
+                                po=po,
+                                product=product,
+                                qty_ordered=qty_ordered,
+                                unit_cost=unit_cost,
+                            )
+
+                            messages.success(request, f"PO created: {po}")
+                            return redirect(f"{request.path}?tab=purchase-orders")
 
             messages.error(request, "Please fix the errors in the purchase order form.")
             tab = "purchase-orders"
@@ -1021,6 +1075,7 @@ def suppliers(request):
         "tab": tab,
         "q": q,
         "status": status,
+        "rr_status": rr_status,
         "is_admin": is_admin(request.user),
         "form": supplier_form,
         "po_form": po_form,
@@ -1060,12 +1115,12 @@ def suppliers(request):
     # TAB: PURCHASE ORDERS
     # ----------------------------
     if tab == "purchase-orders":
-        context["products_for_po"] = Product.objects.filter(is_active=True).select_related("category", "supplier").order_by("product_name")
+        context["products_for_po"] = Product.objects.filter(is_active=True).select_related("category", "supplier").prefetch_related("supplier_links").order_by("product_name")
         context["rr_drafts"] = ReorderRequest.objects.select_related("supplier").filter(
             status=ReorderRequest.STATUS_DRAFT
         ).order_by("-created_at")[:50]
 
-        po_qs = PurchaseOrder.objects.select_related("supplier").prefetch_related("items").all().order_by("-created_at")
+        po_qs = PurchaseOrder.objects.select_related("supplier").prefetch_related("items__product__category").all().order_by("-created_at")
 
         if q:
             po_qs = po_qs.filter(
@@ -1147,13 +1202,39 @@ def suppliers(request):
     requests_base_qs = ReorderRequest.objects.select_related("supplier").prefetch_related("items__product__category").annotate(
         total_qty_to_order=Coalesce(Sum("items__qty_requested"), 0, output_field=IntegerField())
     )
+    if rr_status != "ALL":
+        requests_base_qs = requests_base_qs.filter(status=rr_status)
     if is_admin(request.user):
-        requests_qs = requests_base_qs.order_by("created_at", "id")[:15]
+        requests_qs = requests_base_qs.order_by("created_at", "id")
     else:
-        requests_qs = requests_base_qs.filter(created_by=request.user).order_by("created_at", "id")[:15]
+        requests_qs = requests_base_qs.filter(created_by=request.user).order_by("created_at", "id")
+
+    rr_paginator = Paginator(requests_qs, 10)
+    rr_page = rr_paginator.get_page(page_number)
+
+    rr_ids = [r.id for r in rr_page.object_list]
+    linked_po_rows = PurchaseOrderItem.objects.filter(
+        reorder_request_id__in=rr_ids
+    ).select_related(
+        "po", "po__supplier", "product", "product__category"
+    ).order_by("po__created_at", "po_id", "id")
+
+    rr_po_map = {}
+    for row in linked_po_rows:
+        rr_entry = rr_po_map.setdefault(row.reorder_request_id, {})
+        po_entry = rr_entry.setdefault(
+            row.po_id,
+            {"po": row.po, "items": []},
+        )
+        po_entry["items"].append(row)
+
+    for rr in rr_page.object_list:
+        linked = rr_po_map.get(rr.id, {})
+        rr.linked_pos = list(linked.values())
+        rr.linked_po = rr.linked_pos[0]["po"] if rr.linked_pos else None
 
     context.update({
-        "requests": requests_qs,
+        "requests": rr_page,
         "products_for_rr_edit": Product.objects.filter(is_active=True).select_related("category").order_by("product_name"),
     })
     return render(request, "retail/suppliers.html", context)

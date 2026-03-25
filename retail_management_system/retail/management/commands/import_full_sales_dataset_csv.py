@@ -39,6 +39,13 @@ def parse_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
+def first_present(row, *keys, default=""):
+    for key in keys:
+        if key in row and row.get(key) not in (None, ""):
+            return row.get(key)
+    return default
+
+
 @dataclass
 class ItemRow:
     product: Product
@@ -82,22 +89,23 @@ class Command(BaseCommand):
         if not file_path.exists():
             raise CommandError(f"File not found: {file_path}")
 
-        required = {
-            "receipt_no",
-            "sale_date",
-            "cashier_username",
-            "payment_method",
-            "sku",
-            "qty",
-            "unit_price",
-        }
-
         with file_path.open("r", encoding="utf-8-sig", newline="") as f:
             reader = csv.DictReader(f)
             headers = set(reader.fieldnames or [])
-            missing = sorted(required - headers)
+            required_base = {"receipt_no", "sale_date", "cashier_username", "payment_method"}
+            missing = sorted(required_base - headers)
             if missing:
                 raise CommandError(f"Missing required columns: {', '.join(missing)}")
+
+            product_header_ok = "sku" in headers or "product_id" in headers
+            qty_header_ok = "qty" in headers or "qty_sold" in headers
+            price_header_ok = "unit_price" in headers or "sales_amt" in headers
+            if not product_header_ok:
+                raise CommandError("Missing required product column: provide either 'sku' or 'product_id'")
+            if not qty_header_ok:
+                raise CommandError("Missing required quantity column: provide either 'qty' or 'qty_sold'")
+            if not price_header_ok:
+                raise CommandError("Missing required price column: provide either 'unit_price' or 'sales_amt'")
 
             rows = list(reader)
 
@@ -107,10 +115,14 @@ class Command(BaseCommand):
 
         usernames = {str(r.get("cashier_username", "")).strip() for r in rows if str(r.get("cashier_username", "")).strip()}
         skus = {str(r.get("sku", "")).strip() for r in rows if str(r.get("sku", "")).strip()}
+        product_ids = {int(str(r.get("product_id", "")).strip()) for r in rows if str(r.get("product_id", "")).strip().isdigit()}
 
         user_model = get_user_model()
         user_map = {u.username: u for u in user_model.objects.filter(username__in=usernames)}
-        product_map = {p.sku: p for p in Product.objects.filter(sku__in=skus)}
+        products = Product.objects.filter(sku__in=skus) if skus else Product.objects.none()
+        products_by_id = Product.objects.filter(id__in=product_ids) if product_ids else Product.objects.none()
+        product_map = {p.sku: p for p in products}
+        product_id_map = {p.id: p for p in products_by_id}
 
         missing_users = sorted(usernames - set(user_map.keys()))
         created_users = 0
@@ -125,6 +137,7 @@ class Command(BaseCommand):
             missing_users = sorted(usernames - set(user_map.keys()))
 
         missing_skus = sorted(skus - set(product_map.keys()))
+        missing_product_ids = sorted(product_ids - set(product_id_map.keys()))
 
         grouped = defaultdict(lambda: {"meta": None, "items": []})
         skipped_rows = 0
@@ -135,13 +148,16 @@ class Command(BaseCommand):
             receipt_no = str(row.get("receipt_no", "")).strip()
             cashier_username = str(row.get("cashier_username", "")).strip()
             sku = str(row.get("sku", "")).strip()
+            product_id_raw = str(row.get("product_id", "")).strip()
 
-            if not receipt_no or not cashier_username or not sku:
+            if not receipt_no or not cashier_username or (not sku and not product_id_raw):
                 bad_rows += 1
                 continue
 
             cashier = user_map.get(cashier_username)
             product = product_map.get(sku)
+            if not product and product_id_raw.isdigit():
+                product = product_id_map.get(int(product_id_raw))
             if not cashier or not product:
                 skipped_rows += 1
                 continue
@@ -157,14 +173,18 @@ class Command(BaseCommand):
                 payment_method = "other"
 
             try:
-                qty = int(parse_decimal(row.get("qty", "0"), "0"))
+                qty = int(parse_decimal(first_present(row, "qty", "qty_sold", default="0"), "0"))
             except ValueError:
                 qty = 0
             if qty <= 0:
                 bad_rows += 1
                 continue
 
-            unit_price = quant2(parse_decimal(row.get("unit_price", "0"), "0"))
+            if "unit_price" in headers:
+                unit_price = quant2(parse_decimal(row.get("unit_price", "0"), "0"))
+            else:
+                sales_amt = quant2(parse_decimal(first_present(row, "sales_amt", default="0"), "0"))
+                unit_price = quant2(sales_amt / Decimal(qty)) if qty > 0 else Decimal("0.00")
             if unit_price < 0:
                 unit_price = Decimal("0.00")
 
@@ -229,6 +249,10 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"Missing users: {len(missing_users)} (first 20) {missing_users[:20]}"))
         if missing_skus:
             self.stdout.write(self.style.WARNING(f"Missing SKUs: {len(missing_skus)} (first 20) {missing_skus[:20]}"))
+        if missing_product_ids:
+            self.stdout.write(
+                self.style.WARNING(f"Missing product_ids: {len(missing_product_ids)} (first 20) {missing_product_ids[:20]}")
+            )
 
         if dry_run:
             self.stdout.write(self.style.SUCCESS("Dry run complete. No DB changes made."))

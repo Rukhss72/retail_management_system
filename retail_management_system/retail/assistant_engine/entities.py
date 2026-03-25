@@ -49,12 +49,14 @@ PRODUCT_STOPWORDS = {
     "sales",
     "trend",
     "forecast",
+    "movement",
+    "movements",
 }
 
 
 def _product_search_text(text: str) -> str:
     tokens = [t for t in text.split() if t not in PRODUCT_STOPWORDS and len(t) > 1]
-    return " ".join(tokens) if tokens else text
+    return " ".join(tokens)
 
 
 def parse_threshold(query: str) -> int | None:
@@ -67,20 +69,28 @@ def parse_threshold(query: str) -> int | None:
 
 def parse_date_window(query: str) -> tuple:
     text = normalize_text(query)
+    raw_query = (query or "").strip()
     today = timezone.localdate()
     start = today
     end = today
     label = "today"
     horizon_days = 7
 
-    m = re.search(r"(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})", text)
-    if m:
-        start = datetime.strptime(m.group(1), "%Y-%m-%d").date()
-        end = datetime.strptime(m.group(2), "%Y-%m-%d").date()
+    explicit_dates = re.findall(r"\b(\d{4}[-/]\d{2}[-/]\d{2})\b", raw_query)
+    if len(explicit_dates) >= 2:
+        start = datetime.strptime(explicit_dates[0].replace("/", "-"), "%Y-%m-%d").date()
+        end = datetime.strptime(explicit_dates[1].replace("/", "-"), "%Y-%m-%d").date()
         if start > end:
             start, end = end, start
         label = f"{start} to {end}"
         return start, end, label, (end - start).days + 1
+
+    if explicit_dates:
+        normalized_date = explicit_dates[0].replace("/", "-")
+        start = datetime.strptime(normalized_date, "%Y-%m-%d").date()
+        end = start
+        label = str(start)
+        return start, end, label, 1
 
     # Handle month-year phrases like "december 2025" or "jan2023"
     month_map = {
@@ -133,6 +143,10 @@ def parse_date_window(query: str) -> tuple:
         start = today - timedelta(days=6)
         end = today
         label = "last 7 days"
+    elif "last week" in text:
+        end = today - timedelta(days=7)
+        start = end - timedelta(days=6)
+        label = "last week"
     elif has_last_month_phrase():
         first_this_month = today.replace(day=1)
         end = first_this_month - timedelta(days=1)
@@ -142,14 +156,22 @@ def parse_date_window(query: str) -> tuple:
         start = today.replace(day=1)
         end = today
         label = "this month"
-    elif "last 30 days" in text:
-        start = today - timedelta(days=29)
-        end = today
-        label = "last 30 days"
+    else:
+        last_days_match = re.search(r"\blast\s+(\d+)\s+days\b", text)
+        if last_days_match:
+            day_count = int(last_days_match.group(1))
+            if day_count > 0:
+                start = today - timedelta(days=day_count - 1)
+                end = today
+                label = f"last {day_count} days"
 
     horizon_match = re.search(r"next\s+(7|14|30)\s+days", text)
     if horizon_match:
         horizon_days = int(horizon_match.group(1))
+    elif "next week" in text or "upcoming week" in text:
+        horizon_days = 7
+    elif "next month" in text or "upcoming month" in text:
+        horizon_days = 30
 
     return start, end, label, horizon_days
 
@@ -160,6 +182,30 @@ def resolve_category(query: str) -> Category | None:
         name = normalize_text(category.category_name)
         if name and name in text:
             return category
+    return None
+
+
+def resolve_section(query: str) -> str | None:
+    text = normalize_text(query)
+    section_aliases = {
+        "men": "men",
+        "mens": "men",
+        "men s": "men",
+        "women": "women",
+        "womens": "women",
+        "women s": "women",
+        "ladies": "women",
+        "kids": "kids",
+        "kid": "kids",
+        "children": "kids",
+        "childrens": "kids",
+        "children s": "kids",
+        "unisex": "unisex",
+    }
+    padded = f" {text} "
+    for alias, canonical in section_aliases.items():
+        if f" {alias} " in padded:
+            return canonical
     return None
 
 
@@ -204,11 +250,16 @@ def resolve_product(query: str) -> ProductResolution:
 
 def resolve_festival_name(query: str) -> str | None:
     text = normalize_text(query)
+    if "which festival" in text or "what festival" in text:
+        return None
     words = [w for w in text.split() if len(w) > 2]
     for w in words:
         if w in {"eid", "diwali", "christmas", "newyear"}:
             return w
     m = re.search(r"during\s+([a-z0-9 _-]+)", text)
     if m:
-        return m.group(1).strip()
+        candidate = m.group(1).strip()
+        if candidate.startswith(("which ", "what ")):
+            return None
+        return candidate
     return None

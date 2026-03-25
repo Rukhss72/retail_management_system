@@ -134,17 +134,56 @@
   .iconbtn.edit:hover{ background: rgba(37,99,235,0.08); }
   .iconbtn.view{ color:#0E7490; border-color: rgba(14,116,144,0.28); }
   .iconbtn.view:hover{ background: rgba(14,116,144,0.10); }
+  .mini-pager{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .mini-pager-btn,
+  .mini-pager-current{
+    min-width:38px;
+    height:38px;
+    border-radius:10px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:900;
+    text-decoration:none;
+  }
+  .mini-pager-btn{
+    border:1px solid rgba(64,78,92,0.28);
+    background:#fff;
+    color:var(--charcoal);
+  }
+  .mini-pager-btn:hover{
+    background:#f8fafc;
+  }
+  .mini-pager-btn.is-disabled{
+    opacity:.45;
+    pointer-events:none;
+  }
+  .mini-pager-current{
+    background:var(--berry);
+    color:#fff;
+    padding:0 12px;
+  }
 
   /* Messages */
   .msg{
     border-radius: 12px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
+    padding: 5px 8px;
+    margin-bottom: 6px;
     border: 1px solid rgba(0,0,0,.06);
     font-weight: 800;
     display:flex;
-    gap:10px;
+    gap:6px;
     align-items:flex-start;
+  }
+  .msg ul{
+    margin:4px 0 0 18px;
+  }
+  .msg li{
+    margin:2px 0;
   }
   .msg.success{ background: rgba(232,245,233,.9); color: #1B5E20; }
   .msg.error{ background: rgba(255,235,238,.9); color: #B71C1C; }
@@ -179,16 +218,29 @@
   }
   .modal-title i{ font-size:24px; color: var(--berry); }
   .modal-close{ background:transparent; border:0; color: var(--charcoal); cursor:pointer; font-size:20px; }
-  .modal-body{ padding:14px; }
-  .modal-foot{ padding:14px; display:flex; gap:10px; justify-content:center; }
+  .modal-body{ padding:10px 12px; }
+  .modal-foot{ padding:10px 12px 12px; margin-top:0; display:flex; gap:10px; justify-content:center; }
 
-  .field{ margin-bottom:12px; }
+  .field{ margin-bottom:8px; }
+  .field.has-error input,
+  .field.has-error textarea,
+  .field.has-error select,
+  .field.has-error .cat-check-grid{
+    border-color:#dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220,38,38,.12) !important;
+  }
+  .field-error{
+    margin-top:6px;
+    color:#b91c1c;
+    font-size:.86rem;
+    font-weight:800;
+  }
   .field label{
     display:block;
-    font-size:1rem;
+    font-size:.98rem;
     font-weight:800;
     color:#5a4a6a;
-    margin-bottom:6px;
+    margin-bottom:4px;
   }
   .field input, .field textarea, .field select{
     width:100%;
@@ -301,14 +353,17 @@
     gap: 12px;
   }
   .cat-check-grid{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(180px, 1fr));
     max-width:520px;
-    max-height:180px;
+    max-height:140px;
     overflow-y:auto;
     overflow-x:hidden;
-    padding:10px;
+    padding:8px;
     border:1px solid var(--border);
     border-radius:10px;
     background:#fff;
+    gap:10px 14px;
   }
   .cat-check-grid ul{
     list-style:none;
@@ -323,23 +378,27 @@
     padding:0;
   }
   .cat-check-grid label{
-    display:inline-flex;
+    display:flex;
     gap:8px;
-    align-items:center;
+    align-items:flex-start;
     justify-content:flex-start;
     margin:0;
     font-weight:700;
     color:var(--charcoal);
     text-align:left;
-    width:10%;
+    width:100%;
   }
   .cat-check-grid input[type="checkbox"]{
     margin:0;
     flex:0 0 auto;
+    width:auto;
+    max-width:none;
+    align-self:center;
   }
   @media (max-width: 640px){
     .grid-2{ grid-template-columns: 1fr; }
     .cat-check-grid ul{ grid-template-columns:1fr; }
+    .cat-check-grid{ grid-template-columns:1fr; }
     .cat-check-grid{ max-width:100%; }
   }
 
@@ -518,8 +577,8 @@
   /* Make modal a fixed-height panel with internal scroll */
 .modal{
   width:100%;
-  max-width: 680px;
-  max-height: 90vh;
+  max-width: 760px;
+  max-height: 94vh;
   display:flex;
   flex-direction:column;
   overflow:hidden; /* important */
@@ -545,8 +604,12 @@
 
 /* a slightly larger notes box */
 .field textarea.ta-notes{
-  min-height: 120px;
-  max-height: 240px;
+  min-height: 34px;
+  max-height: 56px;
+}
+.modal .field textarea[name="address"]{
+  min-height: 54px;
+  max-height: 84px;
 }
 
 /* nicer placeholder */
@@ -569,6 +632,10 @@
 .field select{
   width: 100%;
   max-width: 100%;
+}
+.field input[type="checkbox"]{
+  width: auto;
+  max-width: none;
 }
 
 /* Force visible borders inside modals (Add Supplier / Create PO) */
@@ -666,9 +733,41 @@
   <div class="card">
 
     <!-- Card header (like screenshot) -->
-    <div class="card-head">
-      <h2>Suppliers</h2>
-      <p>Track and manage your suppliers</p>
+    <div class="card-head" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+      <div>
+        <h2>Suppliers</h2>
+        <p>Track and manage your suppliers</p>
+      </div>
+
+      {% if suppliers.has_other_pages %}
+        <div class="mini-pager" style="margin-left:auto;">
+          {% if suppliers.has_previous %}
+            <a class="mini-pager-btn"
+               href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.previous_page_number }}">
+              <i class="fa-solid fa-chevron-left"></i>
+            </a>
+          {% else %}
+            <span class="mini-pager-btn is-disabled">
+              <i class="fa-solid fa-chevron-left"></i>
+            </span>
+          {% endif %}
+
+          <span class="mini-pager-current" title="Page {{ suppliers.number }} of {{ suppliers.paginator.num_pages }}">
+            {{ suppliers.number }}
+          </span>
+
+          {% if suppliers.has_next %}
+            <a class="mini-pager-btn"
+               href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.next_page_number }}">
+              <i class="fa-solid fa-chevron-right"></i>
+            </a>
+          {% else %}
+            <span class="mini-pager-btn is-disabled">
+              <i class="fa-solid fa-chevron-right"></i>
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
 
     <!-- Toolbar: LEFT = search + filters | RIGHT = add new -->
@@ -699,9 +798,11 @@
       </form>
 
       <!-- RIGHT: Add New -->
-      <button type="button" class="btn btn-primary" onclick="openSupplierModal()">
-        <i class="fa-solid fa-plus"></i> Add New
-      </button>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:auto;">
+        <button type="button" class="btn btn-primary" onclick="openSupplierModal()">
+          <i class="fa-solid fa-plus"></i> Add New
+        </button>
+      </div>
     </div>
 
     <!-- Table -->
@@ -725,7 +826,7 @@
               <!-- SUPPLIER -->
               <td style="padding:12px 10px;">
                 <div style="font-weight:900; color:var(--charcoal);">{{ s.supplier_name }}</div>
-                <div style="font-size:12px; color:var(--muted); font-weight:800;">
+                <div style="font-size:12px; color:#b07a8f; font-weight:800;">
                   {{ s.email|default:"-" }}
                 </div>
               </td>
@@ -735,7 +836,7 @@
                 <div style="font-weight:900; color:var(--charcoal);">
                   {{ s.contact_person|default:"-" }}
                 </div>
-                <div style="font-size:12px; color:var(--muted); font-weight:900; margin-top:2px;">
+                <div style="font-size:12px; color:#b07a8f; font-weight:900; margin-top:2px;">
                   {{ s.phone|default:"-" }}
                 </div>
               </td>
@@ -791,8 +892,10 @@
                     onclick="openEditSupplierModal(this)"
                     data-id="{{ s.id }}"
                     data-name="{{ s.supplier_name|default_if_none:''|escapejs }}"
+                    data-contact-person="{{ s.contact_person|default_if_none:''|escapejs }}"
                     data-email="{{ s.email|default_if_none:''|escapejs }}"
                     data-phone="{{ s.phone|default_if_none:''|escapejs }}"
+                    data-address="{{ s.address|default_if_none:''|escapejs }}"
                     data-notes="{{ s.notes|default_if_none:''|escapejs }}"
                     data-lead="{{ s.lead_time_days|default_if_none:0 }}"
                     data-active="{% if s.is_active %}1{% else %}0{% endif %}"
@@ -830,33 +933,6 @@
       </table>
     </div>
 
-    <!-- Pagination -->
-    {% if suppliers.has_other_pages %}
-      <div style="display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;">
-        {% if suppliers.has_previous %}
-          <a class="btn btn-outline"
-             href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.previous_page_number }}">
-            Previous
-          </a>
-        {% else %}
-          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Previous</span>
-        {% endif %}
-
-        <span style="color:#6B7280; font-weight:900;">
-          Page {{ suppliers.number }} of {{ suppliers.paginator.num_pages }}
-        </span>
-
-        {% if suppliers.has_next %}
-          <a class="btn btn-outline"
-             href="?tab=suppliers{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ suppliers.next_page_number }}">
-            Next
-          </a>
-        {% else %}
-          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Next</span>
-        {% endif %}
-      </div>
-    {% endif %}
-
   </div>
 
   <!-- CREATE SUPPLIER MODAL -->
@@ -879,42 +955,71 @@
         <div class="modal-body">
 
           <div class="grid-2">
-            <div class="field">
+            <div class="field{% if form.supplier_name.errors %} has-error{% endif %}">
               <label>Company Name *</label>
               {{ form.supplier_name }}
+              {% for error in form.supplier_name.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
 
-            <div class="field">
+            <div class="field{% if form.contact_person.errors %} has-error{% endif %}">
               <label>Contact Person</label>
               {% if form.contact_person %}
                 {{ form.contact_person }}
               {% else %}
                 <input type="text" name="contact_person" placeholder="Contact person">
               {% endif %}
+              {% for error in form.contact_person.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
           </div>
 
           <div class="grid-2">
-            <div class="field">
+            <div class="field{% if form.email.errors %} has-error{% endif %}">
               <label>Email</label>
               {{ form.email }}
+              {% for error in form.email.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
-            <div class="field">
+            <div class="field{% if form.phone.errors %} has-error{% endif %}">
               <label>Phone</label>
               {{ form.phone }}
+              {% for error in form.phone.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
           </div>
 
-          <div class="field">
-            <label>Address</label>
-            {% if form.address %}
-              {{ form.address }}
-            {% else %}
-              <textarea name="address" rows="3" placeholder="Address"></textarea>
-            {% endif %}
+          <div class="grid-2">
+            <div class="field{% if form.address.errors %} has-error{% endif %}">
+              <label>Address</label>
+              {% if form.address %}
+                {{ form.address }}
+              {% else %}
+                <textarea name="address" rows="3" placeholder="Address"></textarea>
+              {% endif %}
+              {% for error in form.address.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
+            </div>
+
+            <div class="field{% if form.notes.errors %} has-error{% endif %}">
+              <label>Notes</label>
+              {% if form.notes %}
+                {{ form.notes }}
+              {% else %}
+                <textarea name="notes" rows="3" class="ta-notes" placeholder="Internal notes about this supplier..."></textarea>
+              {% endif %}
+              {% for error in form.notes.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
+            </div>
           </div>
 
-          <div class="field">
+          <div class="field{% if form.categories.errors %} has-error{% endif %}">
             <label>Categories</label>
             {% if form.categories %}
               <div class="cat-check-grid">{{ form.categories }}</div>
@@ -925,23 +1030,27 @@
                 {% endfor %}
               </div>
             {% endif %}
+            {% for error in form.categories.errors %}
+              <div class="field-error">{{ error }}</div>
+            {% endfor %}
           </div>
 
           <div class="grid-2">
-            <div class="field">
+            <div class="field{% if form.lead_time_days.errors %} has-error{% endif %}">
               <label>Lead Time (days)</label>
               {{ form.lead_time_days }}
+              {% for error in form.lead_time_days.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
 
-            <div class="field" style="display:flex; align-items:center; gap:10px; margin-top:22px;">
+            <div class="field{% if form.is_active.errors %} has-error{% endif %}" style="display:flex; align-items:center; gap:10px; margin-top:22px;">
               {{ form.is_active }}
               <label style="margin:0; font-weight:900;">Active</label>
+              {% for error in form.is_active.errors %}
+                <div class="field-error">{{ error }}</div>
+              {% endfor %}
             </div>
-          </div>
-
-          <div class="field">
-            <label>Notes</label>
-            {{ form.notes }}
           </div>
 
           {% if form.errors %}
@@ -986,9 +1095,15 @@
         <input type="hidden" name="supplier_id" id="edit_supplier_id">
 
         <div class="modal-body">
-          <div class="field">
-            <label>Company Name *</label>
-            <input type="text" name="supplier_name" id="edit_supplier_name" required>
+          <div class="grid-2">
+            <div class="field">
+              <label>Company Name *</label>
+              <input type="text" name="supplier_name" id="edit_supplier_name" required>
+            </div>
+            <div class="field">
+              <label>Contact Person</label>
+              <input type="text" name="contact_person" id="edit_contact_person">
+            </div>
           </div>
 
           <div class="grid-2">
@@ -1000,6 +1115,11 @@
               <label>Phone</label>
               <input type="text" name="phone" id="edit_phone">
             </div>
+          </div>
+
+          <div class="field">
+            <label>Address</label>
+            <textarea name="address" id="edit_address" rows="3"></textarea>
           </div>
 
           <div class="field">
@@ -1028,7 +1148,7 @@
 
           <div class="field">
             <label>Notes</label>
-            <textarea name="notes" id="edit_notes" rows="4"></textarea>
+            <textarea name="notes" id="edit_notes" rows="3" class="ta-notes"></textarea>
           </div>
         </div>
 
@@ -1049,6 +1169,7 @@
 
 
 {% if tab == "purchase-orders" %}
+  <input type="hidden" id="currentDateIso" value="{% now 'Y-m-d' %}">
   <div class="card">
 
     <div class="card-head">
@@ -1176,6 +1297,7 @@
                       data-total-amount="{{ po.total_amount|default_if_none:'0.00' }}"
                       data-status="{{ po.status|default_if_none:'' }}"
                       data-notes="{{ po.notes|default_if_none:''|escapejs }}"
+                      data-items="{% for item in po.items.all %}{% if not forloop.first %}##{% endif %}{{ item.product.product_name|escapejs }}||{{ item.product.category.category_name|default_if_none:''|escapejs }}||{{ item.qty_ordered }}{% endfor %}"
                     >
                       <i class="fa-solid fa-pen"></i>
                     </button>
@@ -1275,13 +1397,30 @@
             <select name="product_id" id="create_po_product" onchange="syncPOSupplierFromProduct(this)">
               <option value="">-- Select product / category --</option>
               {% for p in products_for_po %}
-                <option value="{{ p.id }}"
-                        data-supplier="{% if p.supplier_id %}{{ p.supplier_id }}{% endif %}"
-                        {% if request.POST.product_id == p.id|stringformat:"s" %}selected{% endif %}>
-                  {{ p.product_name }} ({{ p.category.category_name }})
-                </option>
+                {% for link in p.supplier_links.all %}
+                  <option value="{{ p.id }}"
+                          data-supplier="{{ link.supplier_id }}"
+                          data-unit-cost="{{ link.last_unit_cost|default_if_none:'0.00' }}"
+                          {% if request.POST.product_id == p.id|stringformat:"s" and request.POST.supplier == link.supplier_id|stringformat:"s" %}selected{% endif %}>
+                    {{ p.product_name }} ({{ p.category.category_name }})
+                  </option>
+                {% empty %}
+                  {% if p.supplier_id %}
+                    <option value="{{ p.id }}"
+                            data-supplier="{{ p.supplier_id }}"
+                            data-unit-cost="0.00"
+                            {% if request.POST.product_id == p.id|stringformat:"s" and request.POST.supplier == p.supplier_id|stringformat:"s" %}selected{% endif %}>
+                      {{ p.product_name }} ({{ p.category.category_name }})
+                    </option>
+                  {% endif %}
+                {% endfor %}
               {% endfor %}
             </select>
+          </div>
+
+          <div class="field">
+            <label>Qty Ordered</label>
+            <input type="number" name="qty_ordered" id="create_po_qty" min="1" placeholder="Enter quantity" value="{{ request.POST.qty_ordered|default:'' }}">
           </div>
 
           <div class="grid-2">
@@ -1299,7 +1438,7 @@
           <div class="grid-2">
             <div class="field">
               <label>Total Amount ($)</label>
-              {{ po_form.total_amount }}
+              <input type="number" step="0.01" min="0" name="total_amount" id="create_po_total_amount" value="{{ request.POST.total_amount|default:'0.00' }}" readonly>
             </div>
 
             <div class="field">
@@ -1361,11 +1500,12 @@
 
           <div class="field">
             <label>Supplier *</label>
-            <select name="supplier_id" id="edit_po_supplier" required>
+            <select name="supplier_id" id="edit_po_supplier" required disabled>
               {% for s in suppliers_all %}
                 <option value="{{ s.id }}">{{ s.supplier_name }}</option>
               {% endfor %}
             </select>
+            <input type="hidden" name="supplier_id" id="edit_po_supplier_hidden">
           </div>
 
           <div class="grid-2">
@@ -1375,24 +1515,43 @@
             </div>
             <div class="field">
               <label>Delivery Date</label>
-              <input type="date" name="delivery_date" id="edit_po_delivery_date">
+              <input type="date" name="delivery_date" id="edit_po_delivery_date" readonly>
             </div>
           </div>
 
           <div class="grid-2">
             <div class="field">
               <label>Total Amount</label>
-              <input type="number" step="0.01" min="0" name="total_amount" id="edit_po_total_amount" value="0.00">
+              <input type="number" step="0.01" min="0" name="total_amount" id="edit_po_total_amount" value="0.00" readonly>
             </div>
 
             <div class="field">
               <label>Status</label>
               <select name="status" id="edit_po_status">
-                <option value="DRAFT">Draft</option>
                 <option value="PENDING">Pending</option>
                 <option value="RECEIVED">Received</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Ordered Items</label>
+            <div class="table-wrap" style="max-height:220px; overflow:auto;">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+                    <th style="padding:10px;">Product</th>
+                    <th style="padding:10px;">Category</th>
+                    <th style="padding:10px;">Qty Ordered</th>
+                  </tr>
+                </thead>
+                <tbody id="edit_po_items_body">
+                  <tr>
+                    <td colspan="3" style="padding:10px; color:var(--muted); font-weight:800;">No items found for this purchase order.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -1484,13 +1643,14 @@
 
         <div id="stickyReorderBar" style="
           position: sticky;
-          bottom: 0;
-          margin-top: 12px;
+          top: 96px;
+          margin-bottom: 12px;
           padding: 12px;
           border-radius: 14px;
           border: 1px solid rgba(64,78,92,0.18);
           background: #fff;
           box-shadow: var(--shadow-sm);
+          z-index: 30;
           display:none;
           justify-content:space-between;
           align-items:center;
@@ -1559,7 +1719,7 @@
 
                       <td style="padding:10px; font-weight:800;">
                         {{ it.product_name }} ({{ it.sku }})
-                        <div style="font-size:12px; color:var(--muted); font-weight:800; margin-top:3px;">
+                        <div style="font-size:12px; color:#b07a8f; font-weight:800; margin-top:3px;">
                           {{ it.category.category_name }}
                         </div>
                       </td>
@@ -1603,14 +1763,6 @@
               </table>
             </div>
 
-            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-soft" onclick="selectSupplierBucket(this, true)">
-                Select supplier items
-              </button>
-              <button type="button" class="btn btn-soft" onclick="selectSupplierBucket(this, false)">
-                Clear supplier items
-              </button>
-            </div>
           </div>
         {% endfor %}
         </div>
@@ -1688,10 +1840,64 @@
     padding: 14px;
     box-shadow: var(--shadow-sm);
   ">
-    <h3 style="margin:0 0 4px; font-weight:900; color:var(--charcoal);">
-      Reorder Requests
-    </h3>
-    <div style="color:var(--muted); font-weight:800; margin-bottom:10px;">Showing oldest 15 requests</div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+      <div>
+        <h3 style="margin:0 0 4px; font-weight:900; color:var(--charcoal);">
+          Reorder Requests
+        </h3>
+        <div style="color:var(--muted); font-weight:800;">Showing oldest 10 requests</div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-left:auto;">
+        <form method="get" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <input type="hidden" name="tab" value="reorder-requests">
+          <label for="rrStatusFilter" style="font-weight:900; color:var(--charcoal);">Status</label>
+          <select id="rrStatusFilter" name="rr_status" class="filter-select">
+            <option value="ALL" {% if rr_status == "ALL" %}selected{% endif %}>All</option>
+            <option value="DRAFT" {% if rr_status == "DRAFT" %}selected{% endif %}>Drafts</option>
+            <option value="SUBMITTED" {% if rr_status == "SUBMITTED" %}selected{% endif %}>Needs Approval</option>
+            <option value="APPROVED" {% if rr_status == "APPROVED" %}selected{% endif %}>Approved / Ordered</option>
+            <option value="REJECTED" {% if rr_status == "REJECTED" %}selected{% endif %}>Rejected</option>
+          </select>
+          <button class="btn btn-soft" type="submit">
+            <i class="fa-solid fa-filter"></i> Apply
+          </button>
+          <a class="btn btn-outline" href="{% url 'suppliers' %}?tab=reorder-requests">
+            <i class="fa-solid fa-rotate-left"></i> Reset
+          </a>
+        </form>
+
+        {% if requests.paginator.num_pages > 1 %}
+          <div class="mini-pager">
+            {% if requests.has_previous %}
+              <a class="mini-pager-btn"
+                 href="?tab=reorder-requests&rr_status={{ rr_status }}&page={{ requests.previous_page_number }}">
+                <i class="fa-solid fa-chevron-left"></i>
+              </a>
+            {% else %}
+              <span class="mini-pager-btn is-disabled">
+                <i class="fa-solid fa-chevron-left"></i>
+              </span>
+            {% endif %}
+
+            <span class="mini-pager-current" title="Page {{ requests.number }} of {{ requests.paginator.num_pages }}">
+              {{ requests.number }}
+            </span>
+
+            {% if requests.has_next %}
+              <a class="mini-pager-btn"
+                 href="?tab=reorder-requests&rr_status={{ rr_status }}&page={{ requests.next_page_number }}">
+                <i class="fa-solid fa-chevron-right"></i>
+              </a>
+            {% else %}
+              <span class="mini-pager-btn is-disabled">
+                <i class="fa-solid fa-chevron-right"></i>
+              </span>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
 
     {% if requests %}
       <div style="min-height:800px; max-height:1000px; overflow:auto;">
@@ -1717,7 +1923,10 @@
                   {% if r.items.all %}
                     {% for it in r.items.all %}
                       <div style="font-weight:800; color:var(--charcoal);">
-                        {{ it.product.product_name }} ({{ it.product.category.category_name }})
+                        {{ it.product.product_name }}
+                        <div style="font-size:12px; color:#b07a8f; font-weight:800; margin-top:3px;">
+                          {{ it.product.category.category_name }}
+                        </div>
                       </div>
                     {% endfor %}
                   {% else %}
@@ -1759,7 +1968,11 @@
                       {% endif %}
                     </div>
                   {% elif r.status == "APPROVED" %}
-                    {% if is_admin %}
+                    {% if r.linked_po %}
+                      <button class="btn btn-soft" type="button" onclick="openRRPOModal('{{ r.id }}')">
+                        View PO
+                      </button>
+                    {% elif is_admin %}
                       <a class="btn btn-soft" href="{% url 'suppliers' %}?tab=purchase-orders">
                         View PO
                       </a>
@@ -1776,6 +1989,105 @@
         </table>
       </div>
       {% for r in requests %}
+        {% if r.linked_po %}
+          <div id="rrPOBackdrop-{{ r.id }}" class="modal-backdrop" onclick="backdropCloseRRPO(event, '{{ r.id }}')">
+            <div class="modal" role="dialog" aria-label="Purchase Order Details" aria-modal="true" style="max-width:820px;">
+              <div class="modal-head">
+                <h3 class="modal-title">
+                  <i class="fa-solid fa-file-invoice"></i> Purchase Order Details
+                </h3>
+                <button class="modal-close" type="button" onclick="closeRRPOModal('{{ r.id }}')">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div class="modal-body">
+                {% for linked_po in r.linked_pos %}
+                  <div style="border:1px solid rgba(64,78,92,0.12); border-radius:12px; padding:12px; margin-bottom:12px;">
+                    <div class="grid-2">
+                      <div class="field">
+                        <label>PO Number</label>
+                        <input type="text" value="{{ linked_po.po.po_number|default:linked_po.po }}" readonly>
+                      </div>
+                      <div class="field">
+                        <label>Status</label>
+                        <input type="text" value="{{ linked_po.po.get_status_display }}" readonly>
+                      </div>
+                    </div>
+
+                    <div class="grid-2">
+                      <div class="field">
+                        <label>Supplier</label>
+                        <input type="text" value="{{ linked_po.po.supplier.supplier_name|default:'-' }}" readonly>
+                      </div>
+                      <div class="field">
+                        <label>Total Amount</label>
+                        <input type="text" value="{{ linked_po.po.total_amount }}" readonly>
+                      </div>
+                    </div>
+
+                    <div class="grid-2">
+                      <div class="field">
+                        <label>Order Date</label>
+                        <input type="text" value="{{ linked_po.po.order_date|date:'d/m/Y'|default:'-' }}" readonly>
+                      </div>
+                      <div class="field">
+                        <label>Delivery Date</label>
+                        <input type="text" value="{{ linked_po.po.delivery_date|date:'d/m/Y'|default:'-' }}" readonly>
+                      </div>
+                    </div>
+
+                    <div class="field">
+                      <label>Items</label>
+                      <div class="table-wrap" style="max-height:260px; overflow:auto;">
+                        <table style="width:100%; border-collapse:collapse;">
+                          <thead>
+                            <tr style="text-align:left; border-bottom:1px solid rgba(64,78,92,0.18);">
+                              <th style="padding:10px;">Product</th>
+                              <th style="padding:10px;">Qty Ordered</th>
+                              <th style="padding:10px;">Qty Received</th>
+                              <th style="padding:10px;">Unit Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for po_item in linked_po.items %}
+                              <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
+                                <td style="padding:10px;">
+                                  <div style="font-weight:800; color:var(--charcoal);">
+                                    {{ po_item.product.product_name }}
+                                  </div>
+                                  <div style="font-size:12px; color:#b07a8f; font-weight:800; margin-top:3px;">
+                                    {{ po_item.product.category.category_name }}
+                                  </div>
+                                </td>
+                                <td style="padding:10px; font-weight:900;">{{ po_item.qty_ordered }}</td>
+                                <td style="padding:10px; font-weight:900;">{{ po_item.qty_received }}</td>
+                                <td style="padding:10px; font-weight:900;">{{ po_item.unit_cost|default:'-' }}</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div class="field" style="margin-bottom:0;">
+                      <label>Notes</label>
+                      <textarea rows="3" readonly>{{ linked_po.po.notes|default:"" }}</textarea>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+
+              <div class="modal-foot">
+                <button type="button" class="btn btn-soft" onclick="closeRRPOModal('{{ r.id }}')">Close</button>
+                {% if is_admin %}
+                  <a class="btn btn-outline" href="{% url 'suppliers' %}?tab=purchase-orders">Open Full PO Page</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
         {% if r.status == "DRAFT" or r.status == "SUBMITTED" %}
           <div id="rrEditBackdrop-{{ r.id }}" class="modal-backdrop" onclick="backdropCloseRRDraftEdit(event, '{{ r.id }}')">
             <div class="modal" role="dialog" aria-label="Edit Reorder Request" aria-modal="true" style="max-width:760px;">
@@ -1880,6 +2192,20 @@
   </div>
 {% endif %}
 <script>
+  function openRRPOModal(id){
+    const el = document.getElementById("rrPOBackdrop-" + id);
+    if (!el) return;
+    el.style.display = "flex";
+  }
+  function closeRRPOModal(id){
+    const el = document.getElementById("rrPOBackdrop-" + id);
+    if (!el) return;
+    el.style.display = "none";
+  }
+  function backdropCloseRRPO(e, id){
+    if (e.target && e.target.id === ("rrPOBackdrop-" + id)) closeRRPOModal(id);
+  }
+
   function openRRDraftEditModal(id){
     const el = document.getElementById("rrEditBackdrop-" + id);
     if (!el) return;
@@ -1943,10 +2269,61 @@
 </script>
 
 <script>
+  function filterPOProductsBySupplier(){
+    const supplierSelect = document.getElementById("id_supplier");
+    const productSelect = document.getElementById("create_po_product");
+    if (!supplierSelect || !productSelect) return;
+
+    const selectedSupplierId = supplierSelect.value || "";
+    let selectedOptionStillVisible = false;
+
+    Array.from(productSelect.options).forEach((opt, index) => {
+      if (index === 0) {
+        opt.hidden = false;
+        opt.disabled = false;
+        return;
+      }
+
+      const productSupplierId = opt.getAttribute("data-supplier") || "";
+      const matches = !selectedSupplierId || (productSupplierId === selectedSupplierId);
+      opt.hidden = !matches;
+      opt.disabled = !matches;
+
+      if (matches && opt.value === productSelect.value) {
+        selectedOptionStillVisible = true;
+      }
+    });
+
+    if (productSelect.value && !selectedOptionStillVisible) {
+      productSelect.value = "";
+    }
+
+    updatePOTotalAmount();
+  }
+
+  function updatePOTotalAmount(){
+    const productSelect = document.getElementById("create_po_product");
+    const qtyInput = document.getElementById("create_po_qty");
+    const totalInput = document.getElementById("create_po_total_amount");
+    if (!productSelect || !qtyInput || !totalInput) return;
+
+    const selectedOption = productSelect.options[productSelect.selectedIndex];
+    const unitCost = parseFloat(selectedOption?.getAttribute("data-unit-cost") || "0");
+    const qty = parseInt(qtyInput.value || "0", 10);
+    const total = (!Number.isNaN(unitCost) && !Number.isNaN(qty) && qty > 0) ? (unitCost * qty) : 0;
+    totalInput.value = total.toFixed(2);
+  }
+
   function openPOModal(){
     const el = document.getElementById("poBackdrop");
     if (!el) return;
     el.style.display = "flex";
+    const orderDateInput = document.getElementById("id_order_date");
+    const currentDateIso = document.getElementById("currentDateIso")?.value || "";
+    if (orderDateInput && currentDateIso && !orderDateInput.value) {
+      orderDateInput.value = currentDateIso;
+    }
+    filterPOProductsBySupplier();
   }
   function closePOModal(){
     const el = document.getElementById("poBackdrop");
@@ -1966,6 +2343,8 @@
     const supplierSelect = document.getElementById("id_supplier");
     if (!supplierSelect) return;
     supplierSelect.value = supplierId;
+    filterPOProductsBySupplier();
+    updatePOTotalAmount();
   }
 
   const state2 = document.getElementById("pageState");
@@ -1975,7 +2354,23 @@
     openPOModal();
     const poProduct = document.getElementById("create_po_product");
     if (poProduct && poProduct.value) syncPOSupplierFromProduct(poProduct);
+    filterPOProductsBySupplier();
   }
+
+  const poSupplierSelect = document.getElementById("id_supplier");
+  if (poSupplierSelect) {
+    poSupplierSelect.addEventListener("change", filterPOProductsBySupplier);
+    filterPOProductsBySupplier();
+  }
+  const poProductSelect = document.getElementById("create_po_product");
+  if (poProductSelect) {
+    poProductSelect.addEventListener("change", updatePOTotalAmount);
+  }
+  const poQtyInput = document.getElementById("create_po_qty");
+  if (poQtyInput) {
+    poQtyInput.addEventListener("input", updatePOTotalAmount);
+  }
+  updatePOTotalAmount();
 
 </script>
 
@@ -1986,8 +2381,10 @@
 
     document.getElementById("edit_supplier_id").value = btn.dataset.id || "";
     document.getElementById("edit_supplier_name").value = btn.dataset.name || "";
+    document.getElementById("edit_contact_person").value = btn.dataset.contactPerson || "";
     document.getElementById("edit_email").value = btn.dataset.email || "";
     document.getElementById("edit_phone").value = btn.dataset.phone || "";
+    document.getElementById("edit_address").value = btn.dataset.address || "";
     const selected = (btn.dataset.categories || "").split(",").filter(Boolean);
     document.querySelectorAll("#edit_categories .edit-category-checkbox").forEach(cb => {
       cb.checked = selected.includes(cb.value);
@@ -2045,17 +2442,44 @@
       poInput.placeholder = btn.dataset.poNumber || "";
     }
     document.getElementById("edit_po_order_date").value = btn.dataset.orderDate || "";
-    document.getElementById("edit_po_delivery_date").value = btn.dataset.deliveryDate || "";
+    const currentDateIso = document.getElementById("currentDateIso")?.value || "";
+    document.getElementById("edit_po_delivery_date").value = currentDateIso;
     document.getElementById("edit_po_total_amount").value = btn.dataset.totalAmount || "0.00";
     document.getElementById("edit_po_notes").value = btn.dataset.notes || "";
 
     // select supplier
     const supSel = document.getElementById("edit_po_supplier");
     if (supSel) supSel.value = btn.dataset.supplierId || "";
+    const supHidden = document.getElementById("edit_po_supplier_hidden");
+    if (supHidden) supHidden.value = btn.dataset.supplierId || "";
 
     // select status
     const statusSel = document.getElementById("edit_po_status");
     if (statusSel) statusSel.value = btn.dataset.status || "DRAFT";
+
+    const itemsBody = document.getElementById("edit_po_items_body");
+    if (itemsBody){
+      const rawItems = btn.dataset.items || "";
+      const items = rawItems
+        .split("##")
+        .filter(Boolean)
+        .map(entry => {
+          const [product, category, qty] = entry.split("||");
+          return { product: product || "-", category: category || "-", qty: qty || "0" };
+        });
+
+      if (items.length){
+        itemsBody.innerHTML = items.map(item => `
+          <tr style="border-bottom:1px solid rgba(64,78,92,0.10);">
+            <td style="padding:10px; font-weight:800; color:var(--charcoal);">${item.product}</td>
+            <td style="padding:10px; font-size:12px; color:#b07a8f; font-weight:800;">${item.category}</td>
+            <td style="padding:10px; font-weight:900;">${item.qty}</td>
+          </tr>
+        `).join("");
+      } else {
+        itemsBody.innerHTML = `<tr><td colspan="3" style="padding:10px; color:var(--muted); font-weight:800;">No items found for this purchase order.</td></tr>`;
+      }
+    }
 
     el.style.display = "flex";
   }

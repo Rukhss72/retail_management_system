@@ -15,6 +15,28 @@ INTENT_UNKNOWN = "Unknown"
 
 def detect_intent(query: str) -> str:
     text = normalize_text(query)
+    seller_phrases = (
+        "top seller",
+        "top sellers",
+        "top selling",
+        "best seller",
+        "best sellers",
+        "best selling",
+        "top product",
+        "top products",
+    )
+    forecast_time_phrases = (
+        "forecast",
+        "predict",
+        "predicted",
+        "next 7 days",
+        "next 14 days",
+        "next 30 days",
+        "next week",
+        "next month",
+        "upcoming week",
+        "upcoming month",
+    )
 
     if any(k in text for k in ("compare", "compared to", "versus", " vs ")):
         return INTENT_COMPARE_SALES
@@ -25,7 +47,10 @@ def detect_intent(query: str) -> str:
     if any(k in text for k in ("restock", "reorder suggestion", "reorder", "what should i restock")):
         return INTENT_REORDER_SUGGESTIONS
 
-    if any(k in text for k in ("predict", "forecast", "next 7 days", "next 14 days", "next 30 days")):
+    if any(k in text for k in forecast_time_phrases):
+        return INTENT_FORECAST_BEST_SELLERS
+
+    if any(phrase in text for phrase in seller_phrases) and any(k in text for k in forecast_time_phrases):
         return INTENT_FORECAST_BEST_SELLERS
 
     if "festival" in text or "eid" in text or "diwali" in text or "uplift" in text:
@@ -34,19 +59,13 @@ def detect_intent(query: str) -> str:
     if "movement" in text or "stock in" in text or "stock out" in text or "adjustment" in text:
         return INTENT_STOCK_MOVEMENTS
 
-    if (
-        "top seller" in text
-        or "top selling" in text
-        or "best-selling" in text
-        or "best selling" in text
-        or "trend" in text
-    ):
+    if any(k in text for k in ("sale", "sales", "revenue", "quantity", "qty")):
+        return INTENT_SALES_SUMMARY
+
+    if any(phrase in text for phrase in seller_phrases) or "trend" in text:
         return INTENT_TOP_SELLERS
 
     if "sold" in text:
-        return INTENT_TOP_SELLERS
-
-    if "sale" in text or "revenue" in text:
         return INTENT_SALES_SUMMARY
 
     if (

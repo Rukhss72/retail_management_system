@@ -1,5 +1,5 @@
 import math
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from calendar import monthrange
 
@@ -25,6 +25,16 @@ def _table(columns, rows):
     return {"columns": columns, "rows": rows}
 
 
+def _section_label(value: str | None) -> str:
+    mapping = {
+        "men": "Men",
+        "women": "Women",
+        "kids": "Kids",
+        "unisex": "Unisex",
+    }
+    return mapping.get(str(value or "").lower(), str(value or "").title())
+
+
 def _range_label(start_date, end_date) -> str:
     if (
         start_date
@@ -42,11 +52,74 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
     text = query.lower()
     threshold = entities.get("threshold")
     category = entities.get("category")
+    section = entities.get("section")
     product = entities.get("product")
     low_phrases = ("low stock", "low in stock", "running low", "below reorder")
     asks_low = any(p in text for p in low_phrases)
     asks_oos = ("out of stock" in text) or ("no stock" in text)
-    asks_set_count = ("how many" in text) and ("stock" in text) and (" set " in f" {text} " or " sets " in f" {text} ")
+    asks_how_many_stock = ("how many" in text) and ("stock" in text)
+    asks_set_count = asks_how_many_stock and (" set " in f" {text} " or " sets " in f" {text} ")
+
+    if asks_how_many_stock and product:
+        return {
+            "summary": f"There are {product.qty_in_stock} units in stock for {product.product_name} ({product.sku}).",
+            "table": _table(
+                ["sku", "product", "category", "section", "stock", "reorder_level"],
+                [
+                    {
+                        "sku": product.sku,
+                        "product": product.product_name,
+                        "category": product.category.category_name,
+                        "section": product.get_section_display(),
+                        "stock": product.qty_in_stock,
+                        "reorder_level": product.reorder_level,
+                    }
+                ],
+            ),
+            "chart": None,
+            "source": ["Product", "Category"],
+        }
+
+    if asks_how_many_stock and category:
+        qs = Product.objects.filter(is_active=True, qty_in_stock__gt=0, category=category).select_related("category")
+        total_units = sum(int(p.qty_in_stock or 0) for p in qs)
+        rows = [
+            {
+                "sku": p.sku,
+                "product": p.product_name,
+                "category": p.category.category_name,
+                "section": p.get_section_display(),
+                "stock": p.qty_in_stock,
+            }
+            for p in qs.order_by("product_name")[:25]
+        ]
+        return {
+            "summary": f"There are {total_units} units in stock in {category.category_name} across {qs.count()} products.",
+            "table": _table(["sku", "product", "category", "section", "stock"], rows),
+            "chart": None,
+            "source": ["Product", "Category"],
+        }
+
+    if asks_how_many_stock and section:
+        qs = Product.objects.filter(is_active=True, qty_in_stock__gt=0, section=section).select_related("category")
+        total_units = sum(int(p.qty_in_stock or 0) for p in qs)
+        section_label = qs[0].get_section_display() if qs else section.title()
+        rows = [
+            {
+                "sku": p.sku,
+                "product": p.product_name,
+                "category": p.category.category_name,
+                "section": p.get_section_display(),
+                "stock": p.qty_in_stock,
+            }
+            for p in qs.order_by("product_name")[:25]
+        ]
+        return {
+            "summary": f"There are {total_units} units in stock in the {section_label} section across {qs.count()} products.",
+            "table": _table(["sku", "product", "category", "section", "stock"], rows),
+            "chart": None,
+            "source": ["Product", "Category"],
+        }
 
     if asks_set_count:
         qs = Product.objects.filter(is_active=True, qty_in_stock__gt=0, product_name__icontains="set").select_related("category")
@@ -58,13 +131,14 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
                 "sku": p.sku,
                 "product": p.product_name,
                 "category": p.category.category_name,
+                "section": p.get_section_display(),
                 "stock": p.qty_in_stock,
             }
             for p in qs.order_by("product_name")[:25]
         ]
         return {
             "summary": f"There are {total_units} set units in stock across {qs.count()} products.",
-            "table": _table(["sku", "product", "category", "stock"], rows),
+            "table": _table(["sku", "product", "category", "section", "stock"], rows),
             "chart": None,
             "source": ["Product", "Category"],
         }
@@ -220,8 +294,10 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
 def handle_stock_movements(query: str, entities: dict) -> dict:
     start, end = entities["start"], entities["end"]
     product = entities.get("product")
+    start_dt = timezone.make_aware(datetime.combine(start, time.min))
+    end_dt = timezone.make_aware(datetime.combine(end, time.max))
 
-    qs = StockMovement.objects.filter(movement_date__date__gte=start, movement_date__date__lte=end).select_related("product")
+    qs = StockMovement.objects.filter(movement_date__gte=start_dt, movement_date__lte=end_dt).select_related("product")
     if product:
         qs = qs.filter(product=product)
 
@@ -257,27 +333,49 @@ def handle_stock_movements(query: str, entities: dict) -> dict:
 
 def handle_sales_summary(query: str, entities: dict) -> dict:
     start, end = entities["start"], entities["end"]
+    category = entities.get("category")
 
     sales_qs = Sale.objects.filter(sale_date__gte=start, sale_date__lte=end)
     items_qs = SaleItem.objects.filter(sale__sale_date__gte=start, sale__sale_date__lte=end)
+    if category:
+        items_qs = items_qs.filter(product__category=category)
+        sales_qs = sales_qs.filter(items__product__category=category).distinct()
 
     agg_sale = sales_qs.aggregate(revenue=Coalesce(Sum("total"), Decimal("0.00")))
     agg_items = items_qs.aggregate(qty=Coalesce(Sum("qty"), 0))
 
+    product_rows_qs = (
+        items_qs.values("product__sku", "product__product_name")
+        .annotate(quantity=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+        .order_by("-revenue", "-quantity", "product__product_name")
+    )
     rows = [
         {
-            "range": f"{start} to {end}",
-            "revenue": float(agg_sale["revenue"]),
-            "quantity": int(agg_items["qty"]),
-            "orders": sales_qs.count(),
+            "sku": r["product__sku"],
+            "product": r["product__product_name"],
+            "quantity": int(r["quantity"]),
+            "revenue": float(r["revenue"]),
         }
+        for r in product_rows_qs[:25]
     ]
+    total_row = {
+        "sku": "TOTAL",
+        "product": f"{start} to {end}",
+        "quantity": int(agg_items["qty"]),
+        "revenue": float(agg_sale["revenue"]),
+    }
+    rows.insert(0, total_row)
+    category_suffix = f" in {category.category_name}" if category else ""
 
     return {
-        "summary": f"Sales from {start} to {end}: revenue {agg_sale['revenue']} and quantity {agg_items['qty']}.",
-        "table": _table(["range", "revenue", "quantity", "orders"], rows),
-        "chart": None,
-        "source": ["Sale", "SaleItem"],
+        "summary": f"Sales{category_suffix} from {start} to {end}: revenue {agg_sale['revenue']} and quantity {agg_items['qty']}.",
+        "table": _table(["sku", "product", "quantity", "revenue"], rows),
+        "chart": {
+            "type": "bar",
+            "labels": [r["product"] for r in rows[1:11]],
+            "datasets": [{"label": "Revenue", "data": [r["revenue"] for r in rows[1:11]]}],
+        } if len(rows) > 1 else None,
+        "source": ["Sale", "SaleItem", "Product"],
     }
 
 
@@ -384,11 +482,60 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
     start, end = entities["start"], entities["end"]
     product = entities.get("product")
     category = entities.get("category")
+    section = entities.get("section")
+    asks_category_rollup = any(token in text for token in ("category", "categories"))
+    asks_section_rollup = any(token in text for token in ("section", "sections"))
     base_qs = SaleItem.objects.filter(sale__sale_date__gte=start, sale__sale_date__lte=end)
     if category:
         base_qs = base_qs.filter(product__category=category)
 
-    if "category" in text:
+    if "trend" in text and category:
+        trend_start = end - timedelta(days=29)
+        qs = (
+            SaleItem.objects.filter(sale__sale_date__gte=trend_start, sale__sale_date__lte=end, product__category=category)
+            .values("sale__sale_date")
+            .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+            .order_by("sale__sale_date")
+        )
+        rows = [
+            {"date": str(r["sale__sale_date"]), "units": int(r["units"]), "revenue": float(r["revenue"])}
+            for r in qs
+        ]
+        return {
+            "summary": f"{category.category_name} trend for last 30 days generated.",
+            "table": _table(["date", "units", "revenue"], rows),
+            "chart": {
+                "type": "line",
+                "labels": [r["date"] for r in rows],
+                "datasets": [{"label": "Units sold", "data": [r["units"] for r in rows]}],
+            },
+            "source": ["SaleItem", "Sale", "Category"],
+        }
+
+    if "trend" in text and section:
+        trend_start = end - timedelta(days=29)
+        qs = (
+            SaleItem.objects.filter(sale__sale_date__gte=trend_start, sale__sale_date__lte=end, product__section=section)
+            .values("sale__sale_date")
+            .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+            .order_by("sale__sale_date")
+        )
+        rows = [
+            {"date": str(r["sale__sale_date"]), "units": int(r["units"]), "revenue": float(r["revenue"])}
+            for r in qs
+        ]
+        return {
+            "summary": f"{_section_label(section)} section trend for last 30 days generated.",
+            "table": _table(["date", "units", "revenue"], rows),
+            "chart": {
+                "type": "line",
+                "labels": [r["date"] for r in rows],
+                "datasets": [{"label": "Units sold", "data": [r["units"] for r in rows]}],
+            },
+            "source": ["SaleItem", "Sale", "Product"],
+        }
+
+    if asks_category_rollup:
         qs = (
             base_qs
             .values("product__category__category_name")
@@ -412,6 +559,32 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
                 "datasets": [{"label": "Units", "data": [r["units"] for r in rows]}],
             },
             "source": ["SaleItem", "Sale", "Category"],
+        }
+
+    if asks_section_rollup:
+        qs = (
+            base_qs
+            .values("product__section")
+            .annotate(units=Coalesce(Sum("qty"), 0), revenue=Coalesce(Sum("line_total"), Decimal("0.00")))
+            .order_by("-units", "-revenue")[:10]
+        )
+        rows = [
+            {
+                "section": _section_label(r["product__section"]),
+                "units": int(r["units"]),
+                "revenue": float(r["revenue"]),
+            }
+            for r in qs
+        ]
+        return {
+            "summary": f"Top-selling sections from {start} to {end}.",
+            "table": _table(["section", "units", "revenue"], rows),
+            "chart": {
+                "type": "bar",
+                "labels": [r["section"] for r in rows],
+                "datasets": [{"label": "Units", "data": [r["units"] for r in rows]}],
+            },
+            "source": ["SaleItem", "Sale", "Product"],
         }
 
     if "trend" in text and product:
@@ -466,9 +639,25 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
 
 
 def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
-    today = timezone.localdate()
+    def _display_qty(value) -> int:
+        return int(Decimal(value or 0).quantize(Decimal("1")))
+
+    def _daily_points(qs):
+        return list(
+            qs.values("forecast_date")
+            .annotate(pred=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("forecast_date")
+        )
+
+    def _line_chart(points):
+        rows = [{"date": str(r["forecast_date"]), "predicted_qty": _display_qty(r["pred"])} for r in points]
+        return {
+            "type": "line",
+            "labels": [r["date"] for r in rows],
+            "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
+        }
+
     horizon_days = entities["horizon_days"]
-    end = today + timedelta(days=horizon_days - 1)
     run = ForecastRun.objects.order_by("-created_at").first()
 
     if not run:
@@ -480,20 +669,134 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
         }
 
     text = query.lower()
+    category = entities.get("category")
+    section = entities.get("section")
     product = entities.get("product")
-    base_qs = ForecastDaily.objects.filter(run=run, forecast_date__gte=today, forecast_date__lte=end)
+    asks_category_rollup = any(token in text for token in ("category", "categories"))
+    asks_section_rollup = any(token in text for token in ("section", "sections"))
+    today = timezone.localdate()
+    anchor = today if run.period_start <= today <= run.period_end else run.period_start
+    end = min(anchor + timedelta(days=horizon_days - 1), run.period_end)
+    base_qs = ForecastDaily.objects.filter(run=run, forecast_date__gte=anchor, forecast_date__lte=end)
 
     if product:
-        points = (
-            base_qs.filter(product=product).values("forecast_date").annotate(pred=Coalesce(Sum("predicted_qty"), Decimal("0.00"))).order_by("forecast_date")
-        )
-        rows = [{"date": str(r["forecast_date"]), "predicted_qty": float(r["pred"])} for r in points]
+        points = _daily_points(base_qs.filter(product=product))
+        if not points:
+            return {
+                "summary": f"No forecast rows found for {product.product_name} from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+                "table": _table(["product", "predicted_qty", "days"], []),
+                "chart": None,
+                "source": ["ForecastRun", "ForecastDaily", "Product"],
+            }
+        total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
         return {
-            "summary": f"Forecast demand for {product.product_name} for next {horizon_days} days.",
-            "table": _table(["date", "predicted_qty"], rows),
+            "summary": f"Forecast demand for {product.product_name} from {anchor} to {end} is {total_qty} units total.",
+            "table": _table(
+                ["product", "predicted_qty", "days"],
+                [{"product": product.product_name, "predicted_qty": total_qty, "days": len(points)}],
+            ),
+            "chart": _line_chart(points),
+            "source": ["ForecastRun", "ForecastDaily", "Product"],
+        }
+
+    if category:
+        points = _daily_points(base_qs.filter(product__category=category))
+        if not points:
+            return {
+                "summary": f"No forecast rows found for {category.category_name} from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+                "table": _table(["category", "predicted_qty", "days"], []),
+                "chart": None,
+                "source": ["ForecastRun", "ForecastDaily", "Category"],
+            }
+        total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
+        return {
+            "summary": f"Forecast demand for category {category.category_name} from {anchor} to {end} is {total_qty} units total.",
+            "table": _table(
+                ["category", "predicted_qty", "days"],
+                [{"category": category.category_name, "predicted_qty": total_qty, "days": len(points)}],
+            ),
+            "chart": _line_chart(points),
+            "source": ["ForecastRun", "ForecastDaily", "Category"],
+        }
+
+    if section:
+        points = _daily_points(base_qs.filter(product__section=section))
+        if not points:
+            return {
+                "summary": f"No forecast rows found for the { _section_label(section).lower() } section from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+                "table": _table(["section", "predicted_qty", "days"], []),
+                "chart": None,
+                "source": ["ForecastRun", "ForecastDaily", "Product"],
+            }
+        total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
+        section_label = _section_label(section)
+        return {
+            "summary": f"Forecast demand for {section_label} section from {anchor} to {end} is {total_qty} units total.",
+            "table": _table(
+                ["section", "predicted_qty", "days"],
+                [{"section": section_label, "predicted_qty": total_qty, "days": len(points)}],
+            ),
+            "chart": _line_chart(points),
+            "source": ["ForecastRun", "ForecastDaily", "Product"],
+        }
+
+    if asks_category_rollup:
+        qs = (
+            base_qs.values("product__category__category_name")
+            .annotate(predicted_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("-predicted_qty")[:10]
+        )
+        rows = [
+            {
+                "category": r["product__category__category_name"] or "Uncategorized",
+                "predicted_qty": _display_qty(r["predicted_qty"]),
+            }
+            for r in qs
+        ]
+        if not rows:
+            return {
+                "summary": f"No forecast rows found from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+                "table": _table(["category", "predicted_qty"], []),
+                "chart": None,
+                "source": ["ForecastRun", "ForecastDaily", "Category"],
+            }
+        return {
+            "summary": f"Top predicted categories from {anchor} to {end}.",
+            "table": _table(["category", "predicted_qty"], rows),
             "chart": {
-                "type": "line",
-                "labels": [r["date"] for r in rows],
+                "type": "bar",
+                "labels": [r["category"] for r in rows],
+                "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
+            },
+            "source": ["ForecastRun", "ForecastDaily", "Category"],
+        }
+
+    if asks_section_rollup:
+        qs = (
+            base_qs.values("product__section")
+            .annotate(predicted_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+            .order_by("-predicted_qty")[:10]
+        )
+        rows = [
+            {
+                "section": _section_label(r["product__section"]),
+                "predicted_qty": _display_qty(r["predicted_qty"]),
+            }
+            for r in qs
+        ]
+        if not rows:
+            return {
+                "summary": f"No forecast rows found from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+                "table": _table(["section", "predicted_qty"], []),
+                "chart": None,
+                "source": ["ForecastRun", "ForecastDaily", "Product"],
+            }
+        return {
+            "summary": f"Top predicted sections from {anchor} to {end}.",
+            "table": _table(["section", "predicted_qty"], rows),
+            "chart": {
+                "type": "bar",
+                "labels": [r["section"] for r in rows],
                 "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
             },
             "source": ["ForecastRun", "ForecastDaily", "Product"],
@@ -505,11 +808,19 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
         .order_by("-predicted_qty")[:10]
     )
     rows = [
-        {"sku": r["product__sku"], "product": r["product__product_name"], "predicted_qty": float(r["predicted_qty"])}
+        {"sku": r["product__sku"], "product": r["product__product_name"], "predicted_qty": _display_qty(r["predicted_qty"])}
         for r in qs
     ]
 
-    summary = f"Top predicted best-sellers for next {horizon_days} days."
+    if not rows:
+        return {
+            "summary": f"No forecast rows found from {anchor} to {end}. Latest run covers {run.period_start} to {run.period_end}.",
+            "table": _table(["sku", "product", "predicted_qty"], []),
+            "chart": None,
+            "source": ["ForecastRun", "ForecastDaily", "Product"],
+        }
+
+    summary = f"Top predicted best-sellers from {anchor} to {end}."
     if "actual vs predicted" in text and product:
         summary = f"Actual vs predicted for {product.product_name} generated."
 
@@ -714,26 +1025,43 @@ def handle_festival_insights(query: str, entities: dict) -> dict:
 
 def handle_seasonality(query: str, entities: dict) -> dict:
     product = entities.get("product")
-    if not product:
+    category = entities.get("category")
+    section = entities.get("section")
+
+    scope_qs = DailyProductSales.objects.all()
+    scope_label = None
+    source = ["DailyProductSales", "Product"]
+
+    if product:
+        scope_qs = scope_qs.filter(product=product)
+        scope_label = product.product_name
+    elif category:
+        scope_qs = scope_qs.filter(category=category)
+        scope_label = category.category_name
+        source.append("Category")
+    elif section:
+        scope_qs = scope_qs.filter(product__section=section)
+        scope_label = _section_label(section)
+    else:
         return {
-            "summary": "Please provide a product name or SKU for seasonality analysis.",
-            "table": _table(["product", "note"], []),
+            "summary": "Please provide a product, category, or section for seasonality analysis.",
+            "table": _table(["scope", "note"], []),
             "chart": None,
-            "source": ["DailyProductSales", "Product"],
+            "source": ["DailyProductSales", "Product", "Category"],
         }
 
     rows_qs = (
-        DailyProductSales.objects.filter(product=product)
+        scope_qs
         .values("date__month")
         .annotate(total_qty=Coalesce(Sum("qty_sold"), 0), total_sales=Coalesce(Sum("sales_amt"), Decimal("0.00")))
         .order_by("date__month")
     )
     if not rows_qs:
         return {
-            "summary": f"No seasonality history found for {product.product_name}.",
+            "summary": f"No seasonality history found for {scope_label}.",
             "table": _table(["season", "qty", "sales"], []),
             "chart": None,
-            "source": ["DailyProductSales", "Product"],
+            "source": source,
         }
 
     def month_to_season(m):
@@ -756,12 +1084,12 @@ def handle_seasonality(query: str, entities: dict) -> dict:
     rows = [{"season": s, "qty": v["qty"], "sales": round(v["sales"], 2)} for s, v in ordered]
     best = rows[0]["season"] if rows else "Unknown"
     return {
-        "summary": f"{product.product_name} sells best in {best}.",
+        "summary": f"{scope_label} sells best in {best}.",
         "table": _table(["season", "qty", "sales"], rows),
         "chart": {
             "type": "bar",
             "labels": [r["season"] for r in rows],
             "datasets": [{"label": "Qty sold", "data": [r["qty"] for r in rows]}],
         },
-        "source": ["DailyProductSales", "Product"],
+        "source": source,
     }
