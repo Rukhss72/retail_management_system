@@ -1538,7 +1538,7 @@ def reorder_request_reject(request, rr_id):
     return redirect("/suppliers/?tab=reorder-requests")
 
 
-@admin_required
+@staff_required
 def dashboard(request):
     today = timezone.localdate()
     range_days = 30
@@ -1897,7 +1897,7 @@ def dashboard(request):
     }
     return render(request, "retail/dashboard.html", context)
 
-@admin_required
+@staff_required
 def assistant(request):
     return render(request, "retail/assistant.html")
 

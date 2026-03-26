@@ -208,6 +208,7 @@
 
   .stat-card.low::before{ background:rgba(244, 164, 96, .34); }
   .stat-card.out::before{ background:rgba(107, 182, 154, .28); }
+  .stat-card.out.alert::before{ background:rgba(216, 91, 103, .26); }
   .stat-card.pending::before{ background:rgba(132, 172, 206, .28); }
 
   .stat-top{
@@ -279,6 +280,8 @@
   .stat-note.amber .pulse{ background:#F4A460; }
   .stat-note.green{ color:#2D8A68; }
   .stat-note.green .pulse{ background:#39B37E; }
+  .stat-note.red{ color:#BB3E4A; }
+  .stat-note.red .pulse{ background:#D85B67; }
   .stat-note.blue{ color:#5A8FB8; }
   .stat-note.blue .pulse{ background:#84ACCE; }
 
@@ -739,11 +742,11 @@
       </a>
     </article>
 
-    <article class="glass-card stat-card out">
+    <article class="glass-card stat-card out{% if out_of_stock_count %} alert{% endif %}">
       <div class="stat-top">
         <div class="stat-main">
-          <div class="stat-icon gradient-emerald">
-            <i class="fa-solid fa-circle-check"></i>
+          <div class="stat-icon {% if out_of_stock_count %}gradient-red{% else %}gradient-emerald{% endif %}">
+            <i class="fa-solid {% if out_of_stock_count %}fa-circle-xmark{% else %}fa-circle-check{% endif %}"></i>
           </div>
           <div>
             <p class="stat-label">Out Of Stock</p>
@@ -754,7 +757,7 @@
           </div>
         </div>
       </div>
-      <div class="stat-note green">
+      <div class="stat-note {% if out_of_stock_count %}red{% else %}green{% endif %}">
         <span class="pulse"></span>
         {% if out_of_stock_count %}Restock required{% else %}Inventory healthy{% endif %}
       </div>
