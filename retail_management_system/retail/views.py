@@ -302,17 +302,21 @@ def home(request):
         }.get(m.movement_type, m.movement_type)
 
         t = m.movement_date
-        t_str = timezone.localtime(t).strftime("%I:%M %p") if t else "—"
+        local_t = timezone.localtime(t) if t else None
+        today_local = timezone.localdate()
+        t_str = local_t.strftime("%I:%M %p") if local_t else "-"
 
         item_text = f"{m.product.product_name}"
         if m.product.sku:
             item_text += f" (SKU: {m.product.sku})"
+        item_text += f" - Qty: {m.qty_moved}"
 
         recent_activity.append({
             "kind": kind,
             "type": type_label,
             "item": item_text,
             "time": t_str,
+            "display_date": "Today" if local_t and local_t.date() == today_local else (local_t.strftime("%d %b %Y") if local_t else "-"),
         })
 
     now = timezone.localtime()
