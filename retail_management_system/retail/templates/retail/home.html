@@ -1,4 +1,5 @@
 {% extends 'retail/base.html' %}
+{% load static %}
 {% block title %}Home{% endblock %}
 
 {% block content %}
@@ -7,7 +8,7 @@
 
   .container{
     max-width: 100%;
-    padding: 18px 14px 28px;
+    padding: 14px 12px 24px;
   }
 
   .home-shell,
@@ -31,7 +32,7 @@
     --text-muted:rgba(64, 78, 92, 0.64);
     font-family:'Inter', sans-serif;
     color:var(--brand-navy);
-    max-width: 1380px;
+    max-width: 1280px;
     margin: 0 auto;
     position: relative;
   }
@@ -85,7 +86,7 @@
   }
 
   .hero{
-    padding:10px 0 18px;
+    padding:6px 0 14px;
     position:relative;
     z-index:1;
   }
@@ -94,7 +95,7 @@
     display:flex;
     justify-content:center;
     align-items:center;
-    gap:20px;
+    gap:16px;
   }
 
   .hero-copy{
@@ -103,16 +104,16 @@
 
   .eyebrow{
     color:var(--brand-rose);
-    font-size:11px;
+    font-size:10px;
     font-weight:700;
     letter-spacing:.14em;
     text-transform:uppercase;
-    margin-bottom:8px;
+    margin-bottom:6px;
   }
 
   .hero h1{
-    margin:0 0 8px;
-    font-size:clamp(1.9rem, 3.2vw, 3.3rem);
+    margin:0 0 6px;
+    font-size:clamp(1.6rem, 2.7vw, 2.7rem);
     line-height:1.05;
     font-weight:800;
     color:var(--brand-navy);
@@ -130,9 +131,9 @@
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:10px;
+    gap:8px;
     color:var(--text-muted);
-    font-size:.92rem;
+    font-size:.84rem;
   }
 
   .hero-meta i{
@@ -176,15 +177,15 @@
   .stats-grid{
     display:grid;
     grid-template-columns:repeat(3, minmax(0, 1fr));
-    gap:16px;
-    margin-bottom:18px;
+    gap:14px;
+    margin-bottom:16px;
     position:relative;
     z-index:1;
   }
 
   .stat-card{
-    border-radius:22px;
-    padding:20px;
+    border-radius:20px;
+    padding:14px 16px;
     overflow:hidden;
     transition:transform .28s ease, box-shadow .28s ease;
   }
@@ -215,7 +216,7 @@
     display:flex;
     align-items:center;
     justify-content:space-between;
-    gap:14px;
+    gap:12px;
     position:relative;
     z-index:1;
   }
@@ -223,24 +224,24 @@
   .stat-main{
     display:flex;
     align-items:center;
-    gap:12px;
+    gap:8px;
   }
 
   .stat-icon{
-    width:52px;
-    height:52px;
-    border-radius:16px;
+    width:42px;
+    height:42px;
+    border-radius:13px;
     display:flex;
     align-items:center;
     justify-content:center;
     color:#fff;
-    font-size:1rem;
+    font-size:.84rem;
     box-shadow:0 14px 26px -18px rgba(64, 78, 92, .55);
   }
 
   .stat-label{
     margin:0;
-    font-size:.66rem;
+    font-size:.62rem;
     letter-spacing:.08em;
     text-transform:uppercase;
     color:rgba(64, 78, 92, .58);
@@ -248,30 +249,30 @@
   }
 
   .stat-value{
-    margin:4px 0 0;
-    font-size:2.3rem;
+    margin:2px 0 0;
+    font-size:1.75rem;
     line-height:1;
     font-weight:800;
   }
 
   .stat-sub{
-    margin-top:6px;
+    margin-top:3px;
     color:rgba(64, 78, 92, .52);
-    font-size:.82rem;
+    font-size:.72rem;
   }
 
   .stat-note{
-    margin-top:14px;
+    margin-top:10px;
     display:flex;
     align-items:center;
     gap:8px;
-    font-size:.78rem;
+    font-size:.7rem;
     font-weight:700;
   }
 
   .stat-note .pulse{
-    width:9px;
-    height:9px;
+    width:8px;
+    height:8px;
     border-radius:50%;
     display:inline-block;
   }
@@ -286,68 +287,68 @@
   .stat-note.blue .pulse{ background:#84ACCE; }
 
   .stat-link{
-    margin-top:14px;
-    padding-top:14px;
+    margin-top:10px;
+    padding-top:10px;
     border-top:1px solid rgba(237, 191, 198, .38);
     display:inline-flex;
     align-items:center;
     gap:8px;
-    font-size:.86rem;
+    font-size:.75rem;
     font-weight:700;
     color:var(--brand-rose);
   }
 
   .main-grid{
     display:grid;
-    grid-template-columns:minmax(0, 1.9fr) minmax(320px, .95fr);
-    gap:18px;
+    grid-template-columns:minmax(0, 1.2fr) minmax(280px, .8fr);
+    gap:16px;
     position:relative;
     z-index:1;
   }
 
   .panel{
-    border-radius:24px;
+    border-radius:20px;
     overflow:hidden;
   }
 
   .panel-head{
-    padding:18px 22px;
+    padding:15px 18px;
     border-bottom:1px solid rgba(237, 191, 198, .34);
     background:linear-gradient(90deg, rgba(237, 191, 198, .24), rgba(255, 255, 255, .85));
     display:flex;
     justify-content:space-between;
     align-items:center;
-    gap:16px;
+    gap:12px;
   }
 
   .panel-head-main{
     display:flex;
     align-items:center;
-    gap:12px;
+    gap:10px;
   }
 
   .panel-icon{
-    width:44px;
-    height:44px;
-    border-radius:14px;
+    width:40px;
+    height:40px;
+    border-radius:12px;
     color:#fff;
     display:flex;
     align-items:center;
     justify-content:center;
-    flex:0 0 44px;
+    flex:0 0 40px;
     box-shadow:0 14px 26px -16px rgba(64, 78, 92, .55);
   }
 
   .panel-head h2{
     margin:0;
-    font-size:1.28rem;
+    font-size:1.12rem;
     line-height:1.1;
     color:var(--brand-navy);
   }
 
   .panel-note{
     margin-top:4px;
-    font-size:.76rem;
+    font-size:.72rem;
     color:var(--text-muted);
   }
 
@@ -355,11 +356,11 @@
     display:inline-flex;
     align-items:center;
     gap:8px;
-    padding:9px 13px;
-    border-radius:12px;
+    padding:8px 12px;
+    border-radius:10px;
     background:rgba(170, 68, 101, .09);
     color:var(--brand-rose);
-    font-size:.82rem;
+    font-size:.76rem;
     font-weight:700;
     transition:background .2s ease, color .2s ease, transform .2s ease;
   }
@@ -371,7 +372,7 @@
   }
 
   .timeline-wrap{
-    padding:20px 22px 24px;
+    padding:16px 18px 20px;
     position:relative;
   }
 
@@ -394,8 +395,8 @@
   .timeline-item{
     display:flex;
     align-items:flex-start;
-    gap:14px;
-    margin-bottom:14px;
+    gap:12px;
+    margin-bottom:12px;
     position:relative;
   }
 
@@ -404,14 +405,14 @@
   }
 
   .activity-icon{
-    width:44px;
-    height:44px;
-    border-radius:14px;
+    width:40px;
+    height:40px;
+    border-radius:12px;
     color:#fff;
     display:flex;
     align-items:center;
     justify-content:center;
-    flex:0 0 44px;
+    flex:0 0 40px;
     position:relative;
     z-index:1;
     box-shadow:0 0 0 5px rgba(255, 255, 255, .96), 0 12px 24px -18px rgba(64, 78, 92, .6);
@@ -425,8 +426,8 @@
 
   .activity-card{
     flex:1;
-    padding:13px 15px;
-    border-radius:16px;
+    padding:11px 13px;
+    border-radius:14px;
     border:1px solid rgba(237, 191, 198, .34);
     background:linear-gradient(90deg, rgba(245, 213, 220, .22), rgba(255, 255, 255, .95));
     transition:border-color .2s ease, transform .2s ease, box-shadow .2s ease;
@@ -462,48 +463,60 @@
 
   .activity-title{
     margin:0;
-    font-size:.95rem;
+    font-size:.88rem;
     font-weight:700;
     color:var(--brand-navy);
   }
 
   .activity-item-text{
-    margin-top:6px;
+    margin-top:4px;
     color:var(--text-muted);
-    font-size:.84rem;
+    font-size:.78rem;
     line-height:1.45;
   }
 
   .activity-time{
     flex:0 0 auto;
-    padding:5px 10px;
-    border-radius:999px;
-    font-size:.68rem;
+    min-width:86px;
+    padding:6px 8px;
+    border-radius:12px;
+    font-size:.64rem;
     font-weight:700;
     color:var(--brand-rose);
     background:rgba(237, 191, 198, .42);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    text-align:center;
+  }
+
+  .activity-date{
+    font-size:.58rem;
+    color:rgba(64, 78, 92, .7);
+    font-weight:600;
   }
 
   .sidebar-panel .panel-head{
-    padding-bottom:22px;
+    padding-bottom:18px;
   }
 
   .shortcut-grid{
-    padding:18px;
+    padding:16px;
     display:grid;
     grid-template-columns:repeat(2, minmax(0, 1fr));
-    gap:12px;
+    gap:10px;
   }
 
   .shortcut-card{
-    border-radius:16px;
-    padding:16px 12px;
+    border-radius:14px;
+    padding:14px 10px;
     border:1px solid rgba(64, 78, 92, .14);
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:10px;
+    gap:8px;
     text-align:center;
     transition:transform .28s ease, box-shadow .28s ease, border-color .28s ease;
     position:relative;
@@ -531,20 +544,20 @@
   }
 
   .shortcut-icon{
-    width:46px;
-    height:46px;
-    border-radius:14px;
+    width:40px;
+    height:40px;
+    border-radius:12px;
     color:#fff;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:.95rem;
+    font-size:.88rem;
     box-shadow:0 16px 26px -18px rgba(64, 78, 92, .55);
   }
 
   .shortcut-title{
     color:var(--brand-navy);
-    font-size:.84rem;
+    font-size:.78rem;
     font-weight:700;
   }
 
@@ -579,52 +592,66 @@
   }
 
   .help-card{
-    padding:16px 18px 18px;
+    padding:14px 16px 16px;
     border-top:1px solid rgba(237, 191, 198, .34);
     background:linear-gradient(90deg, rgba(245, 213, 220, .36), rgba(170, 68, 101, .06));
     display:flex;
     align-items:flex-start;
-    gap:12px;
+    gap:10px;
   }
 
   .help-icon{
-    width:40px;
-    height:40px;
-    border-radius:13px;
+    width:36px;
+    height:36px;
+    border-radius:12px;
     color:#fff;
     display:flex;
     align-items:center;
     justify-content:center;
-    flex:0 0 40px;
+    flex:0 0 36px;
   }
 
   .help-title{
     margin:0 0 4px;
-    font-size:.92rem;
+    font-size:.86rem;
     font-weight:700;
   }
 
   .help-text{
     margin:0 0 10px;
     color:var(--text-muted);
-    font-size:.78rem;
+    font-size:.74rem;
     line-height:1.5;
   }
 
   .help-link{
     color:var(--brand-rose);
-    font-size:.78rem;
+    font-size:.74rem;
     font-weight:700;
     display:inline-flex;
     align-items:center;
     gap:6px;
   }
 
+  .help-stack{
+    display:flex;
+    flex-direction:row;
+    align-items:stretch;
+  }
+
+  .help-stack .help-card{
+    flex:1;
+  }
+
+  .help-stack .help-card + .help-card{
+    border-left:1px solid rgba(237, 191, 198, .34);
+  }
+
   .empty-activity{
-    padding:22px;
+    padding:18px;
     text-align:center;
     color:var(--text-muted);
-    font-size:.84rem;
+    font-size:.78rem;
   }
 
   @media (max-width: 1180px){
@@ -655,13 +682,13 @@
     }
 
     .panel-head{
-      padding:16px;
+      padding:14px;
       flex-direction:column;
       align-items:flex-start;
     }
 
     .timeline-wrap{
-      padding:16px;
+      padding:14px;
     }
 
     .timeline::before{
@@ -673,20 +700,20 @@
     }
 
     .activity-icon{
-      width:36px;
-      height:36px;
-      border-radius:12px;
-      flex-basis:36px;
-      font-size:.84rem;
+      width:34px;
+      height:34px;
+      border-radius:10px;
+      flex-basis:34px;
+      font-size:.78rem;
     }
 
     .shortcut-grid{
-      padding:16px;
+      padding:14px;
       grid-template-columns:1fr;
     }
 
     .stat-card{
-      padding:16px;
+      padding:14px 16px;
     }
 
     .stat-main{
@@ -694,7 +721,15 @@
     }
 
     .stat-value{
-      font-size:2rem;
+      font-size:1.8rem;
+    }
+
+    .help-stack{
+      flex-direction:column;
+    }
+
+    .help-stack .help-card + .help-card{
+      border-left:0;
     }
   }
 </style>
@@ -836,7 +871,10 @@
                       <h3 class="activity-title">{{ a.type }}</h3>
                       <div class="activity-item-text">{{ a.item }}</div>
                     </div>
-                    <span class="activity-time">{{ a.time }}</span>
+                    <span class="activity-time">
+                      <span>{{ a.time }}</span>
+                      <span class="activity-date">{{ a.display_date }}</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -905,17 +943,33 @@
         </a>
       </div>
 
-      <div class="help-card">
-        <div class="help-icon gradient-rose">
-          <i class="fa-regular fa-circle-question"></i>
+      <div class="help-stack">
+        <div class="help-card">
+          <div class="help-icon gradient-rose">
+            <i class="fa-regular fa-circle-question"></i>
+          </div>
+          <div>
+            <h3 class="help-title">Retail Assistant</h3>
+            <p class="help-text">Get quick help, inventory guidance, and system support from the retail assistant.</p>
+            <a class="help-link" href="{% url 'assistant' %}">
+              Open assistant
+              <i class="fa-solid fa-arrow-right"></i>
+            </a>
+          </div>
         </div>
-        <div>
-          <h3 class="help-title">Need Help?</h3>
-          <p class="help-text">Access guides or contact support for assistance with inventory management.</p>
-          <a class="help-link" href="{% url 'assistant' %}">
-            Learn more
-            <i class="fa-solid fa-arrow-right"></i>
-          </a>
+
+        <div class="help-card">
+          <div class="help-icon gradient-blue">
+            <i class="fa-regular fa-file-lines"></i>
+          </div>
+          <div>
+            <h3 class="help-title">User Guide</h3>
+            <p class="help-text">Open the user guide for step-by-step instructions on using the retail management system.</p>
+            <a class="help-link" href="{% static 'retail/docs/RMS User Guide.pdf' %}" target="_blank" rel="noopener">
+              Learn more
+              <i class="fa-solid fa-arrow-right"></i>
+            </a>
+          </div>
         </div>
       </div>
     </aside>

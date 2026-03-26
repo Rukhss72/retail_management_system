@@ -40,9 +40,11 @@ urlpatterns = [
 
 '''
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path, include
 from django.shortcuts import redirect
+from django.urls import path, include
 from retail.views import AdminLoginView
 
 urlpatterns = [
@@ -54,3 +56,6 @@ urlpatterns = [
 
     path("", include("retail.urls")), # app urls
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.BASE_DIR / "retail" / "static")
