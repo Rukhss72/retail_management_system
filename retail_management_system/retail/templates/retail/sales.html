@@ -208,6 +208,76 @@
   .product-filters .section-field{
     margin-left: 18px;
   }
+  .history-filters{
+    display:grid;
+    grid-template-columns: minmax(160px, 220px) minmax(160px, 220px) auto;
+    gap: 8px 12px;
+    align-items:end;
+    margin-bottom: 12px;
+  }
+  .history-filters .actions{
+    grid-column: auto;
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+    align-self:end;
+  }
+  .history-filters input{
+    width: 100%;
+  }
+  .history-head{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom: 12px;
+    flex-wrap:wrap;
+  }
+  .history-head .card-title{
+    margin:0;
+  }
+  .history-head .history-filters{
+    margin-bottom: 0;
+  }
+  .history-tools{
+    display:flex;
+    align-items:flex-end;
+    gap:12px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+  .history-pager{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .history-pager-btn,
+  .history-pager-current{
+    min-width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid #D1D5DB;
+    background:#fff;
+    color:var(--charcoal);
+    font-weight:900;
+    text-decoration:none;
+    box-shadow: var(--shadow-sm);
+  }
+  .history-pager-btn:hover{
+    background:#F9FAFB;
+  }
+  .history-pager-current{
+    background: var(--berry);
+    border-color: var(--berry);
+    color: #fff;
+  }
+  .history-pager-btn.is-disabled{
+    opacity:.5;
+    pointer-events:none;
+  }
   .fg{
     display: flex;
     flex-direction: column;
@@ -288,6 +358,19 @@
     }
     .product-filters .section-field{
       margin-left: 0;
+    }
+    .history-filters{
+      grid-template-columns: 1fr;
+    }
+    .history-filters .actions{
+      justify-content:flex-start;
+    }
+    .history-head{
+      align-items:stretch;
+    }
+    .history-tools{
+      justify-content:flex-start;
+      width:100%;
     }
   }
 
@@ -663,6 +746,7 @@
                             data-name="{{ p.product_name }}"
                             data-price="{{ p.selling_price }}"
                             data-stock="{{ p.qty_in_stock }}"
+                            data-reorder-level="{{ p.reorder_level|default:0 }}"
                           >
                             <i class="fa-solid fa-plus"></i> Add
                           </button>
@@ -692,6 +776,7 @@
                           data-name="{{ p.product_name }}"
                           data-price="{{ p.selling_price }}"
                           data-stock="{{ p.qty_in_stock }}"
+                          data-reorder-level="{{ p.reorder_level|default:0 }}"
                         >
                           <i class="fa-solid fa-plus"></i> Add
                         </button>
@@ -802,8 +887,54 @@
 
     {% elif tab == 'history' %}
       <!-- SALES HISTORY -->
-      <div class="card">
-        <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Sales History</div>
+      <div class="card top-full">
+        <div class="history-head">
+          <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Sales History</div>
+
+          <div class="history-tools">
+            <form method="get" class="history-filters">
+              <input type="hidden" name="tab" value="history">
+              <div class="fg">
+                <label>From</label>
+                <input type="date" name="history_from" value="{{ history_from }}">
+              </div>
+              <div class="fg">
+                <label>To</label>
+                <input type="date" name="history_to" value="{{ history_to }}">
+              </div>
+              <div class="actions">
+                <button class="btn btn-soft" type="submit"><i class="fa-solid fa-filter"></i> Apply Filters</button>
+                <a class="btn btn-outline" href="{% url 'sales' %}?tab=history"><i class="fa-solid fa-rotate-left"></i> Reset</a>
+              </div>
+            </form>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+              <div class="history-pager">
+                {% if page_obj.has_previous %}
+                  <a class="history-pager-btn" href="{% url 'sales' %}?{{ history_query }}&page={{ page_obj.previous_page_number }}" aria-label="Previous page">
+                    <i class="fa-solid fa-chevron-left"></i>
+                  </a>
+                {% else %}
+                  <span class="history-pager-btn is-disabled" aria-hidden="true">
+                    <i class="fa-solid fa-chevron-left"></i>
+                  </span>
+                {% endif %}
+
+                <span class="history-pager-current">{{ page_obj.number }}</span>
+
+                {% if page_obj.has_next %}
+                  <a class="history-pager-btn" href="{% url 'sales' %}?{{ history_query }}&page={{ page_obj.next_page_number }}" aria-label="Next page">
+                    <i class="fa-solid fa-chevron-right"></i>
+                  </a>
+                {% else %}
+                  <span class="history-pager-btn is-disabled" aria-hidden="true">
+                    <i class="fa-solid fa-chevron-right"></i>
+                  </span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
 
         <div class="table-wrap">
           <table>
@@ -840,29 +971,6 @@
           </table>
         </div>
 
-        {% if page_obj.paginator.num_pages > 1 %}
-          <div class="pagination">
-            {% if page_obj.has_previous %}
-              <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ page_obj.previous_page_number }}">Previous</a>
-            {% else %}
-              <span class="page-btn" style="opacity:.5;">Previous</span>
-            {% endif %}
-
-            {% for n in page_obj.paginator.page_range %}
-              {% if n == page_obj.number %}
-                <span class="page-btn active">{{ n }}</span>
-              {% elif n >= page_obj.number|add:-2 and n <= page_obj.number|add:2 %}
-                <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ n }}">{{ n }}</a>
-              {% endif %}
-            {% endfor %}
-
-            {% if page_obj.has_next %}
-              <a class="page-btn" href="{% url 'sales' %}?tab=history&page={{ page_obj.next_page_number }}">Next</a>
-            {% else %}
-              <span class="page-btn" style="opacity:.5;">Next</span>
-            {% endif %}
-          </div>
-        {% endif %}
       </div>
 
     {% else %}
@@ -1015,7 +1123,7 @@
 
     if (!cartBody || !cartJsonEl) return;
 
-    // In-memory cart: {id: {id, sku, name, price, stock, qty}}
+    // In-memory cart: {id: {id, sku, name, price, stock, reorder_level, qty}}
     const cart = {};
 
     function money(n){
@@ -1074,7 +1182,12 @@
         const gross = Number(it.price) * Number(it.qty);
         const pct = Math.max(0, Math.min(100, Number(it.discount_pct || 0)));
         const lineTotal = gross - (gross * pct / 100);
-        const showOnlyLeft = it.stock > 0 && it.stock <= 5; // uses CURRENT stock; no hardcoding "2"
+        const reorderLevel = Math.max(0, Number(it.reorder_level || 0));
+        const remainingStock = Math.max(0, Number(it.stock) - Number(it.qty));
+        const showOnlyLeft = reorderLevel > 0 && remainingStock <= reorderLevel;
+        const stockWarning = showOnlyLeft
+          ? (remainingStock === 0 ? `0 left` : `Only ${remainingStock} left`)
+          : "";
 
         tr.innerHTML = `
           <td>
@@ -1087,7 +1200,7 @@
               <input type="number" min="1" class="qty-input" value="${it.qty}" data-action="qty" data-id="${it.id}">
               <button type="button" class="qty-btn" data-action="inc" data-id="${it.id}">+</button>
             </div>
-            ${showOnlyLeft ? `<div class="warn">Only ${it.stock} left</div>` : ``}
+            ${stockWarning ? `<div class="warn">${stockWarning}</div>` : ``}
             ${it.qty > it.stock ? `<div class="warn">Qty exceeds available stock</div>` : ``}
           </td>
           <td>
@@ -1116,11 +1229,12 @@
       const name = btn.dataset.name || "";
       const price = Number(btn.dataset.price || 0);
       const stock = Number(btn.dataset.stock || 0);
+      const reorderLevel = Number(btn.dataset.reorderLevel || 0);
 
       if (stock <= 0) return;
 
       if (!cart[id]){
-        cart[id] = { id, sku, name, price, stock, qty: 1, discount_pct: 0 };
+        cart[id] = { id, sku, name, price, stock, reorder_level: reorderLevel, qty: 1, discount_pct: 0 };
       } else {
         // Increase qty but never exceed stock
         cart[id].qty = Math.min(cart[id].qty + 1, cart[id].stock);

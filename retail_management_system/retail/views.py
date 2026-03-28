@@ -706,6 +706,8 @@ def sales(request):
     # Product filters (for New Sale product picker)
     q = (request.GET.get("q") or "").strip()
     category_id = (request.GET.get("category") or "").strip()
+    history_from = (request.GET.get("history_from") or "").strip()
+    history_to = (request.GET.get("history_to") or "").strip()
 
     products_qs = Product.objects.filter(is_active=True).select_related("category").order_by("product_name")
     categories = Category.objects.order_by("category_name")
@@ -747,8 +749,25 @@ def sales(request):
             tab = "new"
 
     # History tab data
-    sales_qs = Sale.objects.select_related("cashier").order_by("-created_at")
+    sales_qs = Sale.objects.select_related("cashier").order_by("-created_at", "-id")
+
+    if history_from:
+        try:
+            sales_qs = sales_qs.filter(created_at__date__gte=date.fromisoformat(history_from))
+        except ValueError:
+            history_from = ""
+
+    if history_to:
+        try:
+            sales_qs = sales_qs.filter(created_at__date__lte=date.fromisoformat(history_to))
+        except ValueError:
+            history_to = ""
+
     page_obj = Paginator(sales_qs, 10).get_page(request.GET.get("page"))
+
+    history_params = request.GET.copy()
+    history_params.pop("page", None)
+    history_query = history_params.urlencode()
 
     # Details tab data
     sale = None
@@ -770,6 +789,9 @@ def sales(request):
 
         "page_obj": page_obj,  # history
         "sale": sale,          # details (can be None)
+        "history_from": history_from,
+        "history_to": history_to,
+        "history_query": history_query,
 
         "section_choices": Product._meta.get_field("section").choices,
         "selected_section": section,
@@ -1659,7 +1681,9 @@ def dashboard(request):
     category_current_labels = [row["product__category__category_name"] or "Uncategorized" for row in category_current_rows]
     category_current_values = [float(row["revenue"]) for row in category_current_rows]
 
-    monthly_window_start = (today.replace(day=1) - timedelta(days=155)).replace(day=1)
+    monthly_window_start = today.replace(day=1)
+    for _ in range(9):
+        monthly_window_start = (monthly_window_start - timedelta(days=1)).replace(day=1)
     monthly_category_rows = list(
         DailyProductSales.objects.filter(date__gte=monthly_window_start, date__lte=today)
         .annotate(month_bucket=TruncMonth("date"))
@@ -1720,8 +1744,7 @@ def dashboard(request):
     forecast_anchor = forecast_run.period_start if forecast_run else today
     forecast_week_end = forecast_anchor + timedelta(days=6)
     forecast_30_end = forecast_anchor + timedelta(days=29)
-    forecast_next_month_start = next_month_start(forecast_anchor)
-    forecast_next_month_end = month_end(forecast_next_month_start)
+    forecast_chart_end = forecast_30_end
 
     forecast_daily_labels = []
     forecast_daily_units = []
@@ -1733,6 +1756,111 @@ def dashboard(request):
     forecast_category_values = []
     at_risk_products = []
     next_festival = None
+    stock_attention_next_week = []
+    stock_attention_next_30_days = []
+    festival_predicted_units = Decimal("0.00")
+    festival_predicted_best_sellers = []
+    festival_top_category = ""
+
+    def build_stock_attention_rows(forecast_end_date):
+        at_risk = []
+        forecast_by_sku = {}
+        if forecast_run:
+            risk_rows = list(
+                ForecastDaily.objects.filter(
+                    run=forecast_run,
+                    forecast_date__gte=forecast_anchor,
+                    forecast_date__lte=forecast_end_date,
+                )
+                .values(
+                    "product__sku",
+                    "product__product_name",
+                    "product__category__category_name",
+                    "product__qty_in_stock",
+                    "product__reorder_level",
+                )
+                .annotate(forecast_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+                .order_by("-forecast_qty")
+            )
+            for row in risk_rows:
+                forecast_qty = float(row["forecast_qty"] or 0)
+                stock_qty = int(row["product__qty_in_stock"] or 0)
+                sku = row["product__sku"]
+                forecast_by_sku[sku] = {
+                    "forecast_qty": forecast_qty,
+                    "gap": round(forecast_qty - stock_qty, 2),
+                }
+                gap = forecast_by_sku[sku]["gap"]
+                if gap <= 0:
+                    continue
+                at_risk.append({
+                    "sku": sku,
+                    "product": row["product__product_name"],
+                    "category": row["product__category__category_name"] or "Uncategorized",
+                    "stock": stock_qty,
+                    "forecast_qty": forecast_qty,
+                    "gap": gap,
+                    "reorder_level": row["product__reorder_level"] or 0,
+                })
+
+        rows = []
+        row_map = {}
+
+        for product in low_stock_items:
+            status = "Out of stock" if int(product.qty_in_stock or 0) == 0 else "Low stock"
+            forecast_data = forecast_by_sku.get(product.sku, {})
+            gap = forecast_data.get("gap")
+            status_tone = "danger" if status == "Out of stock" else "warn"
+            if gap is not None and gap > 0:
+                if status == "Low stock":
+                    status = "Low + at risk"
+                    status_tone = "warn"
+                elif status == "Out of stock":
+                    status = "Out + at risk"
+                    status_tone = "danger"
+            row = {
+                "sku": product.sku,
+                "product": product.product_name,
+                "category": product.category.category_name if product.category else "Uncategorized",
+                "stock": int(product.qty_in_stock or 0),
+                "forecast_qty": forecast_data.get("forecast_qty"),
+                "gap": gap,
+                "status": status,
+                "status_tone": status_tone,
+                "sort_rank": 0 if status == "Out of stock" else 1,
+            }
+            row_map[row["sku"]] = row
+            rows.append(row)
+
+        for risk in at_risk[:6]:
+            existing = row_map.get(risk["sku"])
+            if existing:
+                existing["forecast_qty"] = risk["forecast_qty"]
+                existing["gap"] = risk["gap"]
+                if existing["status"] == "Low stock":
+                    existing["status"] = "Low + at risk"
+                    existing["status_tone"] = "warn"
+                elif existing["status"] == "Out of stock":
+                    existing["status"] = "Out + at risk"
+                    existing["status_tone"] = "danger"
+                continue
+
+            row = {
+                "sku": risk["sku"],
+                "product": risk["product"],
+                "category": risk.get("category") or "Uncategorized",
+                "stock": risk["stock"],
+                "forecast_qty": risk["forecast_qty"],
+                "gap": risk["gap"],
+                "status": "At risk",
+                "status_tone": "warn",
+                "sort_rank": 2,
+            }
+            row_map[row["sku"]] = row
+            rows.append(row)
+
+        rows.sort(key=lambda item: (item["sort_rank"], item["stock"], item["product"]))
+        return rows, at_risk
 
     if forecast_run:
         next_festival = (
@@ -1741,7 +1869,7 @@ def dashboard(request):
             .first()
         )
         forecast_daily_rows = list(
-            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_30_end)
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_chart_end)
             .values("forecast_date")
             .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
             .order_by("forecast_date")
@@ -1763,84 +1891,48 @@ def dashboard(request):
             if row["total"] == 0
         ][:6]
         forecast_category_rows = list(
-            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_next_month_end)
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_30_end)
             .values("product__category__category_name")
             .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
             .order_by("-total")[:6]
         )
         forecast_category_labels = [row["product__category__category_name"] or "Uncategorized" for row in forecast_category_rows]
         forecast_category_values = [float(row["total"]) for row in forecast_category_rows]
+        stock_attention_next_week, at_risk_products = build_stock_attention_rows(forecast_week_end)
+        stock_attention_next_30_days, _ = build_stock_attention_rows(forecast_30_end)
 
-        risk_rows = list(
-            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_week_end)
-            .values("product__sku", "product__product_name", "product__qty_in_stock", "product__reorder_level")
-            .annotate(forecast_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
-            .order_by("-forecast_qty")
-        )
-        for row in risk_rows:
-            forecast_qty = float(row["forecast_qty"] or 0)
-            stock_qty = int(row["product__qty_in_stock"] or 0)
-            gap = round(forecast_qty - stock_qty, 2)
-            if gap <= 0:
-                continue
-            at_risk_products.append({
-                "sku": row["product__sku"],
-                "product": row["product__product_name"],
-                "stock": stock_qty,
-                "forecast_qty": forecast_qty,
-                "gap": gap,
-                "reorder_level": row["product__reorder_level"] or 0,
-            })
-            if len(at_risk_products) >= 6:
-                break
-
-    stock_attention_rows = []
-    stock_attention_map = {}
-
-    for product in low_stock_items:
-        status = "Out of stock" if int(product.qty_in_stock or 0) == 0 else "Low stock"
-        row = {
-            "sku": product.sku,
-            "product": product.product_name,
-            "category": product.category.category_name if product.category else "Uncategorized",
-            "stock": int(product.qty_in_stock or 0),
-            "forecast_qty": None,
-            "gap": None,
-            "status": status,
-            "status_tone": "danger" if status == "Out of stock" else "warn",
-            "sort_rank": 0 if status == "Out of stock" else 1,
-        }
-        stock_attention_map[row["sku"]] = row
-        stock_attention_rows.append(row)
-
-    for risk in at_risk_products:
-        existing = stock_attention_map.get(risk["sku"])
-        if existing:
-            existing["forecast_qty"] = risk["forecast_qty"]
-            existing["gap"] = risk["gap"]
-            if existing["status"] == "Low stock":
-                existing["status"] = "Low + at risk"
-                existing["status_tone"] = "warn"
-            elif existing["status"] == "Out of stock":
-                existing["status"] = "Out + at risk"
-                existing["status_tone"] = "danger"
-            continue
-
-        row = {
-            "sku": risk["sku"],
-            "product": risk["product"],
-            "category": "",
-            "stock": risk["stock"],
-            "forecast_qty": risk["forecast_qty"],
-            "gap": risk["gap"],
-            "status": "At risk",
-            "status_tone": "warn",
-            "sort_rank": 2,
-        }
-        stock_attention_map[row["sku"]] = row
-        stock_attention_rows.append(row)
-
-    stock_attention_rows.sort(key=lambda item: (item["sort_rank"], item["stock"], item["product"]))
+        if next_festival:
+            festival_forecast_start = max(forecast_anchor, next_festival.start_date)
+            festival_forecast_end = next_festival.end_date
+            festival_rows = ForecastDaily.objects.filter(
+                run=forecast_run,
+                forecast_date__gte=festival_forecast_start,
+                forecast_date__lte=festival_forecast_end,
+            )
+            festival_predicted_units = festival_rows.aggregate(
+                total=Coalesce(Sum("predicted_qty"), Decimal("0.00"))
+            )["total"]
+            festival_predicted_best_sellers = list(
+                festival_rows
+                .values("product__sku", "product__product_name", "product__category__category_name")
+                .annotate(qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+                .order_by("-qty", "product__product_name")[:3]
+            )
+            festival_top_category_row = (
+                festival_rows
+                .values("product__category__category_name")
+                .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
+                .order_by("-total")
+                .first()
+            )
+            festival_top_category = (
+                festival_top_category_row["product__category__category_name"]
+                if festival_top_category_row and festival_top_category_row["product__category__category_name"]
+                else ""
+            )
+    else:
+        stock_attention_next_week, at_risk_products = build_stock_attention_rows(forecast_week_end)
+        stock_attention_next_30_days, _ = build_stock_attention_rows(forecast_30_end)
 
     context = {
         "since_date": since,
@@ -1852,6 +1944,7 @@ def dashboard(request):
         "forecast_available": bool(forecast_run),
         "forecast_run": forecast_run,
         "forecast_anchor": forecast_anchor,
+        "forecast_chart_end": forecast_chart_end,
         "orders_count": orders_count,
         "total_revenue": total_revenue,
         "total_units": total_units,
@@ -1875,7 +1968,9 @@ def dashboard(request):
         "stock_attention_count": stock_attention_count,
         "low_stock_items": low_stock_items,
         "at_risk_products": at_risk_products,
-        "stock_attention_rows": stock_attention_rows,
+        "stock_attention_rows": stock_attention_next_week,
+        "stock_attention_next_week": stock_attention_next_week,
+        "stock_attention_next_30_days": stock_attention_next_30_days,
         "ok_pct": ok_pct,
         "low_pct": low_pct,
         "out_pct": out_pct,
@@ -1898,6 +1993,9 @@ def dashboard(request):
         "weekly_category_values": weekly_category_values,
         "forecast_category_labels": forecast_category_labels,
         "forecast_category_values": forecast_category_values,
+        "festival_predicted_units": festival_predicted_units,
+        "festival_predicted_best_sellers": festival_predicted_best_sellers,
+        "festival_top_category": festival_top_category,
     }
     return render(request, "retail/dashboard.html", context)
 

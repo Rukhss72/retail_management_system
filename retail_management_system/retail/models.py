@@ -375,8 +375,8 @@ class FestiveCalendar(models.Model):
     festival_name = models.CharField(max_length=80)
     start_date = models.DateField()
     end_date = models.DateField()
-    festival_date = models.DateField(null=True, blank=True)  # optional but recommended
-
+    festival_date = models.DateField(null=True, blank=True)  
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

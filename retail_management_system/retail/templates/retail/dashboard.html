@@ -305,6 +305,16 @@
       color:var(--charcoal);
       margin-right:6px;
     }
+    .category-split{
+      display:grid;
+      grid-template-columns:minmax(0, 3fr) minmax(0, 2fr);
+      gap:16px;
+    }
+    @media (max-width: 1180px){
+      .category-split{
+        grid-template-columns:1fr;
+      }
+    }
   </style>
 
   <div class="dash-page-wrap">
@@ -315,7 +325,7 @@
           Control-center view of actual sales, festive demand, category movement, and stock risk from {{ since_date|date:"M d, Y" }} to {{ today_date|date:"M d, Y" }}.
         </div>
         <div class="filter-row">
-          <form method="get" class="filter-form">
+          <form method="get" class="filter-form" id="dashboardFilterForm">
             <label for="start" class="chip">From</label>
             <input id="start" name="start" type="date" value="{{ start_date|date:'Y-m-d' }}">
             <label for="end" class="chip">To</label>
@@ -550,14 +560,14 @@
                 <div class="spotlight-stat">
                   <div class="label">Predicted Demand</div>
                   <div class="value">
-                    {{ forecast_next_week_units|floatformat:0 }} units
+                    {{ festival_predicted_units|floatformat:0 }} units
                   </div>
                 </div>
                 <div class="spotlight-stat">
                   <div class="label">Top Forecast Category</div>
                   <div class="value">
-                    {% if forecast_category_labels %}
-                      {{ forecast_category_labels.0 }}
+                    {% if festival_top_category %}
+                      {{ festival_top_category }}
                     {% else %}
                       Not available
                     {% endif %}
@@ -568,39 +578,39 @@
                 <div class="spotlight-list-title">Predicted Best Sellers:</div>
                 <div class="spotlight-row">
                   <span>
-                    {% if predicted_next_week|length > 0 %}
-                      {{ predicted_next_week.0.product__product_name }}
+                    {% if festival_predicted_best_sellers|length > 0 %}
+                      {{ festival_predicted_best_sellers.0.product__product_name }}
                     {% else %}
                       No forecast yet
                     {% endif %}
                   </span>
                   <strong>
-                    {% if predicted_next_week|length > 0 %}
-                      Est. {{ predicted_next_week.0.qty|floatformat:1 }} units
+                    {% if festival_predicted_best_sellers|length > 0 %}
+                      Est. {{ festival_predicted_best_sellers.0.qty|floatformat:1 }} units
                     {% endif %}
                   </strong>
                 </div>
                 <div class="spotlight-row">
                   <span>
-                    {% if predicted_next_week|length > 1 %}
-                      {{ predicted_next_week.1.product__product_name }}
+                    {% if festival_predicted_best_sellers|length > 1 %}
+                      {{ festival_predicted_best_sellers.1.product__product_name }}
                     {% endif %}
                   </span>
                   <strong>
-                    {% if predicted_next_week|length > 1 %}
-                      Est. {{ predicted_next_week.1.qty|floatformat:1 }} units
+                    {% if festival_predicted_best_sellers|length > 1 %}
+                      Est. {{ festival_predicted_best_sellers.1.qty|floatformat:1 }} units
                     {% endif %}
                   </strong>
                 </div>
                 <div class="spotlight-row">
                   <span>
-                    {% if predicted_next_week|length > 2 %}
-                      {{ predicted_next_week.2.product__product_name }}
+                    {% if festival_predicted_best_sellers|length > 2 %}
+                      {{ festival_predicted_best_sellers.2.product__product_name }}
                     {% endif %}
                   </span>
                   <strong>
-                    {% if predicted_next_week|length > 2 %}
-                      Est. {{ predicted_next_week.2.qty|floatformat:1 }} units
+                    {% if festival_predicted_best_sellers|length > 2 %}
+                      Est. {{ festival_predicted_best_sellers.2.qty|floatformat:1 }} units
                     {% endif %}
                   </strong>
                 </div>
@@ -613,7 +623,7 @@
           </div>
         </div>
 
-        <div class="grid-2">
+        <div class="category-split">
           <div class="panel">
             <div class="panel-head">
               <div>
@@ -654,49 +664,92 @@
         </div>
 
         <div id="inventory-watch-list" style="display:grid; gap:16px;">
-            <div class="section-title"><i class="fa-solid fa-box-open"></i> Stock Attention</div>
-            <div class="panel">
-              <div class="panel-head">
-                <div>
-                  <h3 class="panel-title">Current And Upcoming Stock Issues</h3>
-                  <div class="panel-note">Low stock, out-of-stock, and forecast risk items in one view.</div>
+            <div class="section-title"><i class="fa-solid fa-box-open"></i> Current and Upcoming Stock Issues</div>
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h3 class="panel-title">Stock Attention: Next 7 Days</h3>
+                    <div class="panel-note">Low stock, out-of-stock, and forecast risk items for the upcoming week.</div>
+                  </div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <span class="pill pill-ok">{{ ok_stock_count }} in stock</span>
+                    <span class="pill pill-warn">{{ low_stock_count }} low</span>
+                    <span class="pill pill-danger">{{ out_of_stock_count }} out</span>
+                    <span class="pill pill-warn">{{ at_risk_products|length }} at risk</span>
+                  </div>
                 </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <span class="pill pill-ok">{{ ok_stock_count }} in stock</span>
-                  <span class="pill pill-warn">{{ low_stock_count }} low</span>
-                  <span class="pill pill-danger">{{ out_of_stock_count }} out</span>
-                  <span class="pill pill-warn">{{ at_risk_products|length }} at risk</span>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Stock</th><th>Forecast</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {% for row in stock_attention_next_week %}
+                        <tr>
+                          <td>{{ row.sku }}</td>
+                          <td>{{ row.product }}</td>
+                          <td>{{ row.category|default:"-" }}</td>
+                          <td>
+                            {% if row.stock == 0 %}
+                              <span class="pill pill-danger">0</span>
+                            {% else %}
+                              <span class="pill {% if row.stock <= 4 %}pill-warn{% else %}pill-ok{% endif %}">{{ row.stock }}</span>
+                            {% endif %}
+                          </td>
+                          <td>{% if row.forecast_qty != None %}{{ row.forecast_qty|floatformat:1 }}{% else %}-{% endif %}</td>
+                          <td>
+                            <span class="pill {% if row.status_tone == 'danger' %}pill-danger{% elif row.status_tone == 'warn' %}pill-warn{% else %}pill-ok{% endif %}">
+                              {{ row.status }}
+                            </span>
+                          </td>
+                        </tr>
+                      {% empty %}
+                        <tr><td colspan="6" class="muted">No stock issues detected for the next 7 days.</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div class="table-wrap">
-                <table>
-                  <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Stock</th><th>Forecast</th><th>Gap</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {% for row in stock_attention_rows %}
-                      <tr>
-                        <td>{{ row.sku }}</td>
-                        <td>{{ row.product }}</td>
-                        <td>{{ row.category|default:"-" }}</td>
-                        <td>
-                          {% if row.stock == 0 %}
-                            <span class="pill pill-danger">0</span>
-                          {% else %}
-                            <span class="pill {% if row.stock <= 4 %}pill-warn{% else %}pill-ok{% endif %}">{{ row.stock }}</span>
-                          {% endif %}
-                        </td>
-                        <td>{% if row.forecast_qty != None %}{{ row.forecast_qty|floatformat:1 }}{% else %}-{% endif %}</td>
-                        <td>{% if row.gap != None %}<span class="pill pill-warn">{{ row.gap|floatformat:1 }}</span>{% else %}-{% endif %}</td>
-                        <td>
-                          <span class="pill {% if row.status_tone == 'danger' %}pill-danger{% elif row.status_tone == 'warn' %}pill-warn{% else %}pill-ok{% endif %}">
-                            {{ row.status }}
-                          </span>
-                        </td>
-                      </tr>
-                    {% empty %}
-                      <tr><td colspan="7" class="muted">No current or upcoming stock issues detected.</td></tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h3 class="panel-title">Stock Attention: Next 30 Days</h3>
+                    <div class="panel-note">Low stock, out-of-stock, and forecast risk items for the next 30 days.</div>
+                  </div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <span class="pill pill-sky">Forecast window</span>
+                    <span class="pill pill-warn">{{ stock_attention_next_30_days|length }} issues</span>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Stock</th><th>Forecast</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {% for row in stock_attention_next_30_days %}
+                        <tr>
+                          <td>{{ row.sku }}</td>
+                          <td>{{ row.product }}</td>
+                          <td>{{ row.category|default:"-" }}</td>
+                          <td>
+                            {% if row.stock == 0 %}
+                              <span class="pill pill-danger">0</span>
+                            {% else %}
+                              <span class="pill {% if row.stock <= 4 %}pill-warn{% else %}pill-ok{% endif %}">{{ row.stock }}</span>
+                            {% endif %}
+                          </td>
+                          <td>{% if row.forecast_qty != None %}{{ row.forecast_qty|floatformat:1 }}{% else %}-{% endif %}</td>
+                          <td>
+                            <span class="pill {% if row.status_tone == 'danger' %}pill-danger{% elif row.status_tone == 'warn' %}pill-warn{% else %}pill-ok{% endif %}">
+                              {{ row.status }}
+                            </span>
+                          </td>
+                        </tr>
+                      {% empty %}
+                        <tr><td colspan="6" class="muted">No stock issues detected for the next 30 days.</td></tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -718,6 +771,25 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     (function () {
+      const filterForm = document.getElementById("dashboardFilterForm");
+      const scrollResetKey = "dashboard-scroll-top";
+
+      if (filterForm) {
+        filterForm.addEventListener("submit", () => {
+          sessionStorage.setItem(scrollResetKey, "1");
+        });
+      }
+
+      if (sessionStorage.getItem(scrollResetKey) === "1") {
+        sessionStorage.removeItem(scrollResetKey);
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+          }
+        });
+      }
+
       const getData = (id) => JSON.parse(document.getElementById(id)?.textContent || "[]");
       const axisCommon = {
         grid: { color: "rgba(148, 163, 184, 0.20)" },
@@ -741,6 +813,9 @@
       const monthlyTopCategoryDatasets = getData("monthly-top-category-datasets");
       const weeklyCategoryLabels = getData("weekly-category-labels");
       const weeklyCategoryValues = getData("weekly-category-values");
+      const combinedUnitSeries = [...actualUnits, ...forecastUnits].map((value) => Number(value) || 0);
+      const maxUnits = combinedUnitSeries.length ? Math.max(...combinedUnitSeries) : 0;
+      const sharedYAxisMax = Math.max(10, Math.ceil(maxUnits / 5) * 5);
 
       const actualEl = document.getElementById("actualSalesChart");
       if (actualEl && actualLabels.length) {
@@ -762,7 +837,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: "bottom" } },
-            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true } }
+            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true, max: sharedYAxisMax } }
           }
         });
       }
@@ -789,7 +864,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: "bottom" } },
-            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true } }
+            scales: { x: axisCommon, y: { ...axisCommon, beginAtZero: true, max: sharedYAxisMax } }
           }
         });
       }
