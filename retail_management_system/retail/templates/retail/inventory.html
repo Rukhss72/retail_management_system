@@ -668,7 +668,7 @@
       </div>
 
       <div class="inv-actions">
-        <button class="btn btn-primary" type="button" onclick="openModal('modalCreateProduct')">
+        <button class="btn btn-primary" type="button" {% if is_admin %}onclick="openModal('modalCreateProduct')"{% else %}disabled title="Admin only"{% endif %}>
           <i class="fas fa-plus"></i> Create Product
         </button>
 
@@ -1226,6 +1226,7 @@
   </div>
 </div>
 
+{% if is_admin %}
 <!-- CREATE PRODUCT MODAL -->
 <div id="modalCreateProduct" class="modal-backdrop">
   <div class="modal">
@@ -1289,6 +1290,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 
 {{ cp_supplier_map|json_script:"cpSupplierMapData" }}

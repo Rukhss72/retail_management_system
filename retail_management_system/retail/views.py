@@ -526,6 +526,8 @@ def inventory(request):
                 return redirect("inventory")
 
         elif action == "CREATE_PRODUCT":
+            if not is_admin(request.user):
+                return redirect("inventory")
             product_create_form = ProductCreateForm(request.POST, prefix="cp")
             if product_create_form.is_valid():
                 with transaction.atomic():
