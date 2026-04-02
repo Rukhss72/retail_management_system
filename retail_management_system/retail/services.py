@@ -12,7 +12,9 @@ from django.db.models.functions import Coalesce
 from .models import StockMovement, Sale, SaleItem, Product, ProductSupplier
 
 
+# Core stock and sales service helpers.
 def apply_stock_movement(*, product, movement_type, qty, adjust_direction=None):
+    # Applies the stock delta directly to the product based on movement type.
     if qty <= 0:
         raise ValidationError("Quantity must be positive.")
 
@@ -37,6 +39,7 @@ def apply_stock_movement(*, product, movement_type, qty, adjust_direction=None):
     product.save(update_fields=["qty_in_stock", "updated_at"])
 
 
+# Generates the next receipt number for a sale date.
 def generate_receipt_no(*, sale_date=None):
     sale_date = sale_date or timezone.localdate()
     prefix = f"R{sale_date.strftime('%y%m%d')}"
@@ -54,7 +57,7 @@ def generate_receipt_no(*, sale_date=None):
 
 @transaction.atomic
 def record_stock_movement(*, product, movement_type, qty, user, reference=None, comments=None, reason=None, adjust_direction=None):
-    # Updates Product.qty_in_stock
+    # Updates product stock first.
     apply_stock_movement(
         product=product,
         movement_type=movement_type,
@@ -62,7 +65,7 @@ def record_stock_movement(*, product, movement_type, qty, user, reference=None, 
         adjust_direction=adjust_direction,
     )
 
-    # Writes StockMovement row
+    # Then stores the matching stock movement record.
     StockMovement.objects.create(
         product=product,
         movement_type=movement_type,
@@ -79,6 +82,7 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
     """
     cart_items = [{"product_id": 1, "qty": 2, "unit_price": "45.00"}, ...]
     """
+    # Creates a sale, its sale items, and the matching stock movements.
     if not cart_items:
         raise ValidationError("Cart is empty.")
 
@@ -159,12 +163,13 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
     return sale
 
 
-
+# Reorder suggestion helpers.
 from .models import Product, ProductSupplier
 
 SAFETY_STOCK_DEFAULT = 5
 
 def get_reorder_queryset():
+    # Returns products currently low or out of stock and eligible for reorder checks.
     now = timezone.now()
     since = now - timedelta(days=30)
 
@@ -198,6 +203,7 @@ def get_reorder_queryset():
 
 
 def compute_reorder_row(product, safety_stock=SAFETY_STOCK_DEFAULT):
+    # Builds the reorder summary data used by the suppliers reorder screen.
     link = product.primary_links[0] if getattr(product, "primary_links", None) else None
     supplier = link.supplier if link else None
 
@@ -233,6 +239,7 @@ def compute_reorder_row(product, safety_stock=SAFETY_STOCK_DEFAULT):
 
 @transaction.atomic
 def set_primary_supplier(*, product, supplier, lead_time_days=None, last_unit_cost=None):
+    # Marks one supplier as primary for the given product and syncs the product field.
     if not supplier:
         return
     ProductSupplier.objects.filter(product=product).update(is_primary=False)

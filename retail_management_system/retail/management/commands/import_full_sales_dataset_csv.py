@@ -12,6 +12,7 @@ from django.db import transaction
 from retail.models import Product, Sale, SaleItem
 
 
+# Accepts the date formats used by the source dataset exports.
 def parse_date(value: str):
     v = (value or "").strip()
     if not v:
@@ -24,6 +25,7 @@ def parse_date(value: str):
     return None
 
 
+# Parses decimal-like CSV values defensively and falls back to a known default.
 def parse_decimal(value, default="0.00"):
     try:
         return Decimal(str(value).strip() if value is not None else default)
@@ -31,14 +33,17 @@ def parse_decimal(value, default="0.00"):
         return Decimal(default)
 
 
+# Normalizes all currency math to two decimal places before persisting.
 def quant2(value: Decimal):
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+# Accepts a few loose truthy values commonly seen in exported CSVs.
 def parse_bool(value):
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
+# Returns the first populated key from alternative column names.
 def first_present(row, *keys, default=""):
     for key in keys:
         if key in row and row.get(key) not in (None, ""):
@@ -113,6 +118,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("CSV is empty. Nothing to import."))
             return
 
+        # Preload all referenced users/products once so row validation stays cheap.
         usernames = {str(r.get("cashier_username", "")).strip() for r in rows if str(r.get("cashier_username", "")).strip()}
         skus = {str(r.get("sku", "")).strip() for r in rows if str(r.get("sku", "")).strip()}
         product_ids = {int(str(r.get("product_id", "")).strip()) for r in rows if str(r.get("product_id", "")).strip().isdigit()}
@@ -205,6 +211,7 @@ class Command(BaseCommand):
 
             meta = grouped[receipt_no]["meta"]
             if meta is None:
+                # First row for a receipt establishes the sale header metadata.
                 grouped[receipt_no]["meta"] = {
                     "receipt_no": receipt_no,
                     "sale_date": sale_date,
@@ -282,6 +289,7 @@ class Command(BaseCommand):
             else:
                 sales_updated += 1
 
+            # Rebuild item rows from the CSV payload so repeated imports stay deterministic.
             if replace_receipts:
                 sale.items.all().delete()
             else:

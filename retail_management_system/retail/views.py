@@ -50,7 +50,7 @@ from .assistant_engine.service import process_query
 
 import re
 
-# Create your views here.
+# Authentication and session helpers.
 
 # views.py
 TRUSTED_DEVICE_COOKIE = "trusted_device"
@@ -62,7 +62,7 @@ def _token_hash(token: str) -> str:
 
 
 def _get_client_ip(request):
-    # Basic, single-proxy setup. Adjust if you use X-Forwarded-For.
+    # Reads the client IP in a simple single-proxy setup.
     return request.META.get("REMOTE_ADDR")
 
 
@@ -148,7 +148,7 @@ def _next_po_number():
 class AdminLoginView(LoginView):
     template_name = "registration/admin_login.html"
     authentication_form = RoleAuthenticationForm
-    redirect_authenticated_user = True  # IMPORTANT: prevents loop
+    redirect_authenticated_user = True  # Avoids redirect loops for logged-in users.
 
     def form_valid(self, form):
         user = form.get_user()
@@ -188,16 +188,14 @@ class AdminLoginView(LoginView):
         return redirect("two_factor_verify")
 
     def get_success_url(self):
-        return reverse_lazy("home") # or "home/dashboard"
+        return reverse_lazy("home")  # Send successful logins to the home page.
     
 
-#def is_admin(user):
-#    return user.is_authenticated and (user.is_superuser or user.is_staff)
-
+# Permission wrappers used across the page views below.
 admin_required = user_passes_test(is_admin, login_url="/admin-login/")
 staff_required = user_passes_test(is_staff_or_admin, login_url="/admin-login/")
 
-#SKUGenerator
+# SKU generation helpers.
 SECTION_CODE = {
     "men": "MEN",
     "women": "WOM",
@@ -240,16 +238,16 @@ def generate_sku_for(section_value: str, category_obj: Category) -> str:
         seq = str(counter.last_seq).zfill(5)
         sku = f"{sec_code}-{cat_code}-{seq}"
 
-        # extra Safety check (should be unique already)
+        # Extra safety check in case the generated SKU already exists.
         if Product.objects.filter(sku=sku).exists():
             raise ValueError("SKU collision detected (unexpected).")
 
         return sku
 
+## Home page views.
 @staff_required
-#@admin_required
 def home(request):
-    # ===== STOCK COUNTS (match your Product model fields) =====
+    # Builds the home page stock summary cards.
     low_stock_count = Product.objects.filter(
         qty_in_stock__gt=0,
         qty_in_stock__lte=models.F("reorder_level"),
@@ -261,15 +259,14 @@ def home(request):
         is_active=True
     ).count()
 
-    # ===== REORDERS PENDING (match your ReorderRequest constants if present) =====
-    # If you have STATUS_SUBMITTED, use that as "pending admin decision"
+    # Counts reorder requests that are waiting for admin action.
     if hasattr(ReorderRequest, "STATUS_SUBMITTED"):
         reorders_pending_count = ReorderRequest.objects.filter(status=ReorderRequest.STATUS_SUBMITTED).count()
     else:
-        # fallback
+        # Fallback for projects using older status names.
         reorders_pending_count = ReorderRequest.objects.filter(status__in=["SUBMITTED", "PENDING", "Pending"]).count()
 
-    # ===== RECENT ACTIVITY (use StockMovement.movement_date + movement_type) =====
+    # Builds the recent activity list from the latest stock movements.
     recent_activity = []
 
     movements = (
@@ -279,7 +276,7 @@ def home(request):
     )
 
     for m in movements:
-        # map movement_type => dot color
+        # Maps movement types to the UI style used on the home page.
         kind = "adjustment"
         if m.movement_type == "IN":
             kind = "stockin"
@@ -292,7 +289,7 @@ def home(request):
         elif m.movement_type == "PO":
             kind = "po"
 
-        # label for UI
+        # Human-readable label shown in the activity timeline.
         type_label = {
             "IN": "Stock In",
             "OUT": "Stock Out",
@@ -335,11 +332,10 @@ def home(request):
     return render(request, "retail/home.html", context)
 
 
+## Inventory page views.
 @staff_required
-#@login_required
-#@admin_required
 def inventory(request):
-    # ---------- Filters (GET) ----------
+    # Reads inventory filters and decides which tab to show.
     categories = Category.objects.order_by("category_name")
     suppliers_for_filter = Supplier.objects.order_by("supplier_name")
 
@@ -350,17 +346,17 @@ def inventory(request):
     status = request.GET.get("status", "")
     tab = request.GET.get("tab", "products")
 
-    # Pagination params (two independent paginations on one page)
-    ppage = request.GET.get("ppage", 1)  # products page
-    hpage = request.GET.get("hpage", 1)  # history page
+    # Separate pagination values for the products tab and history tab.
+    ppage = request.GET.get("ppage", 1)  # Products page number.
+    hpage = request.GET.get("hpage", 1)  # History page number.
 
-    # Build base querystring for links (exclude tab + pagination params)
+    # Keeps the current filters while rebuilding pagination links.
     qs = request.GET.copy()
     for k in ("tab", "ppage", "hpage"):
         qs.pop(k, None)
     base_qs = qs.urlencode()
 
-    # ---------- Products queryset ----------
+    # Builds the filtered products queryset.
     products_qs = Product.objects.filter(is_active=True)
 
     if category_id:
@@ -385,7 +381,7 @@ def inventory(request):
     all_products = Product.objects.filter(is_active=True).select_related("category").order_by("product_name")
     cp_suppliers = Supplier.objects.filter(is_active=True).prefetch_related("categories").order_by("supplier_name")
 
-    # Build category -> suppliers map for Create Product modal.
+    # Builds the category-to-supplier map used by the create-product modal.
     cp_supplier_map = {}
     for s in cp_suppliers:
         linked_category_ids = list(s.categories.values_list("id", flat=True))
@@ -399,7 +395,7 @@ def inventory(request):
                 "name": s.supplier_name,
             })
 
-    # Compute status in python + counts
+    # Computes stock status labels and summary counts in Python.
     products = []
     low_count = 0
     out_count = 0
@@ -416,7 +412,7 @@ def inventory(request):
         else:
             p.stock_status = "OK"
 
-        # Apply product-list status filter (OK/Low/Out or LowOut)
+        # Applies the status filter used by the product cards tab.
         if status:
             if status == "LowOut" and p.stock_status not in ("Low", "Out"):
                 continue
@@ -425,11 +421,11 @@ def inventory(request):
 
         products.append(p)
 
-    # Paginate PRODUCTS (paginate the filtered python list)
-    product_paginator = Paginator(products, 8)  # change page size if you want
+    # Paginates the final filtered product list.
+    product_paginator = Paginator(products, 8)
     products_page = product_paginator.get_page(ppage)
 
-    # ---------- Handle actions (POST) ----------
+    # Handles stock-in, stock-out, adjustments, and product creation.
     stock_in_form = StockInForm(prefix="in")
     stock_out_form = StockOutForm(prefix="out")
     adjust_form = AdjustmentForm(prefix="adj")
@@ -541,13 +537,11 @@ def inventory(request):
                         is_active=True,
                     ).first()
 
-                    # ----------------------------
-                    # CASE 1: Duplicate product exists
-                    # ----------------------------
+                    # Case 1: update an existing matching product instead of creating a duplicate.
                     if existing:
                         opening_qty = product_create_form.cleaned_data.get("opening_qty", 0)
 
-                        # Add stock to EXISTING product
+                        # Adds opening stock to the existing product when needed.
                         if opening_qty and opening_qty > 0:
                             StockMovement.objects.create(
                                 product=existing,
@@ -561,7 +555,7 @@ def inventory(request):
                             existing.qty_in_stock += opening_qty
                             existing.save(update_fields=["qty_in_stock", "updated_at"])
 
-                        # Set / update PRIMARY supplier for EXISTING product (optional)
+                        # Updates the primary supplier link for the existing product.
                         supplier = product_create_form.cleaned_data.get("primary_supplier")
                         if supplier:
                             if existing.supplier_id != supplier.id:
@@ -578,11 +572,9 @@ def inventory(request):
                                 }
                             )
 
-                    # ----------------------------
-                    # CASE 2: New product
-                    # ----------------------------
+                    # Case 2: create a brand-new product record.
                     else:
-                        # Generate and save new product
+                        # Generates the SKU and saves the new product.
                         supplier = product_create_form.cleaned_data.get("primary_supplier")
                         if supplier:
                             new_obj.supplier = supplier
@@ -590,10 +582,10 @@ def inventory(request):
                         new_obj.sku = generate_sku_for(new_obj.section, new_obj.category)
                         new_obj.save()
 
-                        # bind instance back to form (so save_with_opening_stock uses correct product)
+                        # Rebinds the saved instance so the helper can create opening stock correctly.
                         product_create_form.instance = new_obj
 
-                        # Set / update PRIMARY supplier for NEW product (optional)
+                        # Creates the primary supplier link for the new product.
                         if supplier:
                             ProductSupplier.objects.filter(product=new_obj).update(is_primary=False)
                             ProductSupplier.objects.update_or_create(
@@ -606,13 +598,13 @@ def inventory(request):
                                 }
                             )
 
-                        # Add opening stock to NEW product
+                        # Creates the opening stock movement for the new product.
                         product_create_form.save_with_opening_stock(created_by=request.user)
 
                 return redirect("inventory")
 
 
-    # ---------- History panel (GET filters + pagination) ----------
+    # Builds the stock history tab filters and paginated movement list.
     history_form = HistoryFilterForm(request.GET or None, prefix="h")
 
     history_qs = StockMovement.objects.select_related("product", "created_by")
@@ -631,10 +623,10 @@ def inventory(request):
             end_dt = timezone.make_aware(datetime.combine(cd["to_date"] + timedelta(days=1), time.min))
             history_qs = history_qs.filter(movement_date__lt=end_dt)
 
-    # IMPORTANT: no slicing here if you want proper pagination
+    # Keeps the queryset unsliced so pagination works correctly.
     history_qs = history_qs.order_by("-movement_date")
 
-    movement_paginator = Paginator(history_qs, 10)  # change page size if you want
+    movement_paginator = Paginator(history_qs, 10)
     history_page = movement_paginator.get_page(hpage)
 
     context = {
@@ -670,8 +662,7 @@ def inventory(request):
     }
     return render(request, "retail/inventory.html", context)
 
-
-
+# Legacy SKU helpers kept for compatibility with older code paths.
 def generate_sku():
     return f"SKU-{secrets.token_hex(4).upper()}"
 
@@ -681,7 +672,7 @@ def generate_unique_sku():
         if not Product.objects.filter(sku=sku).exists():
             return sku
 '''
-remove this
+Legacy stock-in example kept as commented reference.
 @transaction.atomic
 def stock_in(request):
     if request.method == "POST":
@@ -701,11 +692,13 @@ def stock_in(request):
 
 '''
 
+## Sales page views.
 @staff_required
 def sales(request):
+    # Handles the new-sale flow, sales history, and sale details tabs.
     tab = (request.GET.get("tab") or "new").strip()  # new | history | details
 
-    # Product filters (for New Sale product picker)
+    # Product filters used on the new-sale tab.
     q = (request.GET.get("q") or "").strip()
     category_id = (request.GET.get("category") or "").strip()
     history_from = (request.GET.get("history_from") or "").strip()
@@ -722,7 +715,7 @@ def sales(request):
     if section:
         products_qs = products_qs.filter(section=section)
 
-    # Save Sale (POST)
+    # Saves a completed sale from the cart payload.
     if request.method == "POST":
         customer_name = request.POST.get("customer_name", "")
         customer_phone = request.POST.get("customer_phone", "")
@@ -750,18 +743,18 @@ def sales(request):
             messages.error(request, str(e))
             tab = "new"
 
-    # History tab data
-    sales_qs = Sale.objects.select_related("cashier").order_by("-created_at", "-id")
+    # Builds the sales history queryset and filters.
+    sales_qs = Sale.objects.select_related("cashier").order_by("-sale_date", "-created_at", "-id")
 
     if history_from:
         try:
-            sales_qs = sales_qs.filter(created_at__date__gte=date.fromisoformat(history_from))
+            sales_qs = sales_qs.filter(sale_date__gte=date.fromisoformat(history_from))
         except ValueError:
             history_from = ""
 
     if history_to:
         try:
-            sales_qs = sales_qs.filter(created_at__date__lte=date.fromisoformat(history_to))
+            sales_qs = sales_qs.filter(sale_date__lte=date.fromisoformat(history_to))
         except ValueError:
             history_to = ""
 
@@ -771,7 +764,7 @@ def sales(request):
     history_params.pop("page", None)
     history_query = history_params.urlencode()
 
-    # Details tab data
+    # Loads one sale when the details tab is requested.
     sale = None
     sale_id = request.GET.get("sale_id")
     if sale_id:
@@ -800,18 +793,17 @@ def sales(request):
 
     })
 
-
-#@login_required
+## Supplier, reorder, and purchase-order views.
 @staff_required
 def suppliers(request):
     tab = request.GET.get("tab", "suppliers")
     if tab not in ("suppliers", "create-reorder-draft", "purchase-orders", "reorder-requests"):
         tab = "suppliers"
 
-    # Staff cannot access supplier master tab.
+    # Restricts supplier master data to admins.
     if not is_admin(request.user) and tab == "suppliers":
         return redirect(f"{request.path}?tab=create-reorder-draft")
-    # Staff cannot access purchase orders tab.
+    # Restricts purchase-order management to admins.
     if not is_admin(request.user) and tab == "purchase-orders":
         return redirect(f"{request.path}?tab=create-reorder-draft")
 
@@ -823,9 +815,7 @@ def suppliers(request):
     supplier_form = SupplierForm()
     po_form = PurchaseOrderCreateForm()
 
-    # ----------------------------
-    # POST HANDLERS (ALL here)
-    # ----------------------------
+    # Handles supplier, purchase-order, and conversion actions from the tabbed page.
     if request.method == "POST":
         form_type = request.POST.get("form_type", "")
 
@@ -836,7 +826,7 @@ def suppliers(request):
             messages.error(request, "Only admin can manage purchase orders.")
             return redirect(f"{request.path}?tab=create-reorder-draft")
 
-        # CREATE SUPPLIER
+        # Creates a new supplier.
         if form_type == "create_supplier":
             supplier_form = SupplierForm(request.POST)
             if supplier_form.is_valid():
@@ -846,7 +836,7 @@ def suppliers(request):
             messages.error(request, "Please fix the errors in the supplier form.")
             tab = "suppliers"
 
-        # UPDATE SUPPLIER
+        # Updates an existing supplier.
         elif form_type == "update_supplier":
             supplier_id = request.POST.get("supplier_id")
             s = get_object_or_404(Supplier, pk=supplier_id)
@@ -858,7 +848,7 @@ def suppliers(request):
             messages.error(request, "Please fix the errors in the supplier form.")
             tab = "suppliers"
 
-        # DELETE SUPPLIER
+        # Deletes a supplier.
         elif form_type == "delete_supplier":
             supplier_id = request.POST.get("supplier_id")
             s = get_object_or_404(Supplier, pk=supplier_id)
@@ -866,7 +856,7 @@ def suppliers(request):
             messages.success(request, "Supplier deleted.")
             return redirect(f"{request.path}?tab=suppliers")
 
-                # CREATE PO
+        # Creates a purchase order from the modal form.
         elif form_type == "create_po":
             create_po_data = request.POST.copy()
             product_id_raw = (create_po_data.get("product_id") or "").strip()
@@ -935,29 +925,29 @@ def suppliers(request):
             tab = "purchase-orders"
 
 
-                # UPDATE PO (modal edit)
+        # Updates an existing purchase order from the edit modal.
         elif form_type == "update_po":
             po_id = request.POST.get("po_id")
             po = get_object_or_404(PurchaseOrder, pk=po_id)
             original_status = po.status
 
-            # Basic fields
+            # Updates the basic purchase-order fields.
             po_number = (po.po_number or "").strip()
             if "\\u002D" in po_number:
                 po_number = po_number.replace("\\u002D", "-")
             po.po_number = po_number
             po.notes = request.POST.get("notes", "").strip()
 
-            # supplier
+            # Updates the linked supplier if one was chosen.
             supplier_id = request.POST.get("supplier_id")
             if supplier_id:
                 po.supplier = get_object_or_404(Supplier, pk=int(supplier_id))
 
-            # dates (Django can parse YYYY-MM-DD; if blank -> None)
+            # Reads optional order and delivery dates from the form.
             po.order_date = request.POST.get("order_date") or None
             po.delivery_date = request.POST.get("delivery_date") or None
 
-            # amount (auto-calc from items when present)
+            # Recalculates the PO total from items when possible.
             item_total = Decimal("0.00")
             items = po.items.all()
             for it in items:
@@ -972,7 +962,7 @@ def suppliers(request):
                 except InvalidOperation:
                     po.total_amount = Decimal("0.00")
 
-            # status
+            # Applies the selected purchase-order status.
             status_val = request.POST.get("status")
             if status_val in dict(PurchaseOrder.STATUS_CHOICES):
                 po.status = status_val
@@ -981,14 +971,14 @@ def suppliers(request):
                 messages.error(request, "PO Number is required.")
                 return redirect(f"{request.path}?tab=purchase-orders")
 
-            # block edits after received/cancelled
+            # Blocks edits after the PO has been finalized.
             if original_status in (PurchaseOrder.STATUS_RECEIVED, PurchaseOrder.STATUS_CANCELLED):
                 messages.error(request, "Received/Cancelled purchase orders cannot be edited.")
                 return redirect(f"{request.path}?tab=purchase-orders")
 
             po.save()
 
-            # If marked as RECEIVED, add stock and set received timestamp (only once)
+            # Receives the PO into stock once when the status becomes RECEIVED.
             if po.status == PurchaseOrder.STATUS_RECEIVED and not po.received_at:
                 now = timezone.now()
                 with transaction.atomic():
@@ -1017,12 +1007,12 @@ def suppliers(request):
             return redirect(f"{request.path}?tab=purchase-orders")
 
 
-        # DELETE PO
+        # Deletes a draft purchase order.
         elif form_type == "delete_po":
             po_id = request.POST.get("po_id")
             po = get_object_or_404(PurchaseOrder, pk=po_id)
 
-            # hard check: only DRAFT can be deleted
+            # Only draft purchase orders can be deleted.
             if po.status != PurchaseOrder.STATUS_DRAFT:
                 messages.error(request, "Only DRAFT purchase orders can be deleted.")
                 return redirect(f"{request.path}?tab=purchase-orders")
@@ -1032,7 +1022,7 @@ def suppliers(request):
             return redirect(f"{request.path}?tab=purchase-orders")
         
         
-        # CREATE PO FROM RR (set RR to APPROVED because PO has been created (converted))
+        # Converts a draft reorder request into a purchase order.
         elif form_type == "create_po_from_rr":
             rr_id = request.POST.get("rr_id")
             rr = get_object_or_404(ReorderRequest, pk=rr_id)
@@ -1045,7 +1035,7 @@ def suppliers(request):
                 messages.error(request, "This reorder request has no supplier.")
                 return redirect(f"{request.path}?tab=purchase-orders")
 
-            # prevent duplicates (if already converted)
+            # Prevents duplicate conversion of the same request.
             if rr.purchase_orders.exists():
                 messages.error(request, "A PO was already created from this request.")
                 return redirect(f"{request.path}?tab=purchase-orders")
@@ -1066,7 +1056,7 @@ def suppliers(request):
                 items = rr.items.select_related("product")
                 total = Decimal("0.00")
                 for it in items:
-                    # prefer supplier last_unit_cost if available
+                    # Uses the supplier-specific unit cost when available.
                     unit_cost = None
                     link = it.product.supplier_links.filter(
                         supplier_id=rr.supplier_id
@@ -1093,12 +1083,7 @@ def suppliers(request):
             messages.success(request, f"Draft PO created from RR-{rr.id}: {po}")
             return redirect(f"{request.path}?tab=purchase-orders")
 
-
-
-
-    # ----------------------------
-    # BASE CONTEXT
-    # ----------------------------
+    # Shared context used by all suppliers-page tabs.
     context = {
         "tab": tab,
         "q": q,
@@ -1117,9 +1102,7 @@ def suppliers(request):
     context["suppliers_all"] = Supplier.objects.filter(is_active=True).order_by("supplier_name")
     context["categories"] = Category.objects.order_by("category_name")
 
-    # ----------------------------
-    # TAB: SUPPLIERS
-    # ----------------------------
+    # Suppliers master-data tab.
     if tab == "suppliers":
         suppliers_qs = Supplier.objects.prefetch_related("categories").all().order_by("-created_at")
 
@@ -1139,9 +1122,7 @@ def suppliers(request):
         context["suppliers"] = paginator.get_page(page_number)
         return render(request, "retail/suppliers.html", context)
 
-    # ----------------------------
-    # TAB: PURCHASE ORDERS
-    # ----------------------------
+    # Purchase-orders tab.
     if tab == "purchase-orders":
         context["products_for_po"] = Product.objects.filter(is_active=True).select_related("category", "supplier").prefetch_related("supplier_links").order_by("product_name")
         context["rr_drafts"] = ReorderRequest.objects.select_related("supplier").filter(
@@ -1159,7 +1140,7 @@ def suppliers(request):
         if status != "all":
             po_qs = po_qs.filter(status=status)
 
-        # Backfill missing PO numbers/order dates for older records
+        # Backfills older records that are missing a PO number or order date.
         missing_qs = po_qs.filter(Q(po_number__isnull=True) | Q(po_number="") | Q(order_date__isnull=True)).order_by("created_at")
         if missing_qs.exists():
             with transaction.atomic():
@@ -1174,7 +1155,7 @@ def suppliers(request):
                     if changed:
                         po.save(update_fields=["po_number", "order_date"])
 
-        # Normalize any escaped PO numbers that were saved from HTML/JS
+        # Normalizes escaped PO numbers saved from older HTML or JS flows.
         escaped_qs = po_qs.filter(po_number__contains="\\u002D")
         if escaped_qs.exists():
             with transaction.atomic():
@@ -1185,11 +1166,7 @@ def suppliers(request):
         paginator = Paginator(po_qs, 10)
         context["purchase_orders"] = paginator.get_page(page_number)
         return render(request, "retail/suppliers.html", context)
-
-
-    # ----------------------------
-    # TAB: CREATE REORDER DRAFT
-    # ----------------------------
+    # Reorder draft creation tab.
     if tab == "create-reorder-draft":
         qs, since = get_reorder_queryset()
         qs = qs.order_by("created_at", "id")[:15]
@@ -1224,9 +1201,7 @@ def suppliers(request):
         })
         return render(request, "retail/suppliers.html", context)
 
-    # ----------------------------
-    # TAB: REORDER REQUESTS
-    # ----------------------------
+    # Reorder requests review tab.
     requests_base_qs = ReorderRequest.objects.select_related("supplier").prefetch_related("items__product__category").annotate(
         total_qty_to_order=Coalesce(Sum("items__qty_requested"), 0, output_field=IntegerField())
     )
@@ -1267,8 +1242,8 @@ def suppliers(request):
     })
     return render(request, "retail/suppliers.html", context)
 
-# Create draft request (staff or admin)
-#@login_required
+# Reorder-request actions.
+# Creates one or more draft reorder requests grouped by supplier.
 def reorder_request_create_draft(request):
     if request.method != "POST":
         return redirect("suppliers")
@@ -1278,7 +1253,7 @@ def reorder_request_create_draft(request):
         messages.error(request, "Select at least one item to create a request.")
         return redirect("/suppliers/?tab=create-reorder-draft")
 
-    # group selected items by supplier_id (1 RR per supplier)
+    # Groups selected products by supplier so each request has one supplier.
     by_supplier = {}
 
     for pid in product_ids:
@@ -1290,7 +1265,7 @@ def reorder_request_create_draft(request):
             continue
 
         if not supplier_id:
-            # enforce 1-supplier RR; no supplier means cannot draft correctly
+            # A request cannot be created if a selected item has no supplier.
             messages.error(request, "Some selected items have no supplier assigned. Please set a primary supplier.")
             return redirect("/suppliers/?tab=create-reorder-draft")
 
@@ -1326,41 +1301,41 @@ def reorder_request_create_draft(request):
     messages.success(request, f"Created {len(created_ids)} draft request(s): " + ", ".join([f"RR-{i}" for i in created_ids]))
     return redirect("/suppliers/?tab=create-reorder-draft")
 
-
-# Submit request (only owner of draft)
-#@login_required
+# Submits a draft reorder request for approval.
 def reorder_request_submit(request, rr_id):
+    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
     if not is_admin(request.user) and rr.created_by_id != request.user.id:
         messages.error(request, "Not authorized to submit this request.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     if rr.status != ReorderRequest.STATUS_DRAFT:
         messages.error(request, "Only draft requests can be submitted.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr.status = ReorderRequest.STATUS_SUBMITTED
     rr.submitted_at = timezone.now()
     rr.save(update_fields=["status", "submitted_at"])
 
     messages.success(request, f"RR-{rr.id} submitted to admin.")
-    return redirect("/suppliers/?tab=reorder-requests")
+    return redirect(next_url)
 
-
+# Updates a draft or submitted reorder request.
 def reorder_request_update(request, rr_id):
+    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
     if not is_admin(request.user) and rr.created_by_id != request.user.id:
         messages.error(request, "Not authorized to edit this request.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
     if rr.status not in (ReorderRequest.STATUS_DRAFT, ReorderRequest.STATUS_SUBMITTED):
         messages.error(request, "Only draft or submitted requests can be edited.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     save_action = (request.POST.get("save_action") or "draft").strip().lower()
     supplier_id = (request.POST.get("supplier_id") or "").strip()
@@ -1376,13 +1351,13 @@ def reorder_request_update(request, rr_id):
             product_id = int(pid_raw) if pid_raw else int(it.product_id)
         except (TypeError, ValueError):
             messages.error(request, f"Invalid product selection for item #{it.id}.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         if product_id not in allowed_products:
             messages.error(request, "Selected product is invalid or inactive.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         if product_id in chosen_product_ids:
             messages.error(request, "Duplicate products are not allowed in one request.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         chosen_product_ids.add(product_id)
 
         raw = (request.POST.get(f"qty_{it.id}") or "").strip()
@@ -1392,7 +1367,7 @@ def reorder_request_update(request, rr_id):
             qty = 0
         if qty <= 0:
             messages.error(request, f"Quantity for {it.product.product_name} must be at least 1.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         qty_updates.append((it, qty))
         product_updates.append((it, product_id))
 
@@ -1409,17 +1384,17 @@ def reorder_request_update(request, rr_id):
             new_product = None
         if not new_product:
             messages.error(request, "Invalid new product selection.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         if new_product.id in chosen_product_ids:
             messages.error(request, "That product is already in this request.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         try:
             new_qty = int(new_qty_raw or "0")
         except (TypeError, ValueError):
             new_qty = 0
         if new_qty <= 0:
             messages.error(request, "Items must be at least 1 for a new product.")
-            return redirect("/suppliers/?tab=reorder-requests")
+            return redirect(next_url)
         create_new_item = True
 
     with transaction.atomic():
@@ -1467,30 +1442,30 @@ def reorder_request_update(request, rr_id):
             )
 
     messages.success(request, success_msg)
-    return redirect("/suppliers/?tab=reorder-requests")
+    return redirect(next_url)
 
-#Approve request (admin only) → creates Draft PO(s)
-#@login_required
+# Approves a submitted reorder request and creates draft purchase orders.
 def reorder_request_approve(request, rr_id):
+    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be approved.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     items = rr.items.select_related("product", "supplier")
 
     with transaction.atomic():
         by_supplier = {}
         for it in items:
-            # If supplier missing, try primary supplier
+            # Falls back to the product's primary supplier when needed.
             if not it.supplier_id:
                 link = it.product.supplier_links.filter(is_primary=True).select_related("supplier").first()
                 if link:
@@ -1538,23 +1513,23 @@ def reorder_request_approve(request, rr_id):
             rr.save(update_fields=["status", "decided_at", "decided_by"])
 
     messages.success(request, f"RR-{rr.id} approved. Draft PO(s) created.")
-    return redirect("/suppliers/?tab=reorder-requests")
+    return redirect(next_url)
 
-# Reject request (admin only)
-#@login_required
+# Rejects a submitted reorder request.
 def reorder_request_reject(request, rr_id):
+    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be rejected.")
-        return redirect("/suppliers/?tab=reorder-requests")
+        return redirect(next_url)
 
     rr.status = ReorderRequest.STATUS_REJECTED
     rr.decided_at = timezone.now()
@@ -1563,11 +1538,12 @@ def reorder_request_reject(request, rr_id):
     rr.save(update_fields=["status", "decided_at", "decided_by", "decision_note"])
 
     messages.success(request, f"RR-{rr.id} rejected.")
-    return redirect("/suppliers/?tab=reorder-requests")
+    return redirect(next_url)
 
-
+## Dashboard and analytics views.
 @staff_required
 def dashboard(request):
+    # Builds the analytics dashboard for sales, stock, and forecast data.
     today = timezone.localdate()
     range_days = 30
     start_str = (request.GET.get("start") or "").strip()
@@ -1634,18 +1610,33 @@ def dashboard(request):
     out_pct = int(round(out_of_stock_count / total_stock_count * 100))
 
     dps_range = DailyProductSales.objects.filter(date__gte=since, date__lte=today)
-    has_daily_sales = dps_range.exists()
-    actual_daily_rows = list(
-        dps_range.values("date")
+    sales_daily_rows = list(
+        Sale.objects.filter(sale_date__gte=since, sale_date__lte=today)
+        .values("sale_date")
         .annotate(
-            revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")),
-            units=Coalesce(Sum("qty_sold"), 0),
+            revenue=Coalesce(Sum("total"), Decimal("0.00")),
+            units=Coalesce(Sum("items__qty"), 0),
         )
-        .order_by("date")
+        .order_by("sale_date")
     )
-    actual_daily_labels = [row["date"].strftime("%d %b") for row in actual_daily_rows]
-    actual_daily_revenue = [float(row["revenue"]) for row in actual_daily_rows]
-    actual_daily_units = [int(row["units"]) for row in actual_daily_rows]
+    sales_daily_map = {
+        row["sale_date"]: {
+            "revenue": row["revenue"],
+            "units": int(row["units"] or 0),
+        }
+        for row in sales_daily_rows
+    }
+    actual_daily_labels = []
+    actual_daily_revenue = []
+    actual_daily_units = []
+    cursor = since
+    while cursor <= today:
+        day_data = sales_daily_map.get(cursor, {})
+        actual_daily_labels.append(cursor.strftime("%d %b"))
+        actual_daily_revenue.append(float(day_data.get("revenue") or 0))
+        actual_daily_units.append(int(day_data.get("units") or 0))
+        cursor += timedelta(days=1)
+    has_daily_sales = any(unit > 0 for unit in actual_daily_units)
 
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
@@ -1743,7 +1734,10 @@ def dashboard(request):
     weekly_category_values = [int(row["units"] or 0) for row in weekly_category_rows]
 
     forecast_run = ForecastRun.objects.order_by("-created_at").first()
-    forecast_anchor = forecast_run.period_start if forecast_run else today
+    forecast_anchor = max(
+        (forecast_run.period_start if forecast_run else today),
+        today + timedelta(days=1),
+    )
     forecast_week_end = forecast_anchor + timedelta(days=6)
     forecast_30_end = forecast_anchor + timedelta(days=29)
     forecast_chart_end = forecast_30_end
@@ -1764,6 +1758,7 @@ def dashboard(request):
     festival_predicted_best_sellers = []
     festival_top_category = ""
 
+    # Helper for building stock-risk rows shown on the dashboard tables.
     def build_stock_attention_rows(forecast_end_date):
         at_risk = []
         forecast_by_sku = {}
@@ -1870,16 +1865,27 @@ def dashboard(request):
             .order_by("start_date", "festival_name")
             .first()
         )
-        forecast_daily_rows = list(
+        if next_festival:
+            forecast_chart_end = min(next_festival.end_date, forecast_run.period_end)
+        else:
+            forecast_chart_end = min(forecast_chart_end, forecast_run.period_end)
+
+        forecast_chart_rows = list(
             ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_chart_end)
             .values("forecast_date")
             .annotate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
             .order_by("forecast_date")
         )
-        forecast_daily_labels = [row["forecast_date"].strftime("%d %b") for row in forecast_daily_rows]
-        forecast_daily_units = [float(row["total"]) for row in forecast_daily_rows]
-        forecast_next_week_units = sum((row["total"] for row in forecast_daily_rows[:7]), Decimal("0.00"))
-        forecast_next_30_units = sum((row["total"] for row in forecast_daily_rows), Decimal("0.00"))
+        forecast_daily_labels = [row["forecast_date"].strftime("%d %b") for row in forecast_chart_rows]
+        forecast_daily_units = [float(row["total"]) for row in forecast_chart_rows]
+        forecast_next_week_units = (
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_week_end)
+            .aggregate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))["total"]
+        )
+        forecast_next_30_units = (
+            ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_30_end)
+            .aggregate(total=Coalesce(Sum("predicted_qty"), Decimal("0.00")))["total"]
+        )
 
         predicted_next_week = list(
             ForecastDaily.objects.filter(run=forecast_run, forecast_date__gte=forecast_anchor, forecast_date__lte=forecast_week_end)
@@ -1889,7 +1895,7 @@ def dashboard(request):
         )
         upcoming_closed_days = [
             row["forecast_date"].strftime("%d %b %Y")
-            for row in forecast_daily_rows
+            for row in forecast_chart_rows
             if row["total"] == 0
         ][:6]
         forecast_category_rows = list(
@@ -2000,12 +2006,12 @@ def dashboard(request):
         "festival_top_category": festival_top_category,
     }
     return render(request, "retail/dashboard.html", context)
-
+## Assistant API and chat views.
 @staff_required
 def assistant(request):
     return render(request, "retail/assistant.html")
 
-
+# Serializes a chat thread for JSON responses.
 def _serialize_thread(thread: ChatThread) -> dict:
     return {
         "id": thread.id,
@@ -2014,7 +2020,7 @@ def _serialize_thread(thread: ChatThread) -> dict:
         "updated_at": thread.updated_at.isoformat(),
     }
 
-
+# Serializes a chat message for JSON responses.
 def _serialize_message(msg: ChatMessage) -> dict:
     return {
         "id": msg.id,
@@ -2027,6 +2033,7 @@ def _serialize_message(msg: ChatMessage) -> dict:
 
 @staff_required
 def assistant_threads(request):
+    # Lists existing threads or creates a new thread.
     if request.method == "GET":
         threads = ChatThread.objects.filter(user=request.user, is_archived=False).order_by("-updated_at")[:100]
         return JsonResponse({"ok": True, "threads": [_serialize_thread(t) for t in threads]})
@@ -2043,6 +2050,7 @@ def assistant_threads(request):
 
 @staff_required
 def assistant_thread_detail(request, thread_id: int):
+    # Returns one thread with all of its messages.
     thread = get_object_or_404(ChatThread, id=thread_id, user=request.user, is_archived=False)
     messages = thread.messages.order_by("created_at")
     return JsonResponse({"ok": True, "thread": _serialize_thread(thread), "messages": [_serialize_message(m) for m in messages]})
@@ -2051,6 +2059,7 @@ def assistant_thread_detail(request, thread_id: int):
 @staff_required
 @require_POST
 def assistant_thread_message(request, thread_id: int):
+    # Appends a user message to a thread and stores the assistant reply.
     thread = get_object_or_404(ChatThread, id=thread_id, user=request.user, is_archived=False)
     try:
         body = json.loads(request.body.decode("utf-8"))
@@ -2079,6 +2088,7 @@ def assistant_thread_message(request, thread_id: int):
 @staff_required
 @require_POST
 def assistant_query(request):
+    # Handles the older assistant endpoint with optional session-backed memory.
     try:
         body = json.loads(request.body.decode("utf-8"))
     except Exception:
@@ -2111,8 +2121,9 @@ def assistant_query(request):
     request.session.modified = True
     return JsonResponse({"ok": True, **result})
 
-
+# Two-factor verification and trusted-device views.
 def two_factor_verify(request):
+    # Verifies the emailed login code and optionally remembers the device.
     user_id = request.session.get("pending_2fa_user_id")
     code = request.session.get("pending_2fa_code")
     exp = request.session.get("pending_2fa_exp")
@@ -2178,6 +2189,7 @@ def two_factor_verify(request):
 
 @staff_required
 def trusted_devices(request):
+    # Lists and removes trusted devices for the current user.
     if request.method == "POST":
         device_id = request.POST.get("device_id")
         if device_id:

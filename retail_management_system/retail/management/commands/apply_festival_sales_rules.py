@@ -50,14 +50,17 @@ RULES: tuple[FestivalRule, ...] = (
 )
 
 
+# Normalizes festival names so matching stays stable across spacing/case differences.
 def normalize_name(name: str) -> str:
     return re.sub(r"\s+", " ", (name or "").strip().lower())
 
 
+# Rounds money outputs back to currency precision after recalculation.
 def quantize_money(x: Decimal) -> Decimal:
     return x.quantize(MONEY_ROUND, rounding=ROUND_HALF_UP)
 
 
+# Keeps stored percentage values in a standard 2-decimal format.
 def quantize_pct(x: Decimal) -> Decimal:
     return x.quantize(PCT_ROUND, rounding=ROUND_HALF_UP)
 
@@ -102,6 +105,7 @@ class Command(BaseCommand):
         min_window_days = max(1, int(options["min_window_days"]))
         apply_changes = bool(options["apply"])
 
+        # Festivals drive both the closure-day zeroing and the pre-holiday uplift window.
         festivals = list(FestiveCalendar.objects.all().order_by("start_date", "festival_name"))
         if not festivals:
             self.stdout.write(self.style.WARNING("No FestiveCalendar rows found. Nothing to do."))
@@ -155,12 +159,14 @@ class Command(BaseCommand):
 
             target_product_ids = set()
 
+            # Some rules target specific SKUs directly.
             if matched_rule.skus:
                 sku_ids = set(
                     Product.objects.filter(sku__in=matched_rule.skus).values_list("id", flat=True)
                 )
                 target_product_ids.update(sku_ids)
 
+            # Other rules target whole categories that map to multiple products.
             if matched_rule.categories:
                 cat_ids = set(
                     Category.objects.filter(category_name__in=matched_rule.categories).values_list("id", flat=True)
@@ -185,11 +191,13 @@ class Command(BaseCommand):
 
             if apply_changes:
                 for item in uplift_qs.iterator():
+                    # Always force at least a +1 increase so the uplift changes the row.
                     old_qty = item.qty
                     new_qty = int(math.ceil(old_qty * (1.0 + float(uplift_pct))))
                     if new_qty <= old_qty:
                         new_qty = old_qty + 1
 
+                    # Preserve the effective discount level while recomputing the larger line.
                     old_gross = item.unit_price * Decimal(old_qty)
                     if old_gross > 0:
                         if item.discount_pct and item.discount_pct > 0:
@@ -233,6 +241,7 @@ class Command(BaseCommand):
         if not sale_ids:
             return
 
+        # Rebuild sale header totals from the updated line items so headers stay consistent.
         aggs = (
             SaleItem.objects.filter(sale_id__in=sale_ids)
             .values("sale_id")

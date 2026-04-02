@@ -662,11 +662,13 @@
 <div class="sup-wrap">
   <div class="scm-shell">
 
+<!-- Suppliers page title -->
 <h1 class="sup-title scm-brand">
   <i class="fa-solid fa-cube scm-brand-icon"></i>
-  SupplyChain Management
+  Supplier & Reorder Management
 </h1>
 
+<!-- Top navigation for supplier, reorder, and purchase-order workflows -->
 <div class="tabs-wrap">
   <div class="tabs">
     {% if is_admin %}
@@ -704,6 +706,7 @@
 
 
 
+<!-- Feedback messages for supplier and order actions -->
 <!-- MESSAGES -->
 {% if messages %}
   {% for message in messages %}
@@ -720,6 +723,7 @@
 {% endif %}
 
 
+<!-- Shared page state values used by JavaScript -->
 <!-- Page state for JS (available on all tabs) -->
 <div id="pageState"
      data-tab="{{ tab|escapejs }}"
@@ -729,6 +733,7 @@
 
 {% if tab == "suppliers" %}
 
+  <!-- Suppliers management tab -->
   <!-- Suppliers Card -->
   <div class="card">
 
@@ -936,6 +941,7 @@
   </div>
 
   <!-- CREATE SUPPLIER MODAL -->
+  <!-- Add supplier modal -->
   <div id="supplierBackdrop" class="modal-backdrop" onclick="backdropClose(event)">
     <div class="modal" role="dialog" aria-label="Add New Supplier" aria-modal="true">
 
@@ -1077,6 +1083,7 @@
   </div>
 
   <!-- EDIT SUPPLIER MODAL -->
+  <!-- Edit supplier modal -->
   <div id="editSupplierBackdrop" class="modal-backdrop" onclick="backdropCloseEdit(event)">
     <div class="modal" role="dialog" aria-label="Edit Supplier" aria-modal="true">
 
@@ -1169,12 +1176,43 @@
 
 
 {% if tab == "purchase-orders" %}
+  <!-- Purchase orders management tab -->
   <input type="hidden" id="currentDateIso" value="{% now 'Y-m-d' %}">
   <div class="card">
 
-    <div class="card-head">
-      <h2>Purchase Orders</h2>
-      <p>Track and manage your purchase orders</p>
+    <div class="card-head" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+      <div>
+        <h2>Purchase Orders</h2>
+        <p>Track and manage your purchase orders</p>
+      </div>
+
+      <div class="mini-pager" aria-label="Purchase order pages">
+        {% if purchase_orders.has_previous %}
+          <a class="mini-pager-btn"
+             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.previous_page_number }}"
+             aria-label="Previous page">
+            <i class="fa-solid fa-chevron-left"></i>
+          </a>
+        {% else %}
+          <span class="mini-pager-btn is-disabled" aria-hidden="true">
+            <i class="fa-solid fa-chevron-left"></i>
+          </span>
+        {% endif %}
+
+        <span class="mini-pager-current">{{ purchase_orders.number }}</span>
+
+        {% if purchase_orders.has_next %}
+          <a class="mini-pager-btn"
+             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.next_page_number }}"
+             aria-label="Next page">
+            <i class="fa-solid fa-chevron-right"></i>
+          </a>
+        {% else %}
+          <span class="mini-pager-btn is-disabled" aria-hidden="true">
+            <i class="fa-solid fa-chevron-right"></i>
+          </span>
+        {% endif %}
+      </div>
     </div>
 
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
@@ -1186,9 +1224,9 @@
           <input type="text" name="q" value="{{ q|default:'' }}" placeholder="Search PO number / supplier">
         </div>
 
-        <select name="status" class="filter-select">
-          <option value="all" {% if status == "all" %}selected{% endif %}>All Status</option>
-          <option value="DRAFT" {% if status == "DRAFT" %}selected{% endif %}>Draft</option>
+        <label for="poStatusFilter" style="font-weight:900; color:var(--charcoal);">Status</label>
+        <select name="status" id="poStatusFilter" class="filter-select">
+          <option value="all" {% if status == "all" %}selected{% endif %}>All</option>
           <option value="PENDING" {% if status == "PENDING" %}selected{% endif %}>Pending</option>
           <option value="RECEIVED" {% if status == "RECEIVED" %}selected{% endif %}>Received</option>
           <option value="CANCELLED" {% if status == "CANCELLED" %}selected{% endif %}>Cancelled</option>
@@ -1220,11 +1258,11 @@
             <th style="padding:10px;">PO NUMBER</th>
             <th style="padding:10px;">RR</th>
             <th style="padding:10px;">SUPPLIER</th>
+            <th style="padding:10px;">PRODUCT</th>
             <th style="padding:10px;">ORDER DATE</th>
             <th style="padding:10px;">EXPECTED DELIVERY </th>
             <th style="padding:10px;">RECEIVED DATE</th>
             <th style="padding:10px;">QTY ORDERED</th>
-            <th style="padding:10px;">QTY RECEIVED</th>
             <th style="padding:10px;">AMOUNT</th>
             <th style="padding:10px;">STATUS</th>
             <th style="padding:10px; width:120px;">ACTIONS</th>
@@ -1250,6 +1288,21 @@
               </td>
 
               <td style="padding:12px 10px;">
+                {% with po_item=po.items.all|first %}
+                  {% if po_item %}
+                    <div style="font-weight:900; color:var(--charcoal);">
+                      {{ po_item.product.product_name }}
+                    </div>
+                    <div style="color:var(--berry); font-size:.92rem; font-weight:800;">
+                      {{ po_item.product.category.category_name|default:"-" }}
+                    </div>
+                  {% else %}
+                    <span style="color:var(--muted);">-</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+
+              <td style="padding:12px 10px;">
                 {% if po.order_date %}{{ po.order_date|date:"d/m/Y" }}{% else %}-{% endif %}
               </td>
 
@@ -1263,10 +1316,6 @@
 
               <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
                 {{ po.total_qty_ordered }}
-              </td>
-
-              <td style="padding:12px 10px; font-weight:900; color:var(--charcoal);">
-                {{ po.total_qty_received }}
               </td>
 
               <td style="padding:12px 10px; font-weight:900;">
@@ -1337,35 +1386,10 @@
       </table>
     </div>
 
-    {% if purchase_orders.has_other_pages %}
-      <div style="display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap;">
-        {% if purchase_orders.has_previous %}
-          <a class="btn btn-outline"
-             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.previous_page_number }}">
-            Previous
-          </a>
-        {% else %}
-          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Previous</span>
-        {% endif %}
-
-        <span style="color:#6B7280; font-weight:900;">
-          Page {{ purchase_orders.number }} of {{ purchase_orders.paginator.num_pages }}
-        </span>
-
-        {% if purchase_orders.has_next %}
-          <a class="btn btn-outline"
-             href="?tab=purchase-orders{% if q %}&q={{ q|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}&page={{ purchase_orders.next_page_number }}">
-            Next
-          </a>
-        {% else %}
-          <span class="btn btn-outline" style="opacity:.5; pointer-events:none;">Next</span>
-        {% endif %}
-      </div>
-    {% endif %}
-
   </div>
 
   <!-- CREATE PO MODAL -->
+  <!-- Create purchase order modal -->
   <div id="poBackdrop" class="modal-backdrop" onclick="backdropClosePO(event)">
     <div class="modal" role="dialog" aria-label="Create Purchase Order" aria-modal="true">
       <div class="modal-head">
@@ -1474,6 +1498,7 @@
   </div>
 
   <!-- EDIT PO MODAL -->
+  <!-- Edit purchase order modal -->
   <div id="editPOBackdrop" class="modal-backdrop" onclick="backdropCloseEditPO(event)">
     <div class="modal" role="dialog" aria-label="Edit Purchase Order" aria-modal="true">
 
@@ -1574,6 +1599,7 @@
 
 
   <!-- REORDER REQUEST TO PO MODAL -->
+  <!-- Modal for creating a purchase order from a reorder request -->
   <div id="rrToPoBackdrop" class="modal-backdrop" onclick="backdropCloseRRToPO(event)">
     <div class="modal" role="dialog" aria-label="Create PO from Reorder Draft" aria-modal="true">
       <div class="modal-head">
@@ -1623,6 +1649,7 @@
 
 
 {% if tab == "create-reorder-draft" %}
+  <!-- Reorder draft creation tab -->
   <div style="
     background: var(--white);
     border: 1px solid rgba(64,78,92,0.18);
@@ -1833,6 +1860,7 @@
 {% endif %}
 
 {% if tab == "reorder-requests" %}
+  <!-- Reorder requests review and approval tab -->
   <div style="
     background: var(--white);
     border: 1px solid rgba(64,78,92,0.18);
@@ -1943,6 +1971,7 @@
                   {% if r.status == "DRAFT" %}
                     <form method="post" action="{% url 'reorder_request_submit' r.id %}" style="display:inline;">
                       {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
                       <button class="btn btn-primary" type="submit">Submit</button>
                     </form>
                     {% if r.created_by_id == request.user.id or is_admin %}
@@ -1953,10 +1982,12 @@
                       {% if is_admin %}
                         <form method="post" action="{% url 'reorder_request_approve' r.id %}" style="display:inline;">
                           {% csrf_token %}
+                          <input type="hidden" name="next" value="{{ request.get_full_path }}">
                           <button class="btn btn-primary" type="submit">Approve</button>
                         </form>
                         <form method="post" action="{% url 'reorder_request_reject' r.id %}" style="display:inline;">
                           {% csrf_token %}
+                          <input type="hidden" name="next" value="{{ request.get_full_path }}">
                           <input type="hidden" name="decision_note" value="Rejected by admin">
                           <button class="btn btn-outline" type="submit">Reject</button>
                         </form>
@@ -2102,6 +2133,7 @@
 
               <form method="post" action="{% url 'reorder_request_update' r.id %}">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <div class="modal-body">
                   <div class="rr-meta-row">
                     <div class="rr-meta-request">
@@ -2192,6 +2224,7 @@
   </div>
 {% endif %}
 <script>
+  // Handles reorder-request and supplier modal open/close behavior.
   function openRRPOModal(id){
     const el = document.getElementById("rrPOBackdrop-" + id);
     if (!el) return;
@@ -2269,6 +2302,7 @@
 </script>
 
 <script>
+  // Handles purchase order filtering, totals, and create modal behavior.
   function filterPOProductsBySupplier(){
     const supplierSelect = document.getElementById("id_supplier");
     const productSelect = document.getElementById("create_po_product");
@@ -2375,6 +2409,7 @@
 </script>
 
 <script>
+  // Fills and opens the edit supplier modal.
   function openEditSupplierModal(btn){
     const el = document.getElementById("editSupplierBackdrop");
     if (!el) return;
@@ -2412,6 +2447,7 @@
 </script>
 
 <script>
+  // Confirms delete actions before submitting the form.
   function confirmPODelete(formEl){
     const msg = formEl.getAttribute("data-confirm") || "Delete this item?";
     return window.confirm(msg);
@@ -2420,6 +2456,7 @@
 
 
 <script>
+  // Closes open supplier-related modals when Escape is pressed.
   document.addEventListener("keydown", function(e){
   if (e.key !== "Escape") return;
   if (typeof closeSupplierModal === "function") closeSupplierModal();
@@ -2431,6 +2468,7 @@
 </script>
 
 <script>
+  // Fills and opens the edit purchase order modal.
   function openEditPOModal(btn){
     const el = document.getElementById("editPOBackdrop");
     if (!el) return;
@@ -2496,6 +2534,7 @@
 </script>
 
 <script>
+  // Opens and closes the modal that converts reorder requests into purchase orders.
   function openRRToPOModal(){
     const el = document.getElementById("rrToPoBackdrop");
     if (el) el.style.display = "flex";

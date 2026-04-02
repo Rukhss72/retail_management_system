@@ -13,7 +13,9 @@ from retail.models import Category, ChatMessage, ChatThread, Product, PurchaseOr
 from retail.models import DailyProductSales, ForecastRun, ForecastDaily, Sale, SaleItem
 
 
+# Regression tests for assistant intent mapping, replies, date parsing, and chat persistence.
 class AssistantChatRefactorTests(TestCase):
+    # Intent-routing and phrasing tests.
     def test_best_sellers_phrasings_map_to_top_sellers(self):
         captured_queries = []
 
@@ -47,6 +49,7 @@ class AssistantChatRefactorTests(TestCase):
 
         self.assertEqual(result["intent"], "SalesSummary")
 
+    # Answer formatting and reply-shaping tests.
     def test_process_query_returns_answer_text(self):
         with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
             "retail.assistant_engine.service.generate_insight", return_value=None
@@ -98,6 +101,7 @@ class AssistantChatRefactorTests(TestCase):
 
         self.assertEqual(result["answer_text"].count("Stock is stable."), 1)
 
+    # Chat thread and saved-message behavior tests.
     def test_assistant_thread_message_persists_answer_text_as_content(self):
         user = get_user_model().objects.create_user(username="staff1", password="pass123")
         thread = ChatThread.objects.create(user=user, title="New Chat", context_json={})
@@ -127,6 +131,7 @@ class AssistantChatRefactorTests(TestCase):
         assistant_msg = ChatMessage.objects.filter(thread=thread, role=ChatMessage.Role.ASSISTANT).latest("created_at")
         self.assertEqual(assistant_msg.content, "Short canonical answer.")
 
+    # Sales, category, and section query behavior tests.
     def test_greeting_does_not_trigger_stock_lookup_table(self):
         with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
             "retail.assistant_engine.service.generate_insight", return_value=None
@@ -299,6 +304,87 @@ class AssistantChatRefactorTests(TestCase):
         row_sections = {row["section"] for row in result["table"]["rows"]}
         self.assertEqual(row_sections, {"Men", "Women"})
 
+    def test_top_10_best_selling_products_this_month_uses_top_sellers_intent(self):
+        user = get_user_model().objects.create_user(username="cashier_top_sellers", password="pass123")
+        cat = Category.objects.create(category_name="Traditional Wear")
+        abaya = Product.objects.create(
+            sku="TRD-501",
+            product_name="Abaya",
+            category=cat,
+            section="women",
+            qty_in_stock=20,
+            reorder_level=5,
+            selling_price="120.00",
+        )
+        saree = Product.objects.create(
+            sku="TRD-502",
+            product_name="Saree",
+            category=cat,
+            section="women",
+            qty_in_stock=20,
+            reorder_level=5,
+            selling_price="140.00",
+        )
+        today = timezone.localdate()
+        sale = Sale.objects.create(
+            receipt_no="R-5001",
+            cashier=user,
+            subtotal="400.00",
+            total="400.00",
+            sale_date=today,
+        )
+        SaleItem.objects.create(sale=sale, product=abaya, qty=1, unit_price="120.00", line_total="120.00")
+        SaleItem.objects.create(sale=sale, product=saree, qty=2, unit_price="140.00", line_total="280.00")
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("Top 10 best-selling products this month", {})
+
+        self.assertEqual(result["intent"], "TopSellers")
+        self.assertEqual(result["table"]["columns"], ["sku", "product", "units", "revenue"])
+        self.assertEqual(result["table"]["rows"][0]["sku"], "TRD-502")
+
+    def test_top_10_best_selling_products_last_month_uses_top_sellers_intent(self):
+        user = get_user_model().objects.create_user(username="cashier_last_month", password="pass123")
+        cat = Category.objects.create(category_name="Outerwear")
+        blazer = Product.objects.create(
+            sku="OUT-601",
+            product_name="Blazer",
+            category=cat,
+            section="unisex",
+            qty_in_stock=20,
+            reorder_level=5,
+            selling_price="200.00",
+        )
+        jacket = Product.objects.create(
+            sku="OUT-602",
+            product_name="Jacket",
+            category=cat,
+            section="unisex",
+            qty_in_stock=20,
+            reorder_level=5,
+            selling_price="180.00",
+        )
+        sale = Sale.objects.create(
+            receipt_no="R-6001",
+            cashier=user,
+            subtotal="740.00",
+            total="740.00",
+            sale_date=date(2026, 3, 15),
+        )
+        SaleItem.objects.create(sale=sale, product=blazer, qty=2, unit_price="200.00", line_total="400.00")
+        SaleItem.objects.create(sale=sale, product=jacket, qty=2, unit_price="170.00", line_total="340.00")
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("Top 10 best-selling products last month", {})
+
+        self.assertEqual(result["intent"], "TopSellers")
+        self.assertEqual(result["table"]["columns"], ["sku", "product", "units", "revenue"])
+        self.assertLessEqual(len(result["table"]["rows"]), 10)
+
     def test_show_trend_for_category_returns_category_trend_without_confirmation(self):
         user = get_user_model().objects.create_user(username="cashier4", password="pass123")
         cat = Category.objects.create(category_name="Accessories")
@@ -371,6 +457,7 @@ class AssistantChatRefactorTests(TestCase):
         self.assertIn("men section trend", result["summary"].lower())
         self.assertEqual(result["table"]["columns"], ["date", "units", "revenue"])
 
+    # Forecast query behavior tests.
     def test_forecast_best_sellers_uses_run_period_when_today_outside_window(self):
         cat = Category.objects.create(category_name="ForecastCat")
         p1 = Product.objects.create(
@@ -799,6 +886,7 @@ class AssistantChatRefactorTests(TestCase):
         self.assertEqual(str(captured["compare_start"]), "2026-12-01")
         self.assertEqual(str(captured["compare_end"]), "2026-12-31")
 
+    # Date parsing and follow-up query memory tests.
     def test_this_week_uses_last_seven_days(self):
         start, end, _label, _horizon = parse_date_window("sales this week")
         self.assertEqual(end, timezone.localdate())
@@ -915,6 +1003,7 @@ class AssistantChatRefactorTests(TestCase):
         self.assertEqual(session["last_user_query"], "what about on 2026-03-13")
         self.assertIn("stock movements", session["last_resolved_query"].lower())
 
+    # Stock counting and stock-status interpretation tests.
     def test_generic_stock_movements_query_does_not_keep_accidental_product_filter(self):
         fake_entities = {
             "start": timezone.localdate() - timedelta(days=29),

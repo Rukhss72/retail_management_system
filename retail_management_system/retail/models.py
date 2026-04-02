@@ -7,15 +7,17 @@ from django.db.models import Q
 from decimal import Decimal 
 from django.db.models import Sum
 
-# Create your models here.
+# Core catalog and inventory models.
 
 
+# Product category master table.
 class Category(models.Model):
     category_name = models.CharField(max_length=120, unique=True)
 
     def __str__(self):
         return self.category_name
 
+# Tracks the last SKU sequence used for each section-category pair.
 class SKUCounter(models.Model):
     section = models.CharField(max_length=10)  # stores "men/women/kids/unisex"
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
@@ -27,9 +29,9 @@ class SKUCounter(models.Model):
     def __str__(self):
         return f"{self.section} - {self.category.category_name} = {self.last_seq}"
 
-
+# Main product record used across inventory, sales, and forecasting.
 class Product(models.Model):
-    class Meta: #uniqueness rule  to avoid duplicate rows in product table in db
+    class Meta:  # Prevents duplicate product identities with the same key fields.
         constraints = [
             models.UniqueConstraint(
                 fields=["product_name", "category", "section", "selling_price"],
@@ -67,7 +69,7 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.product_name} ({self.sku})"
 
-
+# Stores every stock movement that changes product quantity.
 class StockMovement(models.Model):
     class MovementType(models.TextChoices):
         IN_ = "IN", "IN"
@@ -83,9 +85,9 @@ class StockMovement(models.Model):
     movement_date = models.DateTimeField(default=timezone.now)
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="movements")
     movement_type = models.CharField(max_length=10, choices=MovementType.choices)
-    qty_moved = models.PositiveIntegerField()  # always positive
+    qty_moved = models.PositiveIntegerField()  # Quantity is always stored as a positive number.
 
-    # Only for ADJUST
+    # Used only for ADJUST movements.
     adjust_direction = models.CharField(
         max_length=3, choices=AdjustDirection.choices, null=True, blank=True
     )
@@ -105,7 +107,7 @@ class StockMovement(models.Model):
     def __str__(self):
         return f"{self.movement_type} {self.product} {self.qty_moved}"
     
-#sale and sale item models
+# Sales models.
 class Sale(models.Model):   
     class PaymentMethod(models.TextChoices):
         CASH = "cash", "Cash"
@@ -133,7 +135,7 @@ class Sale(models.Model):
     def __str__(self):
         return self.receipt_no
 
-
+# One line item inside a sale.
 class SaleItem(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="sale_items")
@@ -146,6 +148,7 @@ class SaleItem(models.Model):
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
 
     def save(self, *args, **kwargs):
+        # Recalculates discount values and final line total before saving.
         gross = self.unit_price * Decimal(self.qty)
         if self.discount_amt and self.discount_amt > 0:
             if self.discount_amt > gross:
@@ -160,6 +163,7 @@ class SaleItem(models.Model):
     def __str__(self):
         return f"{self.sale.receipt_no} - {self.product.sku}"
 
+# Stores the app-specific role linked to a Django user.
 class UserProfile(models.Model):
     ROLE_CHOICES = (
         ("admin", "Admin"),
@@ -173,6 +177,7 @@ class UserProfile(models.Model):
         return f"{self.user.username} ({self.role})"    
 
 
+# Stores remembered devices used to skip repeated 2FA verification.
 class TrustedDevice(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="trusted_devices")
     device_id = models.CharField(max_length=64)
@@ -197,12 +202,13 @@ class TrustedDevice(models.Model):
     def __str__(self):
         return f"{self.user_id}:{self.device_id}"
     
+# Supplier master data used by reorder and purchase-order flows.
 class Supplier(models.Model):
     supplier_name = models.CharField(max_length=150, unique=True)
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
-    lead_time_days = models.PositiveIntegerField(default=0)  # 0 = unknown / not set
+    lead_time_days = models.PositiveIntegerField(default=0)  # 0 means no lead time is set yet.
     is_active = models.BooleanField(default=True)
     
     contact_person = models.CharField(max_length=120, blank=True, null=True)
@@ -229,15 +235,15 @@ class Supplier(models.Model):
     def __str__(self):
         return self.supplier_name
     
+# Links products to suppliers with optional cost and lead-time overrides.
 class ProductSupplier(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="supplier_links")
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="product_links")
     last_unit_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    lead_time_days = models.PositiveIntegerField(null=True, blank=True)  # overrides supplier default if set
+    lead_time_days = models.PositiveIntegerField(null=True, blank=True)  # Overrides the supplier default when provided.
     is_primary = models.BooleanField(default=False)
 
     class Meta:
-        #unique_together = ("product", "supplier")
         constraints = [
             models.UniqueConstraint(fields=["product", "supplier"], name="uniq_product_supplier"),
             models.UniqueConstraint(
@@ -246,6 +252,7 @@ class ProductSupplier(models.Model):
                 name="uniq_primary_supplier_per_product",
             ),
         ]
+# Purchase-order header record.
 class PurchaseOrder(models.Model):
     STATUS_DRAFT = "DRAFT"
     STATUS_PENDING = "PENDING"
@@ -264,11 +271,11 @@ class PurchaseOrder(models.Model):
 
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
-    # workflow timestamps (keep for later)
+    # Workflow timestamps for order lifecycle tracking.
     ordered_at = models.DateTimeField(null=True, blank=True)
     received_at = models.DateTimeField(null=True, blank=True)
 
-    # UI fields you requested
+    # User-facing fields shown in the purchase-order screens.
     order_date = models.DateField(null=True, blank=True)
     delivery_date = models.DateField(null=True, blank=True)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
@@ -282,10 +289,12 @@ class PurchaseOrder(models.Model):
 
     @property
     def total_qty_ordered(self):
+        # Returns the summed ordered quantity across all PO items.
         return self.items.aggregate(total=Sum("qty_ordered"))["total"] or 0
     
     @property
     def total_qty_received(self):
+        # Returns the summed received quantity across all PO items.
         return self.items.aggregate(total=Sum("qty_received"))["total"] or 0
     
     def __str__(self):
@@ -293,7 +302,7 @@ class PurchaseOrder(models.Model):
     
 
 
-
+# Purchase-order line item record.
 class PurchaseOrderItem(models.Model):
     po = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey("Product", on_delete=models.PROTECT)
@@ -312,12 +321,14 @@ class PurchaseOrderItem(models.Model):
     class Meta:
         unique_together = ("po", "product")
 
+# Stores temporary snooze settings for reorder alerts on one product.(not applied in the project, saved for future improvements)
 class ReorderSnooze(models.Model):
     product = models.OneToOneField("Product", on_delete=models.CASCADE, related_name="reorder_snooze")
     snoozed_until = models.DateTimeField(null=True, blank=True)
     dismissed_until = models.DateTimeField(null=True, blank=True)  # optional: “Cancel for now”
     updated_at = models.DateTimeField(auto_now=True)
 
+# Reorder request header created before supplier ordering.
 class ReorderRequest(models.Model):
     STATUS_DRAFT = "DRAFT"
     STATUS_SUBMITTED = "SUBMITTED"
@@ -354,7 +365,7 @@ class ReorderRequest(models.Model):
     def __str__(self):
         return f"RR-{self.id} ({self.status})"
 
-
+# One requested product inside a reorder request.
 class ReorderRequestItem(models.Model):
     request = models.ForeignKey(ReorderRequest, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
@@ -366,8 +377,7 @@ class ReorderRequestItem(models.Model):
     class Meta:
         unique_together = ("request", "product")
 
-
-# forecast and prediction models
+# Forecasting and analytics models.
 class FestiveCalendar(models.Model):
     """
     Stores festival windows for sales uplift tagging and ML training features.
@@ -392,7 +402,7 @@ class FestiveCalendar(models.Model):
     def __str__(self):
         return f"{self.festival_name} ({self.start_date} → {self.end_date})"
 
-
+# Daily product-level sales features used as forecast input data.
 class DailyProductSales(models.Model):
     """
     Forecast input table (stored).
@@ -413,7 +423,7 @@ class DailyProductSales(models.Model):
     qty_sold = models.PositiveIntegerField(default=0)
     sales_amt = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
-    promo_flag = models.BooleanField(default=False)  # derived from line-level promo (SaleItem) / Sale fallback
+    promo_flag = models.BooleanField(default=False)  # Derived from sale-item or sale-level promotion data.
     is_festive = models.BooleanField(default=False)
     festival_name = models.CharField(max_length=80, blank=True, default="")
 
@@ -441,7 +451,7 @@ class DailyProductSales(models.Model):
     def __str__(self):
         return f"{self.date} - {self.product.sku} - qty={self.qty_sold}"
 
-
+# Maps each SKU to its forecast grouping label.
 class SKUForecastGroupMap(models.Model):
     """
     Maps one SKU to one forecasting group label.
@@ -473,7 +483,7 @@ class SKUForecastGroupMap(models.Model):
     def __str__(self):
         return f"{self.sku_id} -> {self.forecast_group}"
 
-
+# Daily forecast-group level sales features.
 class DailyGroupSales(models.Model):
     """
     Forecast-ready grouped daily features.
@@ -513,7 +523,7 @@ class DailyGroupSales(models.Model):
     def __str__(self):
         return f"{self.date} - {self.forecast_group} - qty={self.qty_sold}"
 
-
+# One forecasting job or model run.
 class ForecastRun(models.Model):
     """
     One record per forecasting batch/run (model execution).
@@ -535,7 +545,7 @@ class ForecastRun(models.Model):
     def __str__(self):
         return f"{self.model_name} ({self.period_start} → {self.period_end}) @ {self.created_at}"
 
-
+# Forecast output for one product on one forecast date.
 class ForecastDaily(models.Model):
     """
     Forecast output table (per day).
@@ -545,7 +555,7 @@ class ForecastDaily(models.Model):
     product = models.ForeignKey("Product", on_delete=models.PROTECT, related_name="forecasts")
 
     forecast_date = models.DateField()
-    predicted_qty = models.DecimalField(max_digits=12, decimal_places=2)  # keep decimal for ML output flexibility
+    predicted_qty = models.DecimalField(max_digits=12, decimal_places=2)  # Stored as decimal to keep forecast output flexible.
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -563,7 +573,7 @@ class ForecastDaily(models.Model):
     def __str__(self):
         return f"{self.product.sku} {self.forecast_date} -> {self.predicted_qty}"
 
-
+# Chat thread used by the retail assistant feature.
 class ChatThread(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assistant_threads")
     title = models.CharField(max_length=160, default="New Chat")
@@ -582,7 +592,7 @@ class ChatThread(models.Model):
     def __str__(self):
         return f"{self.user_id}:{self.title}"
 
-
+# One message inside an assistant chat thread.
 class ChatMessage(models.Model):
     class Role(models.TextChoices):
         USER = "user", "User"

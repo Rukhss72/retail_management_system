@@ -586,6 +586,7 @@
     
   <div class="sales-wrap">
 
+    <!-- Sales page header with the three main sales tabs -->
     <div class="page-head top-full">
       <h1 class="page-title"><i class="fa-solid fa-cart-shopping"></i> Sales Management</h1>
       <div class="page-sub">Create sales, review sales history, and view receipt details. Stock updates on save.</div>
@@ -603,6 +604,7 @@
       </div>
     </div>
 
+    <!-- Success or error messages from recent sales actions -->
     {# Messages (because base.html doesn't render them) #}
     {% if messages %}
       {% for message in messages %}
@@ -614,6 +616,7 @@
     {% endif %}
 
     {% if tab == 'new' %}
+      <!-- New sale header fields for cashier and customer information -->
       <!-- NEW SALE -->
       <div class="card top-full sale-meta-card">
         <div class="grid-4">
@@ -627,12 +630,12 @@
           </div>
           <div class="fg">
             <label>Customer Name</label>
-            <input type="text" form="saleForm" name="customer_name" placeholder="Optional">
+            <input type="text" form="saleForm" name="customer_name" id="customerNameInput" placeholder="Optional">
             <div class="hint">Full name or leave blank</div>
           </div>
           <div class="fg">
             <label>Customer Phone</label>
-            <input type="text" form="saleForm" name="customer_phone" placeholder="Optional">
+            <input type="text" form="saleForm" name="customer_phone" id="customerPhoneInput" placeholder="Optional">
             <div class="hint">For receipts or returns</div>
           </div>
         </div>
@@ -640,6 +643,7 @@
 
       <div class="two-col">
 
+        <!-- Product selection area for building the sale -->
         <!-- Product Picker (GET filters, not nested inside POST form) -->
         <div class="card products-card">
           <div class="collapse-head">
@@ -651,7 +655,7 @@
           </div>
           <div id="salesProductsBody" class="collapse-body">
 
-          <form method="get" class="product-filters">
+          <form method="get" class="product-filters" id="productFiltersForm">
             <input type="hidden" name="tab" value="new">
             <div class="fg">
               <label> Search</label>
@@ -803,6 +807,7 @@
           </div>
         </div>
 
+        <!-- Cart area where selected sale items are reviewed and saved -->
         <!-- Cart (POST form) -->
         <div class="card">
           <div class="collapse-head">
@@ -869,7 +874,7 @@
               <button type="submit" class="btn btn-primary" id="saveBtn">
                 <i class="fa-solid fa-circle-check"></i> Save Sale
               </button>
-              <a class="btn btn-outline" href="{% url 'sales' %}?tab=new">
+              <a class="btn btn-outline" href="{% url 'sales' %}?tab=new" id="cancelSaleBtn">
                 <i class="fa-solid fa-arrow-left"></i> Cancel
               </a>
             </div>
@@ -886,6 +891,7 @@
       </div>
 
     {% elif tab == 'history' %}
+      <!-- Sales history tab with filters, table, and pagination -->
       <!-- SALES HISTORY -->
       <div class="card top-full">
         <div class="history-head">
@@ -974,6 +980,7 @@
       </div>
 
     {% else %}
+      <!-- Sale details tab for one previously saved sale -->
       <!-- SALE DETAILS -->
       <div class="card">
         <div class="card-title"><i class="fa-solid fa-file-invoice"></i> Sale Details</div>
@@ -1079,6 +1086,7 @@
 </div>
 
 <script>
+  // Handles collapse and expand behavior for sales page cards.
   (function(){
     const toggles = document.querySelectorAll(".js-collapse-toggle");
     if (!toggles.length) return;
@@ -1110,8 +1118,11 @@
 </script>
 
 <script>
+  // Handles cart state, totals, stock validation, and item controls.
   (function(){
+    const draftStorageKey = "sales-new-draft";
     // Cart only exists on "new" tab
+    const saleForm = document.getElementById("saleForm");
     const cartBody = document.getElementById("cartBody");
     const cartEmptyRow = document.getElementById("cartEmptyRow");
     const cartJsonEl = document.getElementById("cart_json");
@@ -1120,11 +1131,70 @@
     const totalVal = document.getElementById("totalVal");
     const overWarn = document.getElementById("cartOverWarn");
     const saveBtn = document.getElementById("saveBtn");
+    const paymentMethodEl = document.getElementById("paymentMethod");
+    const customerNameEl = document.getElementById("customerNameInput");
+    const customerPhoneEl = document.getElementById("customerPhoneInput");
+    const productFiltersForm = document.getElementById("productFiltersForm");
+    const cancelSaleBtn = document.getElementById("cancelSaleBtn");
 
     if (!cartBody || !cartJsonEl) return;
 
     // In-memory cart: {id: {id, sku, name, price, stock, reorder_level, qty}}
     const cart = {};
+
+    function clearDraft(){
+      sessionStorage.removeItem(draftStorageKey);
+    }
+
+    function persistDraft(){
+      const draft = {
+        customer_name: customerNameEl ? customerNameEl.value : "",
+        customer_phone: customerPhoneEl ? customerPhoneEl.value : "",
+        payment_method: paymentMethodEl ? paymentMethodEl.value : "cash",
+        cart: cartToList().map(it => {
+          const current = cart[Number(it.product_id)];
+          return current ? {
+            ...it,
+            sku: current.sku,
+            name: current.name,
+            stock: current.stock,
+            reorder_level: current.reorder_level || 0,
+          } : it;
+        }),
+      };
+      sessionStorage.setItem(draftStorageKey, JSON.stringify(draft));
+    }
+
+    function restoreDraft(){
+      const raw = sessionStorage.getItem(draftStorageKey);
+      if (!raw) return;
+
+      try {
+        const draft = JSON.parse(raw);
+        const items = Array.isArray(draft?.cart) ? draft.cart : [];
+
+        items.forEach((item) => {
+          const id = Number(item.product_id);
+          if (!id) return;
+          cart[id] = {
+            id,
+            sku: item.sku || "",
+            name: item.name || "",
+            price: Number(item.unit_price || 0),
+            stock: Number(item.stock || 0),
+            reorder_level: Number(item.reorder_level || 0),
+            qty: Math.max(1, Number(item.qty || 1)),
+            discount_pct: Math.max(0, Math.min(100, Number(item.discount_pct || 0))),
+          };
+        });
+
+        if (customerNameEl) customerNameEl.value = draft.customer_name || "";
+        if (customerPhoneEl) customerPhoneEl.value = draft.customer_phone || "";
+        if (paymentMethodEl && draft.payment_method) paymentMethodEl.value = draft.payment_method;
+      } catch (error) {
+        clearDraft();
+      }
+    }
 
     function money(n){
       const x = Number(n || 0);
@@ -1157,6 +1227,7 @@
       totalVal.textContent = money(total);
 
       cartJsonEl.value = JSON.stringify(cartToList());
+      persistDraft();
 
       // Show empty row
       if (items.length === 0){
@@ -1171,6 +1242,35 @@
       if (saveBtn) saveBtn.disabled = overflow || items.length === 0;
     }
 
+    function rowWarningsHtml(it){
+      const reorderLevel = Math.max(0, Number(it.reorder_level || 0));
+      const remainingStock = Math.max(0, Number(it.stock) - Number(it.qty));
+      const showOnlyLeft = reorderLevel > 0 && remainingStock <= reorderLevel;
+      const stockWarning = showOnlyLeft
+        ? (remainingStock === 0 ? `0 left` : `Only ${remainingStock} left`)
+        : "";
+
+      return `
+        ${stockWarning ? `<div class="warn">${stockWarning}</div>` : ``}
+        ${it.qty > it.stock ? `<div class="warn">Qty exceeds available stock</div>` : ``}
+      `;
+    }
+
+    function updateCartRow(row, id){
+      const it = cart[id];
+      if (!row || !it) return;
+
+      const qtyWarnings = row.querySelector("[data-role='qty-warnings']");
+      if (qtyWarnings) qtyWarnings.innerHTML = rowWarningsHtml(it);
+
+      const lineTotalCell = row.querySelector("[data-role='line-total']");
+      if (lineTotalCell) {
+        const gross = Number(it.price) * Number(it.qty);
+        const pct = Math.max(0, Math.min(100, Number(it.discount_pct || 0)));
+        lineTotalCell.textContent = money(gross - (gross * pct / 100));
+      }
+    }
+
     function render(){
       // Remove all rows except empty row
       [...cartBody.querySelectorAll("tr.cart-row")].forEach(r => r.remove());
@@ -1178,16 +1278,11 @@
       Object.values(cart).forEach(it => {
         const tr = document.createElement("tr");
         tr.className = "cart-row";
+        tr.dataset.id = String(it.id);
 
         const gross = Number(it.price) * Number(it.qty);
         const pct = Math.max(0, Math.min(100, Number(it.discount_pct || 0)));
         const lineTotal = gross - (gross * pct / 100);
-        const reorderLevel = Math.max(0, Number(it.reorder_level || 0));
-        const remainingStock = Math.max(0, Number(it.stock) - Number(it.qty));
-        const showOnlyLeft = reorderLevel > 0 && remainingStock <= reorderLevel;
-        const stockWarning = showOnlyLeft
-          ? (remainingStock === 0 ? `0 left` : `Only ${remainingStock} left`)
-          : "";
 
         tr.innerHTML = `
           <td>
@@ -1200,8 +1295,7 @@
               <input type="number" min="1" class="qty-input" value="${it.qty}" data-action="qty" data-id="${it.id}">
               <button type="button" class="qty-btn" data-action="inc" data-id="${it.id}">+</button>
             </div>
-            ${stockWarning ? `<div class="warn">${stockWarning}</div>` : ``}
-            ${it.qty > it.stock ? `<div class="warn">Qty exceeds available stock</div>` : ``}
+            <div data-role="qty-warnings">${rowWarningsHtml(it)}</div>
           </td>
           <td>
             <input type="number" min="0" step="0.01" value="${Number(it.price).toFixed(2)}" data-action="price" data-id="${it.id}" style="width:120px; text-align:right;">
@@ -1209,7 +1303,7 @@
           <td>
             <input type="number" min="0" max="100" step="0.01" value="${Number(it.discount_pct || 0).toFixed(2)}" data-action="discount" data-id="${it.id}" style="width:90px; text-align:right;">
           </td>
-          <td style="font-weight:900;">${money(lineTotal)}</td>
+          <td data-role="line-total" style="font-weight:900;">${money(lineTotal)}</td>
           <td>
             <button type="button" class="btn-link" data-action="remove" data-id="${it.id}">
               <i class="fa-solid fa-trash"></i>
@@ -1288,22 +1382,23 @@
         const v = Math.max(1, Number(el.value || 1));
         cart[id].qty = v; // allow overflow; UI will warn + disable save
         recompute();
-        // re-render to refresh line total + warnings
-        render();
+        updateCartRow(el.closest("tr.cart-row"), id);
         return;
       }
 
       if (action === "price"){
         const p = Math.max(0, Number(el.value || 0));
         cart[id].price = p;
-        render();
+        recompute();
+        updateCartRow(el.closest("tr.cart-row"), id);
         return;
       }
 
       if (action === "discount"){
         const d = Math.max(0, Math.min(100, Number(el.value || 0)));
         cart[id].discount_pct = d;
-        render();
+        recompute();
+        updateCartRow(el.closest("tr.cart-row"), id);
         return;
       }
     });
@@ -1317,9 +1412,35 @@
         .replaceAll("'", "&#039;");
     }
 
+    if (productFiltersForm) {
+      productFiltersForm.addEventListener("submit", persistDraft);
+    }
+
+    if (cancelSaleBtn) {
+      cancelSaleBtn.addEventListener("click", clearDraft);
+    }
+
+    if (saleForm) {
+      saleForm.addEventListener("submit", persistDraft);
+    }
+
+    [customerNameEl, customerPhoneEl, paymentMethodEl].forEach((field) => {
+      if (field) {
+        field.addEventListener("input", persistDraft);
+        field.addEventListener("change", persistDraft);
+      }
+    });
+
     // Start
+    restoreDraft();
     render();
   })();
 </script>
+
+{% if tab == 'details' and sale %}
+<script>
+  sessionStorage.removeItem("sales-new-draft");
+</script>
+{% endif %}
 
 {% endblock %}

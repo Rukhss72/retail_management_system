@@ -12,6 +12,7 @@ from retail.models import Category, Product
 from .normalization import normalize_text
 
 
+# Stores the result of product matching for assistant queries.
 @dataclass
 class ProductResolution:
     product: Product | None
@@ -19,6 +20,7 @@ class ProductResolution:
     confidence: float
 
 
+# Small function that helps match product names approximately while identifying the correct product.
 def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
@@ -54,11 +56,13 @@ PRODUCT_STOPWORDS = {
 }
 
 
+# Removes common non-product words before searching for a product.
 def _product_search_text(text: str) -> str:
     tokens = [t for t in text.split() if t not in PRODUCT_STOPWORDS and len(t) > 1]
     return " ".join(tokens)
 
 
+# Extracts stock threshold phrases like "below 5".
 def parse_threshold(query: str) -> int | None:
     text = normalize_text(query)
     match = re.search(r"(below|under|less than)\s+(\d+)", text)
@@ -67,6 +71,7 @@ def parse_threshold(query: str) -> int | None:
     return None
 
 
+# Resolves a date range and forecast horizon from natural language.
 def parse_date_window(query: str) -> tuple:
     text = normalize_text(query)
     raw_query = (query or "").strip()
@@ -92,7 +97,7 @@ def parse_date_window(query: str) -> tuple:
         label = str(start)
         return start, end, label, 1
 
-    # Handle month-year phrases like "december 2025" or "jan2023"
+    # Handles month-year phrases like "december 2025" or "jan2023".
     month_map = {
         "jan": 1, "january": 1,
         "feb": 2, "february": 2,
@@ -139,7 +144,7 @@ def parse_date_window(query: str) -> tuple:
         return False
 
     if "this week" in text:
-        # Product expectation: "this week" should mean the rolling last 7 days.
+        # Treats "this week" as the rolling last 7 days.
         start = today - timedelta(days=6)
         end = today
         label = "last 7 days"
@@ -176,6 +181,7 @@ def parse_date_window(query: str) -> tuple:
     return start, end, label, horizon_days
 
 
+# Matches a category name mentioned in the query.
 def resolve_category(query: str) -> Category | None:
     text = normalize_text(query)
     for category in Category.objects.all():
@@ -185,6 +191,7 @@ def resolve_category(query: str) -> Category | None:
     return None
 
 
+# Matches a section name like men, women, kids, or unisex.
 def resolve_section(query: str) -> str | None:
     text = normalize_text(query)
     section_aliases = {
@@ -209,6 +216,7 @@ def resolve_section(query: str) -> str | None:
     return None
 
 
+# Resolves the most likely product from the query text.
 def resolve_product(query: str) -> ProductResolution:
     text = normalize_text(query)
     search_text = _product_search_text(text)
@@ -248,6 +256,7 @@ def resolve_product(query: str) -> ProductResolution:
     return ProductResolution(product=None, candidates=[], confidence=0.0)
 
 
+# Extracts a festival name when the user mentions one.
 def resolve_festival_name(query: str) -> str | None:
     text = normalize_text(query)
     if "which festival" in text or "what festival" in text:

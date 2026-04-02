@@ -36,6 +36,7 @@ class Command(BaseCommand):
         dto = self._parse_ymd(options["date_to"])
         apply_changes = bool(options["apply"])
 
+        # Festival_date represents the actual shop-closure day to enforce.
         fest_qs = FestiveCalendar.objects.exclude(festival_date__isnull=True)
         if dfrom:
             fest_qs = fest_qs.filter(festival_date__gte=dfrom)
@@ -133,6 +134,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
+                # Report touched header count separately from changed line count for easier auditing.
                 f"Applied closure. Updated SaleItem={len(to_update_items)}, Sale={len(impacted_sales)}, DailyProductSales={impacted_daily_count}"
             )
         )

@@ -11,6 +11,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+# Converts handler output into compact text for the LLM prompt.
 def _serialize_payload_for_prompt(payload: dict) -> str:
     """Compact text representation of handler output for the LLM context."""
     parts: list[str] = []
@@ -45,6 +46,7 @@ def _serialize_payload_for_prompt(payload: dict) -> str:
     return "\n".join(parts)
 
 
+# Converts recent thread history into Ollama chat messages.
 def _build_history_messages(history: list[dict]) -> list[dict]:
     """Convert thread history into Ollama chat messages (last 6 turns max)."""
     msgs: list[dict] = []
@@ -56,6 +58,7 @@ def _build_history_messages(history: list[dict]) -> list[dict]:
     return msgs
 
 
+# Generates a natural-language insight from handler output using Ollama.
 def generate_insight(
     query: str,
     payload: dict,
@@ -75,7 +78,7 @@ def generate_insight(
     timeout = getattr(settings, "ASSISTANT_OLLAMA_TIMEOUT", 120)
 
     try:
-        import ollama  # noqa: E402
+        import ollama 
     except ImportError:
         logger.warning("ollama package not installed - skipping AI insight.")
         return None

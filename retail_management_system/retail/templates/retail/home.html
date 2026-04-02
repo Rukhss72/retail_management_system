@@ -104,7 +104,7 @@
 
   .eyebrow{
     color:var(--brand-rose);
-    font-size:10px;
+    font-size:16px;
     font-weight:700;
     letter-spacing:.14em;
     text-transform:uppercase;
@@ -225,6 +225,12 @@
     display:flex;
     align-items:center;
     gap:8px;
+    min-width:0;
+    flex:1;
+  }
+
+  .stat-copy{
+    min-width:0;
   }
 
   .stat-icon{
@@ -241,22 +247,28 @@
 
   .stat-label{
     margin:0;
-    font-size:.62rem;
-    letter-spacing:.08em;
+    font-size:.78rem;
+    letter-spacing:.09em;
     text-transform:uppercase;
     color:rgba(64, 78, 92, .58);
-    font-weight:700;
-  }
-
-  .stat-value{
-    margin:2px 0 0;
-    font-size:1.75rem;
-    line-height:1;
     font-weight:800;
   }
 
+  .stat-label.amber{ color:#C77810; }
+  .stat-label.green{ color:#2D8A68; }
+  .stat-label.red{ color:#BB3E4A; }
+  .stat-label.blue{ color:#5A8FB8; }
+
+  .stat-value{
+    margin:0;
+    font-size:2.25rem;
+    line-height:1;
+    font-weight:900;
+    flex-shrink:0;
+  }
+
   .stat-sub{
-    margin-top:3px;
+    margin-top:8px;
     color:rgba(64, 78, 92, .52);
     font-size:.72rem;
   }
@@ -735,6 +747,7 @@
 </style>
 
 <div class="home-shell">
+  <!-- Home page welcome header with current user and date -->
   <section class="hero">
     <div class="hero-row">
       <div>
@@ -753,20 +766,22 @@
     </div>
   </section>
 
+  <!-- Top summary cards for urgent home page stats -->
   <section class="stats-grid">
+    <!-- Low stock summary card -->
     <article class="glass-card stat-card low">
       <div class="stat-top">
         <div class="stat-main">
           <div class="stat-icon gradient-amber">
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
-          <div>
-            <p class="stat-label">Low Stock Alert</p>
-            <div class="stat-value">{{ low_stock_count }}</div>
-            <div class="stat-sub">items need attention</div>
+          <div class="stat-copy">
+            <p class="stat-label amber">Low Stock Alert</p>
           </div>
         </div>
+        <div class="stat-value">{{ low_stock_count }}</div>
       </div>
+      <div class="stat-sub">items need attention</div>
       <div class="stat-note amber">
         <span class="pulse"></span>
         Review inventory now
@@ -777,20 +792,21 @@
       </a>
     </article>
 
+    <!-- Out-of-stock summary card -->
     <article class="glass-card stat-card out{% if out_of_stock_count %} alert{% endif %}">
       <div class="stat-top">
         <div class="stat-main">
           <div class="stat-icon {% if out_of_stock_count %}gradient-red{% else %}gradient-emerald{% endif %}">
             <i class="fa-solid {% if out_of_stock_count %}fa-circle-xmark{% else %}fa-circle-check{% endif %}"></i>
           </div>
-          <div>
-            <p class="stat-label">Out Of Stock</p>
-            <div class="stat-value">{{ out_of_stock_count }}</div>
-            <div class="stat-sub">
-              {% if out_of_stock_count %}products unavailable{% else %}all products available{% endif %}
-            </div>
+          <div class="stat-copy">
+            <p class="stat-label {% if out_of_stock_count %}red{% else %}green{% endif %}">Out Of Stock</p>
           </div>
         </div>
+        <div class="stat-value">{{ out_of_stock_count }}</div>
+      </div>
+      <div class="stat-sub">
+        {% if out_of_stock_count %}products unavailable{% else %}all products available{% endif %}
       </div>
       <div class="stat-note {% if out_of_stock_count %}red{% else %}green{% endif %}">
         <span class="pulse"></span>
@@ -802,20 +818,21 @@
       </a>
     </article>
 
+    <!-- Pending reorder requests summary card -->
     <article class="glass-card stat-card pending">
       <div class="stat-top">
         <div class="stat-main">
           <div class="stat-icon gradient-blue">
             <i class="fa-solid fa-clipboard-list"></i>
           </div>
-          <div>
-            <p class="stat-label">Reorders Pending</p>
-            <div class="stat-value">{{ reorders_pending_count }}</div>
-            <div class="stat-sub">
-              {% if reorders_pending_count %}awaiting approval{% else %}nothing pending right now{% endif %}
-            </div>
+          <div class="stat-copy">
+            <p class="stat-label blue">Pending Reorders</p>
           </div>
         </div>
+        <div class="stat-value">{{ reorders_pending_count }}</div>
+      </div>
+      <div class="stat-sub">
+        {% if reorders_pending_count %}awaiting approval{% else %}nothing pending right now{% endif %}
       </div>
       <div class="stat-note blue">
         <span class="pulse"></span>
@@ -828,7 +845,9 @@
     </article>
   </section>
 
+  <!-- Main content area with recent activity and shortcuts -->
   <section class="main-grid">
+    <!-- Timeline of the latest store activity -->
     <article class="glass-card panel">
       <div class="panel-head">
         <div class="panel-head-main">
@@ -886,6 +905,7 @@
       {% endif %}
     </article>
 
+    <!-- Quick action links and help resources -->
     <aside class="glass-card panel sidebar-panel">
       <div class="panel-head">
         <div class="panel-head-main">
@@ -899,6 +919,7 @@
         </div>
       </div>
 
+      <!-- Shortcut buttons for common tasks -->
       <div class="shortcut-grid">
         <a class="shortcut-card shortcut-sale" href="{% url 'sales' %}">
           <div class="shortcut-icon gradient-amber">
@@ -943,21 +964,8 @@
         </a>
       </div>
 
+      <!-- Help card linking to the user guide -->
       <div class="help-stack">
-        <div class="help-card">
-          <div class="help-icon gradient-rose">
-            <i class="fa-regular fa-circle-question"></i>
-          </div>
-          <div>
-            <h3 class="help-title">Retail Assistant</h3>
-            <p class="help-text">Get quick help, inventory guidance, and system support from the retail assistant.</p>
-            <a class="help-link" href="{% url 'assistant' %}">
-              Open assistant
-              <i class="fa-solid fa-arrow-right"></i>
-            </a>
-          </div>
-        </div>
-
         <div class="help-card">
           <div class="help-icon gradient-blue">
             <i class="fa-regular fa-file-lines"></i>

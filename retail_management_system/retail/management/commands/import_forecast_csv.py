@@ -9,6 +9,7 @@ from django.db import transaction
 from retail.models import ForecastDaily, ForecastRun, Product
 
 
+# Supports a few common export formats from notebooks and spreadsheets.
 def parse_forecast_date(raw_value: str):
     value = (raw_value or "").strip()
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
@@ -26,8 +27,13 @@ class Command(BaseCommand):
         parser.add_argument("--path", required=True, help="Absolute path to forecast_output.csv")
         parser.add_argument(
             "--model-name",
-            default="catboost_tuned_x0.90",
-            help="Model label stored on ForecastRun.",
+            default="",
+            help="Optional explicit model label stored on ForecastRun. Overrides --run-version.",
+        )
+        parser.add_argument(
+            "--run-version",
+            default="v3",
+            help="Forecast run version label used when --model-name is not provided.",
         )
         parser.add_argument(
             "--replace-latest",
@@ -76,6 +82,7 @@ class Command(BaseCommand):
                 except (InvalidOperation, ValueError) as exc:
                     raise CommandError(f"Row {idx}: invalid predicted_qty {row.get('predicted_qty')!r}") from exc
 
+                # Keep a compact validated payload, then bulk insert after all checks pass.
                 rows.append((product_id, forecast_date, predicted_qty))
                 product_ids.add(product_id)
                 forecast_dates.append(forecast_date)
@@ -92,8 +99,13 @@ class Command(BaseCommand):
                 + (" ..." if len(missing_products) > 20 else "")
             )
 
+        run_version = (options.get("run_version") or "").strip()
+        explicit_model_name = (options.get("model_name") or "").strip()
+        model_name = explicit_model_name or f"forecast_run_{run_version or 'v3'}"
+
+        # One ForecastRun groups the imported horizon and gives the dashboard a single latest batch.
         run = ForecastRun.objects.create(
-            model_name=options["model_name"],
+            model_name=model_name,
             period_start=min(forecast_dates),
             period_end=max(forecast_dates),
         )
@@ -112,6 +124,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Imported {len(items)} rows into ForecastRun id={run.id} "
-                f"for {len(product_ids)} products from {run.period_start} to {run.period_end}."
+                f"({run.model_name}) for {len(product_ids)} products from {run.period_start} to {run.period_end}."
             )
         )

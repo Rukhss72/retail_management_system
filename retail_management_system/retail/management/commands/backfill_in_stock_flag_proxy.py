@@ -9,7 +9,7 @@ from retail.models import DailyProductSales, FestiveCalendar, Product
 
 
 class Command(BaseCommand):
-    help = "Backfill in_stock_flag using sales-pattern heuristics around festivals."
+    help = "Backfill in_stock_flag using sales-pattern around festivals."
 
     def add_arguments(self, parser):
         parser.add_argument("--from", dest="date_from", type=str, default=None, help="YYYY-MM-DD")
@@ -37,6 +37,7 @@ class Command(BaseCommand):
         reset = options["reset"]
         dry_run = options["dry_run"]
 
+        # Small local parser keeps CLI argument handling simple and explicit.
         def parse_ymd(s):
             return datetime.strptime(s, "%Y-%m-%d").date()
 
@@ -91,6 +92,7 @@ class Command(BaseCommand):
                 .annotate(total=Sum("qty_sold"))
             )
 
+            # Build per-product and per-category festival totals used by the heuristics below.
             total_by_product = {}
             by_category = {}
             for row in totals_qs:
@@ -104,6 +106,7 @@ class Command(BaseCommand):
 
             strong_top = set()
             for cid, plist in category_products.items():
+                # Rank only products that actually sold during the festival window.
                 totals = [(pid, total_by_product.get(pid, 0)) for pid in plist]
                 # Only consider products with any festival sales for top ranking
                 totals = [t for t in totals if t[1] > 0]
@@ -129,6 +132,7 @@ class Command(BaseCommand):
             total_candidates += len(candidates)
 
             for pid in candidates:
+                # Look after the festival for a sustained zero-sales streak as an out-of-stock signal.
                 rows = list(
                     DailyProductSales.objects
                     .filter(product_id=pid, date__gt=end, date__lte=dto)
@@ -163,6 +167,7 @@ class Command(BaseCommand):
                 if end_idx < streak_start_idx:
                     continue
 
+                # Only mark the zero-sales span; any resumed sales stop the inferred stockout window.
                 dates_to_mark = [rows[j][0] for j in range(streak_start_idx, end_idx + 1) if rows[j][1] == 0]
                 if not dates_to_mark:
                     continue

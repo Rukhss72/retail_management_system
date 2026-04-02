@@ -651,6 +651,7 @@
 
 <div class="inv-container">
 
+  <!-- Inventory page header with stock KPIs and action buttons -->
   <!-- Header -->
   <div class="inv-header">
     <h1 class="page-title">Inventory Management</h1>
@@ -686,6 +687,7 @@
       </div>
     </div>
 
+    <!-- Top tab navigation for products and movement history -->
     <!-- Tabs (same logic) -->
     <div class="inv-tabs">
       <a class="inv-tab {% if tab == 'products' %}active{% endif %}"
@@ -702,6 +704,7 @@
     </div>   
   </div>
   <!-- PRODUCT LIST TAB -->
+  <!-- Products tab with filters, product cards, and pagination -->
   <div class="tab-panel-wrap {% if tab != 'products' %}hidden-panel{% endif %}">
 
     <div class="inv-panel">
@@ -894,6 +897,7 @@
 
 
   <!-- STOCK MOVEMENT HISTORY TAB (your existing functionality kept) -->
+  <!-- History tab with stock movement filters and records -->
   <div class="tab-panel-wrap {% if tab != 'history' %}hidden-panel{% endif %}">
 
     <div class="inv-panel">
@@ -1050,6 +1054,7 @@
 </div>
 
 
+<!-- Stock-in modal for adding quantity to a product -->
 <!-- STOCK IN MODAL -->
 <div id="modalIn" class="modal-backdrop">
   <div class="modal">
@@ -1104,6 +1109,7 @@
   </div>
 </div>
 
+<!-- Stock-out modal for removing quantity from a product -->
 <!-- STOCK OUT MODAL -->
 <div id="modalOut" class="modal-backdrop">
   <div class="modal">
@@ -1157,6 +1163,7 @@
   </div>
 </div>
 
+<!-- Adjustment modal for manually correcting stock values -->
 <!-- ADJUSTMENT MODAL -->
 <div id="modalAdj" class="modal-backdrop">
   <div class="modal">
@@ -1227,6 +1234,7 @@
 </div>
 
 {% if is_admin %}
+<!-- Admin-only modal for creating a new product -->
 <!-- CREATE PRODUCT MODAL -->
 <div id="modalCreateProduct" class="modal-backdrop">
   <div class="modal">
@@ -1258,10 +1266,6 @@
 
         <div class="modal-grid-2">
           <div class="field"><label>Reorder Level</label>{{ product_create_form.reorder_level }}</div>
-          <div class="field">
-            <label>{{ product_create_form.is_active.label }}</label>
-            {{ product_create_form.is_active }}
-          </div>
         </div>
 
         <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;">
@@ -1295,6 +1299,7 @@
 
 {{ cp_supplier_map|json_script:"cpSupplierMapData" }}
 <script>
+  // Main inventory script for filters, modals, and product field syncing.
   function filterCreateProductSuppliers() {
     const modal = document.getElementById("modalCreateProduct");
     if (!modal) return;
@@ -1646,6 +1651,7 @@
 </script>
 
 <script>
+  // Auto-opens a modal when the page loads with an open query parameter.
   // Auto-open modal from querystring: ?open=modalIn / modalOut / modalAdj / modalCreateProduct
   (function(){
     const params = new URLSearchParams(window.location.search);
@@ -1663,6 +1669,7 @@
 
 {% if product_create_form.errors %}
 <script>
+  // Reopens the create product modal when validation fails.
   openModal("modalCreateProduct");
 </script>
 {% endif %}

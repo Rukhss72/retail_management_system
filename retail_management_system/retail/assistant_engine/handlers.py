@@ -21,10 +21,12 @@ from retail.models import (
 )
 
 
+# Small helper for building table payloads returned to the assistant UI.
 def _table(columns, rows):
     return {"columns": columns, "rows": rows}
 
 
+# Converts stored section codes into user-friendly labels.
 def _section_label(value: str | None) -> str:
     mapping = {
         "men": "Men",
@@ -35,6 +37,7 @@ def _section_label(value: str | None) -> str:
     return mapping.get(str(value or "").lower(), str(value or "").title())
 
 
+# Formats a cleaner label for compared date ranges.
 def _range_label(start_date, end_date) -> str:
     if (
         start_date
@@ -48,6 +51,7 @@ def _range_label(start_date, end_date) -> str:
     return f"{start_date} to {end_date}"
 
 
+# Handles stock lookup and stock-count style assistant questions.
 def handle_stock_lookup(query: str, entities: dict) -> dict:
     text = query.lower()
     threshold = entities.get("threshold")
@@ -291,6 +295,7 @@ def handle_stock_lookup(query: str, entities: dict) -> dict:
     }
 
 
+# Handles stock movement history questions.
 def handle_stock_movements(query: str, entities: dict) -> dict:
     start, end = entities["start"], entities["end"]
     product = entities.get("product")
@@ -331,6 +336,7 @@ def handle_stock_movements(query: str, entities: dict) -> dict:
     }
 
 
+# Handles revenue and quantity summary questions.
 def handle_sales_summary(query: str, entities: dict) -> dict:
     start, end = entities["start"], entities["end"]
     category = entities.get("category")
@@ -379,6 +385,7 @@ def handle_sales_summary(query: str, entities: dict) -> dict:
     }
 
 
+# Handles period-vs-period sales comparison questions.
 def handle_compare_sales(query: str, entities: dict) -> dict:
     start_a, end_a = entities["start"], entities["end"]
     start_b = entities.get("compare_start") or start_a
@@ -477,6 +484,7 @@ def handle_compare_sales(query: str, entities: dict) -> dict:
     }
 
 
+# Handles top-seller and trend questions from sales history.
 def handle_top_sellers(query: str, entities: dict) -> dict:
     text = query.lower()
     start, end = entities["start"], entities["end"]
@@ -638,6 +646,7 @@ def handle_top_sellers(query: str, entities: dict) -> dict:
     }
 
 
+# Handles forecast-based best-seller and demand questions.
 def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
     def _display_qty(value) -> int:
         return int(Decimal(value or 0).quantize(Decimal("1")))
@@ -836,6 +845,7 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
     }
 
 
+# Handles reorder recommendation and reorder-history questions.
 def handle_reorder_suggestions(query: str, entities: dict) -> dict:
     text = query.lower()
     asks_reorder_history = any(
@@ -957,6 +967,7 @@ def handle_reorder_suggestions(query: str, entities: dict) -> dict:
     }
 
 
+# Handles festival-driven sales insight questions.
 def handle_festival_insights(query: str, entities: dict) -> dict:
     festival = entities.get("festival_name")
     product = entities.get("product")
@@ -1023,6 +1034,7 @@ def handle_festival_insights(query: str, entities: dict) -> dict:
     }
 
 
+# Handles seasonality questions for products, categories, or sections.
 def handle_seasonality(query: str, entities: dict) -> dict:
     product = entities.get("product")
     category = entities.get("category")

@@ -6,6 +6,7 @@ from openpyxl import load_workbook
 from datetime import datetime, date
 
 
+# Accepts both Excel-native dates and a few expected string formats from manual edits.
 def parse_date(value):
     """
     Accepts:
@@ -49,6 +50,7 @@ class Command(BaseCommand):
         wb = load_workbook(filename=xlsx_path, data_only=True)
         ws = wb[sheet_name] if sheet_name else wb.active
 
+        # Read header names once so column order in the spreadsheet can vary safely.
         # Expect headers in row 1
         headers = [str(c.value).strip() if c.value else "" for c in ws[1]]
         header_map = {h: idx for idx, h in enumerate(headers)}
@@ -75,6 +77,7 @@ class Command(BaseCommand):
             end_date = parse_date(row[header_map["End_date"]])
             festival_date = parse_date(row[header_map["Festival_date"]])
 
+            # The four core fields define uniqueness for this import command.
             obj, was_created = FestiveCalendar.objects.update_or_create(
                 festival_name=festival_name,
                 start_date=start_date,

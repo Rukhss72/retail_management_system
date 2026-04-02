@@ -7,6 +7,7 @@ from .models import Product, PurchaseOrder, StockMovement, Category,  Supplier, 
 from decimal import Decimal
 
 
+# Login form with role selection and remember-device option.
 class RoleAuthenticationForm(AuthenticationForm):
     ROLE_CHOICES = (
         ("admin", "Admin"),
@@ -19,6 +20,7 @@ class RoleAuthenticationForm(AuthenticationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        # Applies the CSS classes and placeholders used by the custom login page.
         self.fields["role"].widget.attrs.update({
             "class": "form-control role-select",
         })
@@ -38,7 +40,7 @@ class RoleAuthenticationForm(AuthenticationForm):
         super().confirm_login_allowed(user)
         selected_role = self.cleaned_data.get("role")  # must be "admin" or "staff"
 
-        # Ensure user has a profile (extra safety)
+        # Makes sure the selected role matches the account's stored profile role.
         if not hasattr(user, "profile"):
             raise ValidationError("Profile missing. Contact admin.", code="no_profile")
 
@@ -48,11 +50,12 @@ class RoleAuthenticationForm(AuthenticationForm):
         if selected_role == "admin" and not user.is_superuser:
             raise ValidationError("This account is not an Admin.", code="not_admin")
 
-        # Staff: must be staff-enabled account
+        # Staff login also requires a staff-enabled Django account.
         if selected_role == "staff" and not user.is_staff:
             raise ValidationError("This account is not Staff.", code="not_staff")
 
 
+# Simple form for the emailed 2FA verification code.
 class TwoFactorForm(forms.Form):
     code = forms.CharField(max_length=6, min_length=6)
 
@@ -66,6 +69,7 @@ class TwoFactorForm(forms.Form):
         })
 
 
+# Product creation form with opening stock and supplier setup fields.
 class ProductCreateForm(forms.ModelForm):
     """
     Create Product (master data) + optional opening stock transaction.
@@ -121,7 +125,6 @@ class ProductCreateForm(forms.ModelForm):
             "section",
             "selling_price",
             "reorder_level",
-            "is_active",
         ]
         widgets = {
             "product_name": forms.TextInput(attrs={"placeholder": "e.g., Cotton T-Shirt"}),
@@ -130,6 +133,7 @@ class ProductCreateForm(forms.ModelForm):
         }
 
     def clean(self):
+        # Validates opening stock and required supplier-related fields.
         cleaned = super().clean()
         opening_qty = cleaned.get("opening_qty")
 
@@ -153,14 +157,15 @@ class ProductCreateForm(forms.ModelForm):
          Assumes the Product is already saved by the caller/view (sku already set).
          Creates an opening StockMovement(IN) and updates Product.qty_in_stock.
         """
-        product = self.instance  # use the already-saved product from the view
+        # Uses the already-saved product instance passed in by the view.
+        product = self.instance
 
         qty = int(self.cleaned_data.get("opening_qty") or 0)
         if qty <= 0:
             return product
 
         with transaction.atomic():
-            # lock product row to avoid race conditions
+            # Locks the product row before updating stock.
             product_locked = Product.objects.select_for_update().get(pk=product.pk)
 
             StockMovement.objects.create(
@@ -195,6 +200,7 @@ class ProductCreateForm(forms.ModelForm):
 
         return product
 
+# Stock-in form used by the inventory stock-in modal.
 class StockInForm(forms.Form):
     category = forms.ModelChoiceField(
         queryset=Category.objects.order_by("category_name"),
@@ -211,6 +217,7 @@ class StockInForm(forms.Form):
     comments = forms.CharField(widget=forms.Textarea, required=False)
 
 
+# Stock-out form used by the inventory stock-out modal.
 class StockOutForm(forms.Form):
     product = forms.ModelChoiceField(
         queryset=Product.objects.filter(is_active=True).select_related("category").order_by("product_name"),
@@ -222,7 +229,7 @@ class StockOutForm(forms.Form):
     reference = forms.CharField(required=False, max_length=60)
     comments = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
-   
+# Adjustment form for setting stock to a target level.
 class AdjustmentForm(forms.Form):
     """
     Set stock to a target level (like your UI idea).
@@ -246,6 +253,7 @@ class AdjustmentForm(forms.Form):
     comments = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
 
+# History filter form for the inventory movement table.
 class HistoryFilterForm(forms.Form):
     from_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     to_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
@@ -261,11 +269,13 @@ class HistoryFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Applies the shared form-control class to all filter widgets.
         for name, field in self.fields.items():
             existing = field.widget.attrs.get("class", "")
             field.widget.attrs["class"] = (existing + " form-control").strip()
 
 
+# Supplier form used for supplier create and edit modals.
 class SupplierForm(forms.ModelForm):
     categories = forms.ModelMultipleChoiceField(
         queryset=Category.objects.order_by("category_name"),
@@ -315,7 +325,7 @@ class SupplierForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Seed M2M categories from legacy single category for existing records.
+        # Preloads categories from the legacy single-category field when needed.
         if self.instance and self.instance.pk and not self.initial.get("categories"):
             existing_ids = list(self.instance.categories.values_list("id", flat=True))
             if existing_ids:
@@ -324,22 +334,23 @@ class SupplierForm(forms.ModelForm):
                 self.initial["categories"] = [self.instance.category_id]
 
         for name, f in self.fields.items():
-            # keep checkbox clean
+            # Leaves the checkbox styling alone and styles the other inputs.
             if name == "is_active":
                 continue
             existing = f.widget.attrs.get("class", "")
             f.widget.attrs["class"] = (existing + " scm-input").strip()
 
     def save(self, commit=True):
+        # Keeps the legacy single-category field aligned with the many-to-many selection.
         supplier = super().save(commit=commit)
         if commit:
             chosen = list(self.cleaned_data.get("categories").values_list("id", flat=True)) if self.cleaned_data.get("categories") is not None else []
-            # Keep legacy single category field aligned for backward compatibility.
             supplier.category_id = chosen[0] if chosen else None
             supplier.save(update_fields=["category", "updated_at"])
         return supplier
 
     def clean_supplier_name(self):
+        # Prevents duplicate supplier names.
         name = (self.cleaned_data.get("supplier_name") or "").strip()
         if not name:
             raise ValidationError("Company Name is required.")
@@ -351,6 +362,7 @@ class SupplierForm(forms.ModelForm):
         return name
 
     def clean_phone(self):
+        # Validates supplier phone format when a phone number is provided.
         phone = (self.cleaned_data.get("phone") or "").strip()
         if not phone:
             return ""
@@ -359,6 +371,7 @@ class SupplierForm(forms.ModelForm):
         return phone
 
 
+# Purchase-order form used by the create purchase order modal.
 class PurchaseOrderCreateForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrder
@@ -381,6 +394,7 @@ class PurchaseOrderCreateForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Limits supplier choices to active suppliers and hides draft from manual selection.
         self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True).order_by("supplier_name")
         self.fields["status"].choices = [
             choice for choice in self.fields["status"].choices

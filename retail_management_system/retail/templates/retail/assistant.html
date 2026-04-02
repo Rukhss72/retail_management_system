@@ -426,6 +426,7 @@
 
 <div class="ra-page">
 <div class="ra-layout">
+  <!-- Left sidebar showing saved chat threads -->
   <aside class="ra-panel ra-side">
     <div class="ra-side-head">
       <button id="raToggleThreads" class="ra-toggle" type="button" title="Collapse/Expand"><<</button>
@@ -435,12 +436,14 @@
     <div id="raThreadList" class="ra-thread-list"></div>
   </aside>
 
+  <!-- Main assistant panel with title, shortcuts, messages, and input -->
   <section class="ra-panel ra-main">
     <div class="ra-header">
       <h1 class="ra-title">Retail Assistant</h1>
       <p class="ra-sub">Persistent chat with thread history and memory-aware responses.</p>
     </div>
 
+    <!-- Quick prompt chips for common assistant queries -->
     <div class="ra-chips">
       <button class="ra-chip" data-query="Total sales today (revenue + quantity)">Today Sales</button>
       <button class="ra-chip" data-query="List all items that are low stock">Low Stock</button>
@@ -449,10 +452,12 @@
       <button class="ra-chip" data-query="What should I restock for next week?">Reorder Suggestions</button>
     </div>
 
+    <!-- Message area for the active chat thread -->
     <div id="raMessages" class="ra-messages">
       <p class="ra-empty">Select a chat on the left, or click New Chat.</p>
     </div>
 
+    <!-- Input area for sending a new assistant message -->
     <div class="ra-inputbar">
       <input id="raInput" type="text" placeholder="Type your message..." />
       <button id="raSend" class="ra-btn" type="button">Ask</button>
@@ -462,6 +467,7 @@
 </div>
 
 <script>
+  // Main assistant script for threads, messages, and response rendering.
   let activeThreadId = null;
   const layoutRoot = document.querySelector(".ra-layout");
   const messagesRoot = document.getElementById("raMessages");

@@ -35,6 +35,7 @@ from .normalization import normalize_confirmation
 from .ollama_chat import generate_insight
 
 
+# Small parsing helpers used while building assistant entities.
 def _parse_iso_date(value):
     if not value:
         return None
@@ -46,6 +47,7 @@ def _parse_iso_date(value):
         return None
 
 
+# Resolves a category from an LLM-provided category name.
 def _resolve_category_from_name(name: str):
     if not name:
         return None
@@ -54,6 +56,7 @@ def _resolve_category_from_name(name: str):
     return Category.objects.filter(category_name__icontains=str(name).strip()).first()
 
 
+# Resolves a product from hinted product name or SKU values.
 def _resolve_product_from_hints(product_name: str | None, sku: str | None):
     from retail.models import Product
 
@@ -68,6 +71,7 @@ def _resolve_product_from_hints(product_name: str | None, sku: str | None):
     return None
 
 
+# Builds the final entity dictionary used by assistant handlers.
 def build_entities(query: str, overrides: dict | None = None) -> dict:
     start, end, date_label, horizon_days = parse_date_window(query)
     parsed_start, parsed_end = start, end
@@ -110,7 +114,7 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
         entities["compare_start"] = c_start
         entities["compare_end"] = c_end
     elif (o_start and o_end) and (parsed_start, parsed_end) != (o_start, o_end):
-        # LLM provided only one period in a compare prompt; keep parser period as the second range.
+        # If the LLM only provides one compare range, keep the parser range as the second period.
         entities["compare_start"] = parsed_start
         entities["compare_end"] = parsed_end
 
@@ -145,10 +149,11 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
     return entities
 
 
+# Decides whether a query should ask the user to confirm a weak product match.
 def _needs_product_confirmation(intent: str, query: str, entities: dict | None = None) -> bool:
     text = query.lower()
     if intent == INTENT_STOCK_LOOKUP:
-        # Stock list/filter queries should not trigger product disambiguation.
+        # Generic stock list/filter queries should not trigger product disambiguation.
         if any(
             p in text
             for p in (
@@ -179,6 +184,7 @@ def _needs_product_confirmation(intent: str, query: str, entities: dict | None =
     return False
 
 
+# Builds a clarification payload when product matching is too weak.
 def _low_confidence_product_prompt(intent: str, query: str, entities: dict) -> dict | None:
     if not _needs_product_confirmation(intent, query, entities):
         return None
@@ -200,6 +206,7 @@ def _low_confidence_product_prompt(intent: str, query: str, entities: dict) -> d
     }
 
 
+# Detects advanced date phrases that may benefit from LLM parsing.
 def _query_has_advanced_time_phrase(query: str) -> bool:
     text = query.lower()
     month_words = (
@@ -227,11 +234,13 @@ def _query_has_advanced_time_phrase(query: str) -> bool:
     return False
 
 
+# Checks whether the query is explicitly comparing two periods.
 def _query_has_compare_phrase(query: str) -> bool:
     text = query.lower()
     return any(p in text for p in ("compare", "compared to", "versus", " vs "))
 
 
+# Detects "last month" phrasing with some typo tolerance.
 def _has_last_month_phrase(query: str) -> bool:
     text = query.lower()
     if "last month" in text:
@@ -245,6 +254,7 @@ def _has_last_month_phrase(query: str) -> bool:
     return False
 
 
+# Extracts one explicit month-year date range from the query.
 def _extract_explicit_month_year_range(query: str):
     text = query.lower()
     tokens = re.findall(r"[a-z0-9]+", text)
@@ -317,6 +327,7 @@ def _extract_explicit_month_year_range(query: str):
     return datetime(year, month_num, 1).date(), datetime(year, month_num, last_day).date()
 
 
+# Extracts two explicit month-year ranges for comparison queries.
 def _extract_two_month_year_ranges(query: str):
     text = query.lower()
     month_map = {
@@ -365,6 +376,7 @@ def _extract_two_month_year_ranges(query: str):
     return a, b
 
 
+# Extracts one month paired with two different years for comparisons.
 def _extract_month_with_two_years_ranges(query: str):
     text = query.lower()
     month_map = {
@@ -411,6 +423,7 @@ def _extract_month_with_two_years_ranges(query: str):
     return a, b
 
 
+# Decides whether an explicit month range should be treated as the main range.
 def _should_explicit_range_be_primary(query: str) -> bool:
     text = query.lower()
     idx_last_month = text.find("last month")
@@ -432,6 +445,7 @@ def _should_explicit_range_be_primary(query: str) -> bool:
     return explicit_pos < idx_last_month
 
 
+# Returns the date range for the previous calendar month.
 def _last_month_range():
     today = timezone.localdate()
     first_this_month = today.replace(day=1)
@@ -440,6 +454,7 @@ def _last_month_range():
     return start, end
 
 
+# Checks whether the query is mostly just a product reference.
 def _query_is_product_only(query: str) -> bool:
     text = query.lower()
     keywords = (
@@ -458,6 +473,7 @@ def _query_is_product_only(query: str) -> bool:
     return not any(k in text for k in keywords)
 
 
+# Detects generic stock-count questions that should not force product matching.
 def _is_generic_stock_count_query(query: str) -> bool:
     text = query.lower()
     if "stock" not in text:
@@ -467,6 +483,7 @@ def _is_generic_stock_count_query(query: str) -> bool:
     return any(k in text for k in ("set", "sets", "items", "products", "skus"))
 
 
+# Detects generic stock-movement queries with no explicit product filter.
 def _is_generic_stock_movements_query(query: str) -> bool:
     text = query.lower()
     if "movement" not in text:
@@ -478,6 +495,7 @@ def _is_generic_stock_movements_query(query: str) -> bool:
     return not any(marker in text for marker in explicit_product_markers)
 
 
+# Detects simple greeting or small-talk messages.
 def _is_small_talk(query: str) -> bool:
     text = re.sub(r"[^a-z0-9\s]", "", query.lower().strip())
     return text in {
@@ -493,18 +511,20 @@ def _is_small_talk(query: str) -> bool:
     }
 
 
+# Decides when to try Ollama entity extraction in addition to rule parsing.
 def _should_try_ollama(intent: str, entities: dict, query: str) -> bool:
     if intent == INTENT_UNKNOWN:
         return True
-    # If rules resolved to product with weak confidence for a product-required query, try LLM extraction first.
+    # Weak product matches are a good reason to try LLM extraction first.
     if entities.get("product") is not None and entities.get("product_confidence", 1.0) < 0.65:
         return True
-    # Rule parser does not cover complex month/year comparisons well.
+    # Rule parsing is weaker for more complex month/year comparisons.
     if _query_has_advanced_time_phrase(query) and entities.get("date_label") == "today":
         return True
     return False
 
 
+# Uses remembered context to rewrite short follow-up questions.
 def _apply_memory_to_query(query: str, memory: dict) -> str:
     if not memory:
         return query
@@ -541,17 +561,19 @@ def _apply_memory_to_query(query: str, memory: dict) -> str:
     return rewritten
 
 
+# Splits text into sentence-like chunks.
 def _split_sentences(text: str) -> list[str]:
     parts = re.split(r"(?<=[.!?])\s+", text.strip())
     return [p.strip() for p in parts if p and p.strip()]
 
 
+# Cleans and deduplicates assistant reply text.
 def _clean_answer_text(raw_text: str) -> str:
     text = (raw_text or "").replace("\r", "").strip()
     if not text:
         return ""
 
-    # Remove common markdown artifacts and normalize bullets.
+    # Removes common markdown artifacts and normalizes bullet-style text.
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"__(.*?)__", r"\1", text)
     text = re.sub(r"`([^`]*)`", r"\1", text)
@@ -572,6 +594,7 @@ def _clean_answer_text(raw_text: str) -> str:
     return "\n".join(deduped)
 
 
+# Identifies intents that should return shorter answers.
 def _is_simple_intent(intent: str) -> bool:
     return intent in {
         INTENT_STOCK_LOOKUP,
@@ -582,6 +605,7 @@ def _is_simple_intent(intent: str) -> bool:
     }
 
 
+# Builds the final short answer text shown to the user.
 def _build_answer_text(intent: str, payload: dict) -> str:
     raw = payload.get("summary") or payload.get("ai_insight") or ""
     cleaned = _clean_answer_text(raw)
@@ -596,12 +620,14 @@ def _build_answer_text(intent: str, payload: dict) -> str:
     return "\n".join(lines[:max_lines]).strip()
 
 
+# Adds answer_text into the returned payload.
 def _with_answer_text(intent: str, payload: dict) -> dict:
     out = dict(payload or {})
     out["answer_text"] = _build_answer_text(intent, out)
     return out
 
 
+# Main assistant entry point that parses the query, runs a handler, and updates memory.
 def process_query(query: str, session: dict) -> dict:
     raw_query = query
     query = _apply_memory_to_query(query, session)
@@ -760,11 +786,12 @@ def process_query(query: str, session: dict) -> dict:
         }
 
     # ── Ollama conversational insight ─────────────────────────────────
+    # Optionally asks Ollama to turn the structured payload into a conversational reply.
     chat_history = session.get("_chat_history", [])
     ai_insight = generate_insight(query, payload, history=chat_history)
     if ai_insight:
         payload["ai_insight"] = ai_insight
-    # keep a rolling window of recent exchanges for follow-up context
+    # Keeps a rolling history window for future follow-up context.
     chat_history.append({"role": "user", "content": query})
     chat_history.append({"role": "assistant", "content": ai_insight or payload.get("summary", "")})
     session["_chat_history"] = chat_history[-12:]   # last 6 turns

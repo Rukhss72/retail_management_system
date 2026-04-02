@@ -32,6 +32,7 @@ ALLOWED_INTENTS = {
 }
 
 
+# Tries to parse JSON safely from the LLM response text.
 def _extract_json(content: str) -> dict[str, Any] | None:
     if not content:
         return None
@@ -51,6 +52,7 @@ def _extract_json(content: str) -> dict[str, Any] | None:
     return None
 
 
+# Uses Ollama to extract intent and entities when rule parsing is not enough.
 def parse_with_ollama(query: str) -> dict[str, Any] | None:
     if not getattr(settings, "ASSISTANT_OLLAMA_ENABLED", True):
         return None

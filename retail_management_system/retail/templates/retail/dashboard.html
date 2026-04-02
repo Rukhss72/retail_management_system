@@ -318,6 +318,7 @@
   </style>
 
   <div class="dash-page-wrap">
+    <!-- Dashboard header and date filter controls -->
     <div class="page-head">
       <div class="head-summary">
         <h1 class="page-title"><i class="fa-solid fa-store"></i> Retail Analytics & Reporting Dashboard</h1>
@@ -338,6 +339,7 @@
 
     <div class="top-summary-row">
       <div class="kpi-groups">
+        <!-- Quick sales KPI cards for today, this week, and this month -->
         <div class="panel kpi-group-panel">
           <h2 class="kpi-group-title">Sales</h2>
           <div class="kpi-strip">
@@ -380,6 +382,7 @@
           </div>
         </div>
 
+        <!-- Quick forecast KPI cards for the next 7 and 30 days -->
         <div class="panel kpi-group-panel">
           <h2 class="kpi-group-title">Forecast</h2>
           <div class="kpi-strip" style="grid-template-columns:repeat(2, minmax(0, 1fr));">
@@ -410,6 +413,7 @@
         </div>
       </div>
 
+        <!-- Inventory health summary with stock status counts -->
         <div class="head-inventory">
           <div class="panel-head" style="margin-bottom:0;">
             <div>
@@ -430,6 +434,7 @@
     <div class="control-layout">
       <div style="display:grid; gap:16px;">
         <div class="grid-2">
+          <!-- Line chart showing actual sales over the selected date range -->
           <div class="panel">
             <div class="panel-head">
               <div>
@@ -448,6 +453,7 @@
             {% endif %}
           </div>
 
+          <!-- Line chart showing forecasted sales for the upcoming period -->
           <div class="panel">
             <div class="panel-head">
               <div>
@@ -465,6 +471,7 @@
         </div>
 
         <div class="grid-4">
+          <!-- Table of best-selling products in the selected date range -->
           <div class="panel best-seller-panel">
             <div class="panel-head">
               <div>
@@ -487,6 +494,7 @@
             </div>
           </div>
 
+          <!-- Table of this week's best-selling products -->
           <div class="panel best-seller-panel">
             <div class="panel-head">
               <div>
@@ -509,6 +517,7 @@
             </div>
           </div>
 
+          <!-- Table of next week's predicted best sellers -->
           <div class="panel best-seller-panel">
             <div class="panel-head">
               <div>
@@ -531,13 +540,14 @@
             </div>
           </div>
 
+          <!-- Spotlight card for the next festive demand window -->
           <div class="panel spotlight-card">
             <div class="panel-head">
               <div>
                 <h2 class="panel-title">Festival Demand Forecast</h2>
               </div>
               {% if forecast_available %}
-                <span class="spotlight-badge">Latest Forecast</span>
+                <span class="spotlight-badge">{{ forecast_run.model_name }}</span>
               {% endif %}
             </div>
             {% if forecast_available %}
@@ -624,6 +634,7 @@
         </div>
 
         <div class="category-split">
+          <!-- Monthly chart showing the top 3 selling categories -->
           <div class="panel">
             <div class="panel-head">
               <div>
@@ -647,6 +658,7 @@
             {% endif %}
           </div>
 
+          <!-- Weekly pie chart showing category sales performance -->
           <div class="panel">
             <div class="panel-head">
               <div>
@@ -664,8 +676,10 @@
         </div>
 
         <div id="inventory-watch-list" style="display:grid; gap:16px;">
+            <!-- Inventory risk section for current and upcoming stock issues -->
             <div class="section-title"><i class="fa-solid fa-box-open"></i> Current and Upcoming Stock Issues</div>
             <div class="grid-2">
+              <!-- Table of stock issues expected in the next 7 days -->
               <div class="panel">
                 <div class="panel-head">
                   <div>
@@ -710,6 +724,7 @@
                 </div>
               </div>
 
+              <!-- Table of stock issues expected in the next 30 days -->
               <div class="panel">
                 <div class="panel-head">
                   <div>
@@ -758,6 +773,7 @@
     </div>
   </div>
 
+  <!-- Server-side chart data passed safely into JavaScript -->
   {{ actual_daily_labels|json_script:"actual-daily-labels" }}
   {{ actual_daily_revenue|json_script:"actual-daily-revenue" }}
   {{ actual_daily_units|json_script:"actual-daily-units" }}
@@ -771,6 +787,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     (function () {
+      // Keeps the page scrolled to the top after applying a new filter.
       const filterForm = document.getElementById("dashboardFilterForm");
       const scrollResetKey = "dashboard-scroll-top";
 
@@ -790,7 +807,9 @@
         });
       }
 
+      // Reads chart data that was injected into the page by Django.
       const getData = (id) => JSON.parse(document.getElementById(id)?.textContent || "[]");
+      // Shared chart styling and color palette.
       const axisCommon = {
         grid: { color: "rgba(148, 163, 184, 0.20)" },
         ticks: { color: "#475569", font: { size: 11 } }
@@ -817,6 +836,7 @@
       const maxUnits = combinedUnitSeries.length ? Math.max(...combinedUnitSeries) : 0;
       const sharedYAxisMax = Math.max(10, Math.ceil(maxUnits / 5) * 5);
 
+      // Actual sales chart for the selected date range.
       const actualEl = document.getElementById("actualSalesChart");
       if (actualEl && actualLabels.length) {
         new Chart(actualEl, {
@@ -842,6 +862,7 @@
         });
       }
 
+      // Forecast sales chart for the upcoming period.
       const forecastEl = document.getElementById("forecastTrendChart");
       if (forecastEl && forecastLabels.length) {
         new Chart(forecastEl, {
@@ -869,6 +890,7 @@
         });
       }
 
+      // Monthly category bar chart for the top 3 categories.
       const categoryMonthlyEl = document.getElementById("categoryMonthlyChart");
       if (categoryMonthlyEl && monthlyCategoryLabels.length && monthlyTopCategoryDatasets.length) {
         const rankColors = [palette.berry, palette.sky, palette.cotton];
@@ -906,6 +928,7 @@
         });
       }
 
+      // Weekly category pie chart with a soft glow effect.
       const categoryWeeklyEl = document.getElementById("categoryWeeklyChart");
       if (categoryWeeklyEl && weeklyCategoryLabels.length) {
         const weeklyPieGlow = {

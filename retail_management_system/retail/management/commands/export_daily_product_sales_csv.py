@@ -27,6 +27,7 @@ class Command(BaseCommand):
         out_path = options["out_path"]
         chunk_size = options["chunk_size"]
 
+        # Keep a stable export order and column list so downstream imports stay predictable.
         fields = [
             "id",
             "date",
@@ -49,6 +50,7 @@ class Command(BaseCommand):
             writer.writerow(fields)
 
             count = 0
+            # Stream rows from the DB to avoid loading the whole dataset into memory.
             for row in qs.iterator(chunk_size=chunk_size):
                 row = list(row)
                 # Format datetimes as local time ISO

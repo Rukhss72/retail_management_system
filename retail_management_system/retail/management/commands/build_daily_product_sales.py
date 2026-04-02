@@ -7,6 +7,7 @@ from decimal import Decimal
 from retail.models import Sale, SaleItem, DailyProductSales, FestiveCalendar, Product
 
 
+# Picks the most specific festival window covering a day when overlaps exist.
 def pick_festival_name(day: date, festivals):
     matches = []
     for f in festivals:
@@ -47,6 +48,7 @@ class Command(BaseCommand):
         active_only = options["active_only"]
         use_current_stock = options["use_current_stock"]
 
+        # Parse CLI dates once and then fall back to the sales range when omitted.
         def parse_ymd(s):
             return datetime.strptime(s, "%Y-%m-%d").date()
 
@@ -127,11 +129,13 @@ class Command(BaseCommand):
             dates.append(d)
             d = d + timedelta(days=1)
 
+        # Precompute festival tags so row creation/update does not re-scan festival windows repeatedly.
         festival_by_date = {}
         for day in dates:
             fest_name = pick_festival_name(day, festivals)
             festival_by_date[day] = fest_name or ""
 
+        # This mode intentionally projects today's stock backwards onto every historical row.
         def get_stock_fields(product):
             if not use_current_stock:
                 return None
@@ -139,6 +143,7 @@ class Command(BaseCommand):
             return bool(stock > 0)
 
         if only_sales:
+            # Write only date/product combinations that exist in the sales aggregate.
             for (day, product_id), s in sales_map.items():
                 product = product_map.get(product_id)
                 if not product:
@@ -173,6 +178,7 @@ class Command(BaseCommand):
                         in_stock_flag=in_stock_flag,
                     ))
         else:
+            # Build a dense daily matrix, including zero-sales rows, for downstream analytics/training.
             for day in dates:
                 fest_name = festival_by_date[day]
                 is_festive = bool(fest_name)
