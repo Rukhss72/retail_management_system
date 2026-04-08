@@ -6,10 +6,10 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from retail.assistant_engine.entities import parse_date_window, resolve_festival_name
+from retail.assistant_engine.entities import parse_date_window, parse_top_n, resolve_festival_name
 from retail.assistant_engine.service import process_query
 from retail.assistant_engine.handlers import handle_reorder_suggestions
-from retail.models import Category, ChatMessage, ChatThread, Product, PurchaseOrder, Supplier
+from retail.models import Category, ChatMessage, ChatThread, FestiveCalendar, Product, PurchaseOrder, Supplier
 from retail.models import DailyProductSales, ForecastRun, ForecastDaily, Sale, SaleItem
 
 
@@ -523,6 +523,34 @@ class AssistantChatRefactorTests(TestCase):
 
         self.assertEqual(result["table"]["rows"][0]["predicted_qty"], 10)
 
+    def test_forecast_best_sellers_respects_top_n_limit(self):
+        cat = Category.objects.create(category_name="ForecastLimit")
+        today = timezone.localdate()
+        run = ForecastRun.objects.create(
+            model_name="model_v1",
+            period_start=today,
+            period_end=today + timedelta(days=6),
+        )
+        for idx, qty in enumerate([10, 9, 8, 7, 6, 5], start=1):
+            product = Product.objects.create(
+                sku=f"FLT-{idx:03d}",
+                product_name=f"Forecast Item {idx}",
+                category=cat,
+                qty_in_stock=10,
+                reorder_level=2,
+                selling_price="10.00",
+            )
+            ForecastDaily.objects.create(run=run, product=product, forecast_date=today, predicted_qty=str(qty))
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("predict the top 5 best sellers for next week", {})
+
+        self.assertEqual(result["intent"], "ForecastBestSellers")
+        self.assertEqual(len(result["table"]["rows"]), 5)
+        self.assertEqual([row["predicted_qty"] for row in result["table"]["rows"]], [10, 9, 8, 7, 6])
+
     def test_product_forecast_demand_returns_total_row_and_daily_chart(self):
         cat = Category.objects.create(category_name="Traditional Wear")
         p1 = Product.objects.create(
@@ -679,6 +707,39 @@ class AssistantChatRefactorTests(TestCase):
         self.assertEqual(result["table"]["columns"], ["festival", "qty", "sales"])
         self.assertEqual(result["table"]["rows"][0]["festival"], "Diwali")
         self.assertIn("lehenga sells best during diwali", result["summary"].lower())
+
+    def test_product_sales_during_named_festival_returns_product_total_not_stock(self):
+        cat = Category.objects.create(category_name="Traditional Wear")
+        lehenga = Product.objects.create(
+            sku="FES-010",
+            product_name="Lehenga",
+            category=cat,
+            section="women",
+            qty_in_stock=0,
+            reorder_level=2,
+            selling_price="10.00",
+        )
+        DailyProductSales.objects.create(
+            date=date(2026, 4, 1),
+            product=lehenga,
+            category=cat,
+            qty_sold=12,
+            sales_amt="24000.00",
+            is_festive=True,
+            festival_name="Ugadi",
+        )
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("how many lehenga did we sell during ugadi", {})
+
+        self.assertEqual(result["intent"], "FestivalInsights")
+        self.assertEqual(result["table"]["columns"], ["product", "festival", "qty", "sales"])
+        self.assertEqual(result["table"]["rows"][0]["product"], "Lehenga")
+        self.assertEqual(result["table"]["rows"][0]["festival"], "ugadi")
+        self.assertEqual(result["table"]["rows"][0]["qty"], 12)
+        self.assertIn("sold 12 units during ugadi", result["summary"].lower())
 
     def test_category_seasonality_returns_best_season_for_category(self):
         dresses = Category.objects.create(category_name="Dresses")
@@ -854,6 +915,84 @@ class AssistantChatRefactorTests(TestCase):
         row_sections = {row["section"] for row in result["table"]["rows"]}
         self.assertEqual(row_sections, {"Men", "Women"})
 
+    def test_forecast_best_sellers_uses_next_festive_window_instead_of_default_week(self):
+        cat = Category.objects.create(category_name="Accessories")
+        p1 = Product.objects.create(
+            sku="FEST-001",
+            product_name="Handbag",
+            category=cat,
+            section="women",
+            qty_in_stock=10,
+            reorder_level=2,
+            selling_price="10.00",
+        )
+        p2 = Product.objects.create(
+            sku="FEST-002",
+            product_name="Jewelry",
+            category=cat,
+            section="women",
+            qty_in_stock=10,
+            reorder_level=2,
+            selling_price="10.00",
+        )
+        today = timezone.localdate()
+        FestiveCalendar.objects.create(
+            festival_name="Eid",
+            start_date=today + timedelta(days=10),
+            end_date=today + timedelta(days=12),
+            festival_date=today + timedelta(days=12),
+        )
+        run = ForecastRun.objects.create(
+            model_name="model_v1",
+            period_start=today,
+            period_end=today + timedelta(days=29),
+        )
+        ForecastDaily.objects.create(run=run, product=p1, forecast_date=today + timedelta(days=1), predicted_qty="50.00")
+        ForecastDaily.objects.create(run=run, product=p1, forecast_date=today + timedelta(days=10), predicted_qty="3.00")
+        ForecastDaily.objects.create(run=run, product=p1, forecast_date=today + timedelta(days=11), predicted_qty="4.00")
+        ForecastDaily.objects.create(run=run, product=p2, forecast_date=today + timedelta(days=12), predicted_qty="10.00")
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("predict the best sellers for next festive period", {})
+
+        self.assertEqual(result["intent"], "ForecastBestSellers")
+        self.assertIn("during eid", result["summary"].lower())
+        self.assertIn(str(today + timedelta(days=10)), result["summary"])
+        self.assertIn(str(today + timedelta(days=12)), result["summary"])
+        self.assertEqual(len(result["table"]["rows"]), 2)
+        self.assertEqual(result["table"]["rows"][0]["product"], "Jewelry")
+        self.assertEqual(result["table"]["rows"][0]["predicted_qty"], 10)
+        self.assertEqual(result["table"]["rows"][1]["product"], "Handbag")
+        self.assertEqual(result["table"]["rows"][1]["predicted_qty"], 7)
+
+    def test_forecast_best_sellers_reports_missing_festival_calendar_when_requested(self):
+        cat = Category.objects.create(category_name="Accessories")
+        p1 = Product.objects.create(
+            sku="FEST-003",
+            product_name="Sandals",
+            category=cat,
+            section="women",
+            qty_in_stock=10,
+            reorder_level=2,
+            selling_price="10.00",
+        )
+        run = ForecastRun.objects.create(
+            model_name="model_v1",
+            period_start=timezone.localdate(),
+            period_end=timezone.localdate() + timedelta(days=29),
+        )
+        ForecastDaily.objects.create(run=run, product=p1, forecast_date=timezone.localdate(), predicted_qty="5.00")
+
+        with patch("retail.assistant_engine.service.parse_with_ollama", return_value=None), patch(
+            "retail.assistant_engine.service.generate_insight", return_value=None
+        ):
+            result = process_query("predict the best sellers for next festive period", {})
+
+        self.assertEqual(result["intent"], "ForecastBestSellers")
+        self.assertIn("no festival calendar window was found", result["summary"].lower())
+
     def test_reorder_history_query_checks_purchase_orders(self):
         supplier = Supplier.objects.create(supplier_name="supplier-x")
         PurchaseOrder.objects.create(
@@ -865,6 +1004,67 @@ class AssistantChatRefactorTests(TestCase):
         entities = {"start": date(2026, 2, 15), "end": date(2026, 2, 21), "horizon_days": 7}
         result = handle_reorder_suggestions("did i reorder this week?", entities)
         self.assertIn("purchase orders were created", result["summary"].lower())
+
+    def test_reorder_suggestions_exclude_items_with_enough_stock_for_horizon(self):
+        cat = Category.objects.create(category_name="Accessories")
+        product = Product.objects.create(
+            sku="WOM-ACC-00012",
+            product_name="Jewelry",
+            category=cat,
+            qty_in_stock=35,
+            reorder_level=35,
+            selling_price="10.00",
+        )
+        run = ForecastRun.objects.create(
+            model_name="test-model",
+            version="v1",
+            horizon_days=7,
+            period_start=timezone.localdate(),
+            period_end=timezone.localdate() + timedelta(days=6),
+        )
+        ForecastDaily.objects.create(
+            run=run,
+            product=product,
+            forecast_date=timezone.localdate(),
+            predicted_qty="7.54",
+        )
+
+        entities = {"start": timezone.localdate(), "end": timezone.localdate() + timedelta(days=6), "horizon_days": 7}
+        result = handle_reorder_suggestions("what should i restock for next week?", entities)
+
+        self.assertEqual(result["summary"], "0 products need reorder for next 7 days.")
+        self.assertEqual(result["table"]["rows"], [])
+
+    def test_reorder_suggestions_include_items_that_will_run_out_within_horizon(self):
+        cat = Category.objects.create(category_name="Accessories")
+        product = Product.objects.create(
+            sku="WOM-ACC-00013",
+            product_name="Handbag",
+            category=cat,
+            qty_in_stock=4,
+            reorder_level=20,
+            selling_price="10.00",
+        )
+        run = ForecastRun.objects.create(
+            model_name="test-model",
+            version="v1",
+            horizon_days=7,
+            period_start=timezone.localdate(),
+            period_end=timezone.localdate() + timedelta(days=6),
+        )
+        ForecastDaily.objects.create(
+            run=run,
+            product=product,
+            forecast_date=timezone.localdate(),
+            predicted_qty="9.10",
+        )
+
+        entities = {"start": timezone.localdate(), "end": timezone.localdate() + timedelta(days=6), "horizon_days": 7}
+        result = handle_reorder_suggestions("what should i restock for next week?", entities)
+
+        self.assertEqual(len(result["table"]["rows"]), 1)
+        self.assertEqual(result["table"]["rows"][0]["product"], "Handbag")
+        self.assertEqual(result["table"]["rows"][0]["suggested_qty"], 26)
 
     def test_compare_december_with_second_year_only_maps_to_two_periods(self):
         captured = {}
@@ -897,6 +1097,9 @@ class AssistantChatRefactorTests(TestCase):
         self.assertEqual(label, "last week")
         self.assertEqual(end, timezone.localdate() - timedelta(days=7))
         self.assertEqual((end - start).days, 6)
+
+    def test_parse_top_n_extracts_numeric_limit(self):
+        self.assertEqual(parse_top_n("predict the top 5 best sellers for next week"), 5)
 
     def test_last_x_days_uses_requested_window(self):
         start, end, label, _horizon = parse_date_window("stock movements last 10 days")

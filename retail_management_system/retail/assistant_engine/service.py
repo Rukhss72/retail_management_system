@@ -5,7 +5,7 @@ from difflib import SequenceMatcher
 
 from django.utils import timezone
 
-from .entities import parse_date_window, parse_threshold, resolve_category, resolve_festival_name, resolve_product, resolve_section
+from .entities import parse_date_window, parse_threshold, parse_top_n, resolve_category, resolve_festival_name, resolve_product, resolve_section
 from .handlers import (
     handle_compare_sales,
     handle_festival_insights,
@@ -84,6 +84,7 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
         "date_label": date_label,
         "horizon_days": horizon_days,
         "threshold": parse_threshold(query),
+        "top_n": parse_top_n(query),
         "category": resolve_category(query),
         "section": resolve_section(query),
         "product": product_resolution.product,
@@ -121,6 +122,14 @@ def build_entities(query: str, overrides: dict | None = None) -> dict:
     if overrides.get("threshold") is not None:
         try:
             entities["threshold"] = int(overrides["threshold"])
+        except Exception:
+            pass
+
+    if overrides.get("top_n") is not None:
+        try:
+            top_n = int(overrides["top_n"])
+            if top_n > 0:
+                entities["top_n"] = top_n
         except Exception:
             pass
 
@@ -668,6 +677,10 @@ def process_query(query: str, session: dict) -> dict:
     entities = build_entities(query)
     parser_used = "rules"
     parser_confidence = 1.0
+
+    sales_markers = ("sell", "sold", "sales", "revenue", "qty", "quantity")
+    if entities.get("festival_name") and any(marker in query.lower() for marker in sales_markers):
+        intent = INTENT_FESTIVAL_INSIGHTS
 
     if _should_try_ollama(intent, entities, query):
         llm_result = parse_with_ollama(query)

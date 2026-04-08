@@ -1,5 +1,21 @@
  #     <!--  -->
 #the above is a comment in html
+'''
+ to recieve email notifications of the OTP
+
+$env:EMAIL_HOST_USER= “baichoorukhsaar@gmail.com”  
+$env:EMAIL_HOST_PASSWORD= “ofokxspnytprptbn” 
+$env:DEFAULT_FROM_EMAIL="baichoorukhsaar@gmail.com" 
+
+to verify if Gmail SMTP is activate
+echo $env:EMAIL_HOST_USER
+echo $env:EMAIL_HOST_PASSWORD
+
+
+'''
+
+# to import latest forecast run
+# ..\env\Scripts\python manage.py import_forecast_csv --path "C:\OneDrive to disk\Ruk IOT\CAPSTONE Project\new forecast outputs\forecast_output_v3.csv" 
 
 '''
 
@@ -11,20 +27,24 @@ Create superuser:
 ruk 
 baichoorukhsaar@gmail.com 
 ruk58140367 xxx
-NewStrongPass123 
+NewStrongPass123        good
 
 
 admin2
-Admin2@123
+Admin2@123              good
+
+
+admin
+
 
 staff1
-Staff1@123
+Staff1@123              good
 
 staff2
-Staff2@123
+Staff2@123              good        
 
 staff3
-Staff3@123
+Staff3@123             good
 
 Gmail app name: django
 generated app password: ofok xspn ytpr ptbn
@@ -68,3 +88,5 @@ create_user_with_role("staff3", "Staff3@123", "staff")
 '''
 
 print ("Hello, World!")
+
+

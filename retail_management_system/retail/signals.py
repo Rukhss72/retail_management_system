@@ -6,5 +6,5 @@ from .models import UserProfile
 @receiver(post_save, sender=User)
 def create_profile(sender, instance, created, **kwargs):
     if created:
-        # Default role (change if you prefer)
+        # Default role (change if needed later)
         UserProfile.objects.create(user=instance, role="staff")

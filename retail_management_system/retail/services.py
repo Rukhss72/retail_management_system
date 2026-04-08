@@ -6,10 +6,10 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction, models
 from django.utils import timezone
-from django.db.models import Q, Sum, F
+from django.db.models import Q, Sum, F, Max, Case, When, IntegerField
 from django.db.models.functions import Coalesce
 
-from .models import StockMovement, Sale, SaleItem, Product, ProductSupplier
+from .models import StockMovement, Sale, SaleItem, Product, ProductSupplier, DailyProductSales, FestiveCalendar
 
 
 # Core stock and sales service helpers.
@@ -76,6 +76,79 @@ def record_stock_movement(*, product, movement_type, qty, user, reference=None, 
         created_by=user,
         reference=reference,
     )
+
+
+def _sync_daily_product_sales_for_sale(sale):
+    # Keeps the stored daily analytics table aligned with newly created sales.
+    sale_rows = (
+        sale.items.values("product_id")
+        .annotate(
+            qty_sold=Coalesce(Sum("qty"), 0),
+            sales_amt=Coalesce(Sum("line_total"), Decimal("0.00")),
+            promo_flag=Max(
+                Case(
+                    When(promo_flag=True, then=1),
+                    When(discount_amt__gt=0, then=1),
+                    When(discount_pct__gt=0, then=1),
+                    default=0,
+                    output_field=IntegerField(),
+                )
+            ),
+        )
+    )
+
+    festival = (
+        FestiveCalendar.objects.filter(start_date__lte=sale.sale_date, end_date__gte=sale.sale_date)
+        .order_by("start_date", "festival_name")
+        .first()
+    )
+    festival_name = festival.festival_name if festival else ""
+    is_festive = bool(festival_name)
+
+    for row in sale_rows:
+        product = Product.objects.filter(id=row["product_id"]).only("id", "category_id", "is_active", "qty_in_stock").first()
+        if not product:
+            continue
+
+        defaults = {
+            "category_id": product.category_id,
+            "qty_sold": row["qty_sold"],
+            "sales_amt": row["sales_amt"],
+            "promo_flag": bool(row["promo_flag"] or 0),
+            "is_festive": is_festive,
+            "festival_name": festival_name,
+            "product_active": product.is_active,
+            "in_stock_flag": bool((product.qty_in_stock or 0) > 0),
+        }
+        daily_row, created = DailyProductSales.objects.get_or_create(
+            date=sale.sale_date,
+            product_id=product.id,
+            defaults=defaults,
+        )
+        if created:
+            continue
+
+        daily_row.category_id = product.category_id
+        daily_row.qty_sold = int(daily_row.qty_sold or 0) + int(row["qty_sold"] or 0)
+        daily_row.sales_amt = Decimal(daily_row.sales_amt or Decimal("0.00")) + Decimal(row["sales_amt"] or Decimal("0.00"))
+        daily_row.promo_flag = daily_row.promo_flag or bool(row["promo_flag"] or 0)
+        daily_row.is_festive = is_festive
+        daily_row.festival_name = festival_name
+        daily_row.product_active = product.is_active
+        daily_row.in_stock_flag = bool((product.qty_in_stock or 0) > 0)
+        daily_row.save(
+            update_fields=[
+                "category",
+                "qty_sold",
+                "sales_amt",
+                "promo_flag",
+                "is_festive",
+                "festival_name",
+                "product_active",
+                "in_stock_flag",
+                "updated_at",
+            ]
+        )
 
 @transaction.atomic
 def create_sale(*, cashier, customer_name, customer_phone, discount, payment_method, cart_items):
@@ -159,6 +232,7 @@ def create_sale(*, cashier, customer_name, customer_phone, discount, payment_met
     sale.total = max(Decimal("0.00"), subtotal - discount_total)
     sale.promo_flag = has_promo_item
     sale.save(update_fields=["subtotal", "discount", "total", "promo_flag"])
+    _sync_daily_product_sales_for_sale(sale)
 
     return sale
 

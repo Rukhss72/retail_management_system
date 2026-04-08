@@ -737,7 +737,7 @@
   <!-- Suppliers Card -->
   <div class="card">
 
-    <!-- Card header (like screenshot) -->
+    <!-- Card header  -->
     <div class="card-head" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
       <div>
         <h2>Suppliers</h2>
@@ -836,7 +836,7 @@
                 </div>
               </td>
 
-              <!-- CONTACT (person above phone) -->
+              <!-- CONTACT  -->
               <td style="padding:12px 10px;">
                 <div style="font-weight:900; color:var(--charcoal);">
                   {{ s.contact_person|default:"-" }}
@@ -877,7 +877,7 @@
                 {% endif %}
               </td>
 
-              <!-- ACTIONS (unchanged) -->
+              <!-- ACTIONS -->
               <td style="padding:12px 10px;">
                 <div class="act">
 
@@ -889,7 +889,7 @@
                     <i class="fa-solid fa-eye"></i>
                   </a>
 
-                  <!-- EDIT (opens modal, no page navigation) -->
+                  <!-- EDIT  -->
                   <button
                     type="button"
                     class="iconbtn edit"
@@ -1082,7 +1082,6 @@
     </div>
   </div>
 
-  <!-- EDIT SUPPLIER MODAL -->
   <!-- Edit supplier modal -->
   <div id="editSupplierBackdrop" class="modal-backdrop" onclick="backdropCloseEdit(event)">
     <div class="modal" role="dialog" aria-label="Edit Supplier" aria-modal="true">
@@ -1497,7 +1496,6 @@
     </div>
   </div>
 
-  <!-- EDIT PO MODAL -->
   <!-- Edit purchase order modal -->
   <div id="editPOBackdrop" class="modal-backdrop" onclick="backdropCloseEditPO(event)">
     <div class="modal" role="dialog" aria-label="Edit Purchase Order" aria-modal="true">

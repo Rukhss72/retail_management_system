@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from retail.models import (
     DailyProductSales,
+    FestiveCalendar,
     ForecastDaily,
     ForecastRun,
     PurchaseOrder,
@@ -49,6 +50,45 @@ def _range_label(start_date, end_date) -> str:
     ):
         return start_date.strftime("%B %Y")
     return f"{start_date} to {end_date}"
+
+
+def _resolve_festival_forecast_window(text: str, festival_name: str | None, today):
+    generic_markers = (
+        "festive period",
+        "festive season",
+        "festival period",
+        "festival season",
+        "next festival",
+        "upcoming festival",
+        "next festive",
+        "upcoming festive",
+    )
+    asks_generic_festival_window = any(marker in text for marker in generic_markers)
+
+    if festival_name:
+        festival = (
+            FestiveCalendar.objects.filter(festival_name__icontains=festival_name, end_date__gte=today)
+            .order_by("start_date", "festival_name")
+            .first()
+        )
+        if festival:
+            return festival, True
+        festival = (
+            FestiveCalendar.objects.filter(festival_name__icontains=festival_name)
+            .order_by("-start_date", "festival_name")
+            .first()
+        )
+        return festival, True
+
+    if asks_generic_festival_window:
+        festival = (
+            FestiveCalendar.objects.filter(end_date__gte=today)
+            .order_by("start_date", "festival_name")
+            .first()
+        )
+        return festival, True
+
+    return None, False
 
 
 # Handles stock lookup and stock-count style assistant questions.
@@ -667,6 +707,7 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
         }
 
     horizon_days = entities["horizon_days"]
+    top_n = max(int(entities.get("top_n") or 10), 1)
     run = ForecastRun.objects.order_by("-created_at").first()
 
     if not run:
@@ -686,6 +727,30 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
     today = timezone.localdate()
     anchor = today if run.period_start <= today <= run.period_end else run.period_start
     end = min(anchor + timedelta(days=horizon_days - 1), run.period_end)
+    festival_name = entities.get("festival_name")
+    festival_window, asked_for_festival_window = _resolve_festival_forecast_window(text, festival_name, today)
+    if asked_for_festival_window:
+        if not festival_window:
+            requested_label = festival_name or "an upcoming festival"
+            return {
+                "summary": f"No festival calendar window was found for {requested_label}.",
+                "table": _table(["message"], [{"message": "Add or update FestiveCalendar entries, then try again."}]),
+                "chart": None,
+                "source": ["FestiveCalendar"],
+            }
+        if festival_window.end_date < run.period_start or festival_window.start_date > run.period_end:
+            return {
+                "summary": (
+                    f"The latest forecast run does not cover {festival_window.festival_name} "
+                    f"({festival_window.start_date} to {festival_window.end_date}). "
+                    f"Latest run covers {run.period_start} to {run.period_end}."
+                ),
+                "table": _table(["message"], [{"message": "Run a forecast that includes the festival window."}]),
+                "chart": None,
+                "source": ["ForecastRun", "FestiveCalendar"],
+            }
+        anchor = max(run.period_start, festival_window.start_date)
+        end = min(run.period_end, festival_window.end_date)
     base_qs = ForecastDaily.objects.filter(run=run, forecast_date__gte=anchor, forecast_date__lte=end)
 
     if product:
@@ -698,14 +763,15 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
                 "source": ["ForecastRun", "ForecastDaily", "Product"],
             }
         total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
+        window_label = festival_window.festival_name if festival_window else f"{anchor} to {end}"
         return {
-            "summary": f"Forecast demand for {product.product_name} from {anchor} to {end} is {total_qty} units total.",
+            "summary": f"Forecast demand for {product.product_name} during {window_label} ({anchor} to {end}) is {total_qty} units total.",
             "table": _table(
                 ["product", "predicted_qty", "days"],
                 [{"product": product.product_name, "predicted_qty": total_qty, "days": len(points)}],
             ),
             "chart": _line_chart(points),
-            "source": ["ForecastRun", "ForecastDaily", "Product"],
+            "source": ["ForecastRun", "ForecastDaily", "Product", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Product"],
         }
 
     if category:
@@ -718,14 +784,15 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
                 "source": ["ForecastRun", "ForecastDaily", "Category"],
             }
         total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
+        window_label = festival_window.festival_name if festival_window else f"{anchor} to {end}"
         return {
-            "summary": f"Forecast demand for category {category.category_name} from {anchor} to {end} is {total_qty} units total.",
+            "summary": f"Forecast demand for category {category.category_name} during {window_label} ({anchor} to {end}) is {total_qty} units total.",
             "table": _table(
                 ["category", "predicted_qty", "days"],
                 [{"category": category.category_name, "predicted_qty": total_qty, "days": len(points)}],
             ),
             "chart": _line_chart(points),
-            "source": ["ForecastRun", "ForecastDaily", "Category"],
+            "source": ["ForecastRun", "ForecastDaily", "Category", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Category"],
         }
 
     if section:
@@ -739,21 +806,22 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
             }
         total_qty = _display_qty(sum((r["pred"] for r in points), Decimal("0.00")))
         section_label = _section_label(section)
+        window_label = festival_window.festival_name if festival_window else f"{anchor} to {end}"
         return {
-            "summary": f"Forecast demand for {section_label} section from {anchor} to {end} is {total_qty} units total.",
+            "summary": f"Forecast demand for {section_label} section during {window_label} ({anchor} to {end}) is {total_qty} units total.",
             "table": _table(
                 ["section", "predicted_qty", "days"],
                 [{"section": section_label, "predicted_qty": total_qty, "days": len(points)}],
             ),
             "chart": _line_chart(points),
-            "source": ["ForecastRun", "ForecastDaily", "Product"],
+            "source": ["ForecastRun", "ForecastDaily", "Product", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Product"],
         }
 
     if asks_category_rollup:
         qs = (
             base_qs.values("product__category__category_name")
             .annotate(predicted_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
-            .order_by("-predicted_qty")[:10]
+            .order_by("-predicted_qty")[:top_n]
         )
         rows = [
             {
@@ -769,22 +837,25 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
                 "chart": None,
                 "source": ["ForecastRun", "ForecastDaily", "Category"],
             }
+        summary = f"Top predicted categories from {anchor} to {end}."
+        if festival_window:
+            summary = f"Top predicted categories during {festival_window.festival_name} from {anchor} to {end}."
         return {
-            "summary": f"Top predicted categories from {anchor} to {end}.",
+            "summary": summary,
             "table": _table(["category", "predicted_qty"], rows),
             "chart": {
                 "type": "bar",
                 "labels": [r["category"] for r in rows],
                 "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
             },
-            "source": ["ForecastRun", "ForecastDaily", "Category"],
+            "source": ["ForecastRun", "ForecastDaily", "Category", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Category"],
         }
 
     if asks_section_rollup:
         qs = (
             base_qs.values("product__section")
             .annotate(predicted_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
-            .order_by("-predicted_qty")[:10]
+            .order_by("-predicted_qty")[:top_n]
         )
         rows = [
             {
@@ -800,21 +871,24 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
                 "chart": None,
                 "source": ["ForecastRun", "ForecastDaily", "Product"],
             }
+        summary = f"Top predicted sections from {anchor} to {end}."
+        if festival_window:
+            summary = f"Top predicted sections during {festival_window.festival_name} from {anchor} to {end}."
         return {
-            "summary": f"Top predicted sections from {anchor} to {end}.",
+            "summary": summary,
             "table": _table(["section", "predicted_qty"], rows),
             "chart": {
                 "type": "bar",
                 "labels": [r["section"] for r in rows],
                 "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
             },
-            "source": ["ForecastRun", "ForecastDaily", "Product"],
+            "source": ["ForecastRun", "ForecastDaily", "Product", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Product"],
         }
 
     qs = (
         base_qs.values("product__sku", "product__product_name")
         .annotate(predicted_qty=Coalesce(Sum("predicted_qty"), Decimal("0.00")))
-        .order_by("-predicted_qty")[:10]
+        .order_by("-predicted_qty")[:top_n]
     )
     rows = [
         {"sku": r["product__sku"], "product": r["product__product_name"], "predicted_qty": _display_qty(r["predicted_qty"])}
@@ -830,6 +904,8 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
         }
 
     summary = f"Top predicted best-sellers from {anchor} to {end}."
+    if festival_window:
+        summary = f"Top predicted best-sellers during {festival_window.festival_name} from {anchor} to {end}."
     if "actual vs predicted" in text and product:
         summary = f"Actual vs predicted for {product.product_name} generated."
 
@@ -841,7 +917,7 @@ def handle_forecast_best_sellers(query: str, entities: dict) -> dict:
             "labels": [r["product"] for r in rows],
             "datasets": [{"label": "Predicted qty", "data": [r["predicted_qty"] for r in rows]}],
         },
-        "source": ["ForecastRun", "ForecastDaily", "Product"],
+        "source": ["ForecastRun", "ForecastDaily", "Product", "FestiveCalendar"] if festival_window else ["ForecastRun", "ForecastDaily", "Product"],
     }
 
 
@@ -930,6 +1006,15 @@ def handle_reorder_suggestions(query: str, entities: dict) -> dict:
             continue
         predicted = forecast_map.get(p.id, 0.0)
         safety_stock = max(p.reorder_level, 0)
+        projected_stock = p.qty_in_stock - predicted
+        is_below_reorder_now = p.qty_in_stock < safety_stock
+        will_run_out_within_horizon = projected_stock <= 0
+        # Only surface items that are already below their reorder level or are
+        # expected to run out within the requested horizon. A positive
+        # suggested_qty alone is too broad because it also pulls in products
+        # whose current stock still comfortably covers the forecast window.
+        if not (is_below_reorder_now or will_run_out_within_horizon):
+            continue
         suggested = max(int(math.ceil(predicted + safety_stock - p.qty_in_stock)), 0)
         if suggested <= 0:
             continue
@@ -971,6 +1056,7 @@ def handle_reorder_suggestions(query: str, entities: dict) -> dict:
 def handle_festival_insights(query: str, entities: dict) -> dict:
     festival = entities.get("festival_name")
     product = entities.get("product")
+    text = query.lower()
     qs = DailyProductSales.objects.all()
     if product:
         qs = qs.filter(product=product)
@@ -978,6 +1064,33 @@ def handle_festival_insights(query: str, entities: dict) -> dict:
         qs = qs.filter(festival_name__icontains=festival)
     else:
         qs = qs.filter(is_festive=True)
+
+    if product and festival:
+        totals = qs.aggregate(
+            total_qty=Coalesce(Sum("qty_sold"), 0),
+            total_sales=Coalesce(Sum("sales_amt"), Decimal("0.00")),
+        )
+        total_qty = int(totals["total_qty"] or 0)
+        total_sales = float(totals["total_sales"] or 0)
+        if total_qty <= 0:
+            return {
+                "summary": f"No festive sales records found for {product.product_name} during {festival}.",
+                "table": _table(["product", "festival", "qty", "sales"], []),
+                "chart": None,
+                "source": ["DailyProductSales", "FestiveCalendar", "Product"],
+            }
+        summary = f"{product.product_name} sold {total_qty} units during {festival}."
+        if "sales" in text or "revenue" in text:
+            summary = f"{product.product_name} generated {round(total_sales, 2)} in sales during {festival}."
+        return {
+            "summary": summary,
+            "table": _table(
+                ["product", "festival", "qty", "sales"],
+                [{"product": product.product_name, "festival": festival, "qty": total_qty, "sales": round(total_sales, 2)}],
+            ),
+            "chart": None,
+            "source": ["DailyProductSales", "FestiveCalendar", "Product"],
+        }
 
     if product and not festival:
         by_festival = (

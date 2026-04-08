@@ -71,6 +71,21 @@ def parse_threshold(query: str) -> int | None:
     return None
 
 
+def parse_top_n(query: str) -> int | None:
+    text = normalize_text(query)
+    patterns = (
+        r"\btop\s+(\d+)\b",
+        r"\bbest\s+(\d+)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            value = int(match.group(1))
+            if value > 0:
+                return value
+    return None
+
+
 # Resolves a date range and forecast horizon from natural language.
 def parse_date_window(query: str) -> tuple:
     text = normalize_text(query)

@@ -546,9 +546,6 @@
               <div>
                 <h2 class="panel-title">Festival Demand Forecast</h2>
               </div>
-              {% if forecast_available %}
-                <span class="spotlight-badge">{{ forecast_run.model_name }}</span>
-              {% endif %}
             </div>
             {% if forecast_available %}
               <div class="spotlight-value">
@@ -787,26 +784,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     (function () {
-      // Keeps the page scrolled to the top after applying a new filter.
-      const filterForm = document.getElementById("dashboardFilterForm");
-      const scrollResetKey = "dashboard-scroll-top";
-
-      if (filterForm) {
-        filterForm.addEventListener("submit", () => {
-          sessionStorage.setItem(scrollResetKey, "1");
-        });
-      }
-
-      if (sessionStorage.getItem(scrollResetKey) === "1") {
-        sessionStorage.removeItem(scrollResetKey);
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-          if (document.activeElement && typeof document.activeElement.blur === "function") {
-            document.activeElement.blur();
-          }
-        });
-      }
-
       // Reads chart data that was injected into the page by Django.
       const getData = (id) => JSON.parse(document.getElementById(id)?.textContent || "[]");
       // Shared chart styling and color palette.

@@ -289,7 +289,7 @@ def home(request):
         elif m.movement_type == "PO":
             kind = "po"
 
-        # Human-readable label shown in the activity timeline.
+        #  label shown in the activity timeline.
         type_label = {
             "IN": "Stock In",
             "OUT": "Stock Out",
@@ -672,9 +672,9 @@ def generate_unique_sku():
         if not Product.objects.filter(sku=sku).exists():
             return sku
 '''
-Legacy stock-in example kept as commented reference.
+# stock-in example 
 @transaction.atomic
-def stock_in(request):
+def stock_in(request):`
     if request.method == "POST":
         product_id = request.POST["product"]
         qty = int(request.POST["qty_moved"])  # your input name
@@ -1303,39 +1303,37 @@ def reorder_request_create_draft(request):
 
 # Submits a draft reorder request for approval.
 def reorder_request_submit(request, rr_id):
-    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
     if not is_admin(request.user) and rr.created_by_id != request.user.id:
         messages.error(request, "Not authorized to submit this request.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if rr.status != ReorderRequest.STATUS_DRAFT:
         messages.error(request, "Only draft requests can be submitted.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr.status = ReorderRequest.STATUS_SUBMITTED
     rr.submitted_at = timezone.now()
     rr.save(update_fields=["status", "submitted_at"])
 
     messages.success(request, f"RR-{rr.id} submitted to admin.")
-    return redirect(next_url)
+    return redirect("/suppliers/?tab=reorder-requests")
 
 # Updates a draft or submitted reorder request.
 def reorder_request_update(request, rr_id):
-    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
     if not is_admin(request.user) and rr.created_by_id != request.user.id:
         messages.error(request, "Not authorized to edit this request.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
     if rr.status not in (ReorderRequest.STATUS_DRAFT, ReorderRequest.STATUS_SUBMITTED):
         messages.error(request, "Only draft or submitted requests can be edited.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     save_action = (request.POST.get("save_action") or "draft").strip().lower()
     supplier_id = (request.POST.get("supplier_id") or "").strip()
@@ -1351,13 +1349,13 @@ def reorder_request_update(request, rr_id):
             product_id = int(pid_raw) if pid_raw else int(it.product_id)
         except (TypeError, ValueError):
             messages.error(request, f"Invalid product selection for item #{it.id}.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         if product_id not in allowed_products:
             messages.error(request, "Selected product is invalid or inactive.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         if product_id in chosen_product_ids:
             messages.error(request, "Duplicate products are not allowed in one request.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         chosen_product_ids.add(product_id)
 
         raw = (request.POST.get(f"qty_{it.id}") or "").strip()
@@ -1367,7 +1365,7 @@ def reorder_request_update(request, rr_id):
             qty = 0
         if qty <= 0:
             messages.error(request, f"Quantity for {it.product.product_name} must be at least 1.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         qty_updates.append((it, qty))
         product_updates.append((it, product_id))
 
@@ -1384,17 +1382,17 @@ def reorder_request_update(request, rr_id):
             new_product = None
         if not new_product:
             messages.error(request, "Invalid new product selection.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         if new_product.id in chosen_product_ids:
             messages.error(request, "That product is already in this request.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         try:
             new_qty = int(new_qty_raw or "0")
         except (TypeError, ValueError):
             new_qty = 0
         if new_qty <= 0:
             messages.error(request, "Items must be at least 1 for a new product.")
-            return redirect(next_url)
+            return redirect("/suppliers/?tab=reorder-requests")
         create_new_item = True
 
     with transaction.atomic():
@@ -1442,23 +1440,22 @@ def reorder_request_update(request, rr_id):
             )
 
     messages.success(request, success_msg)
-    return redirect(next_url)
+    return redirect("/suppliers/?tab=reorder-requests")
 
 # Approves a submitted reorder request and creates draft purchase orders.
 def reorder_request_approve(request, rr_id):
-    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be approved.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     items = rr.items.select_related("product", "supplier")
 
@@ -1513,23 +1510,22 @@ def reorder_request_approve(request, rr_id):
             rr.save(update_fields=["status", "decided_at", "decided_by"])
 
     messages.success(request, f"RR-{rr.id} approved. Draft PO(s) created.")
-    return redirect(next_url)
+    return redirect("/suppliers/?tab=reorder-requests")
 
 # Rejects a submitted reorder request.
 def reorder_request_reject(request, rr_id):
-    next_url = request.POST.get("next") or "/suppliers/?tab=reorder-requests"
     if request.method != "POST":
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     if not is_admin(request.user):
         messages.error(request, "Not authorized.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr = get_object_or_404(ReorderRequest, id=rr_id)
 
     if rr.status != ReorderRequest.STATUS_SUBMITTED:
         messages.error(request, "Only submitted requests can be rejected.")
-        return redirect(next_url)
+        return redirect("/suppliers/?tab=reorder-requests")
 
     rr.status = ReorderRequest.STATUS_REJECTED
     rr.decided_at = timezone.now()
@@ -1538,13 +1534,14 @@ def reorder_request_reject(request, rr_id):
     rr.save(update_fields=["status", "decided_at", "decided_by", "decision_note"])
 
     messages.success(request, f"RR-{rr.id} rejected.")
-    return redirect(next_url)
+    return redirect("/suppliers/?tab=reorder-requests")
 
 ## Dashboard and analytics views.
 @staff_required
 def dashboard(request):
     # Builds the analytics dashboard for sales, stock, and forecast data.
-    today = timezone.localdate()
+    current_day = timezone.localdate()
+    today = current_day
     range_days = 30
     start_str = (request.GET.get("start") or "").strip()
     end_str = (request.GET.get("end") or "").strip()
@@ -1610,31 +1607,32 @@ def dashboard(request):
     out_pct = int(round(out_of_stock_count / total_stock_count * 100))
 
     dps_range = DailyProductSales.objects.filter(date__gte=since, date__lte=today)
-    sales_daily_rows = list(
-        Sale.objects.filter(sale_date__gte=since, sale_date__lte=today)
-        .values("sale_date")
+    actual_chart_end = current_day
+    actual_daily_rows = list(
+        DailyProductSales.objects.filter(date__gte=since, date__lte=actual_chart_end)
+        .values("date")
         .annotate(
-            revenue=Coalesce(Sum("total"), Decimal("0.00")),
-            units=Coalesce(Sum("items__qty"), 0),
+            revenue=Coalesce(Sum("sales_amt"), Decimal("0.00")),
+            units=Coalesce(Sum("qty_sold"), 0),
         )
-        .order_by("sale_date")
+        .order_by("date")
     )
-    sales_daily_map = {
-        row["sale_date"]: {
-            "revenue": row["revenue"],
+    actual_daily_map = {
+        row["date"]: {
+            "revenue": float(row["revenue"] or 0),
             "units": int(row["units"] or 0),
         }
-        for row in sales_daily_rows
+        for row in actual_daily_rows
     }
     actual_daily_labels = []
     actual_daily_revenue = []
     actual_daily_units = []
     cursor = since
-    while cursor <= today:
-        day_data = sales_daily_map.get(cursor, {})
+    while cursor <= actual_chart_end:
+        row = actual_daily_map.get(cursor, {})
         actual_daily_labels.append(cursor.strftime("%d %b"))
-        actual_daily_revenue.append(float(day_data.get("revenue") or 0))
-        actual_daily_units.append(int(day_data.get("units") or 0))
+        actual_daily_revenue.append(float(row.get("revenue") or 0))
+        actual_daily_units.append(int(row.get("units") or 0))
         cursor += timedelta(days=1)
     has_daily_sales = any(unit > 0 for unit in actual_daily_units)
 

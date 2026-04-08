@@ -325,7 +325,7 @@ class SupplierForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Preloads categories from the legacy single-category field when needed.
+        # Preloads categories from the old single-category field when needed.
         if self.instance and self.instance.pk and not self.initial.get("categories"):
             existing_ids = list(self.instance.categories.values_list("id", flat=True))
             if existing_ids:
@@ -341,7 +341,7 @@ class SupplierForm(forms.ModelForm):
             f.widget.attrs["class"] = (existing + " scm-input").strip()
 
     def save(self, commit=True):
-        # Keeps the legacy single-category field aligned with the many-to-many selection.
+        # Keeps the old single-category field aligned with the many-to-many selection.
         supplier = super().save(commit=commit)
         if commit:
             chosen = list(self.cleaned_data.get("categories").values_list("id", flat=True)) if self.cleaned_data.get("categories") is not None else []
